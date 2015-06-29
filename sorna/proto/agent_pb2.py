@@ -19,7 +19,7 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='agent.proto',
   package='sorna',
-  # syntax='proto3',
+  syntax='proto3',
   serialized_pb=_b('\n\x0b\x61gent.proto\x12\x05sorna\"C\n\x0c\x41gentRequest\x12%\n\x08req_type\x18\x01 \x01(\x0e\x32\x13.sorna.AgentReqType\x12\x0c\n\x04\x62ody\x18\x02 \x01(\t\"\x1d\n\rAgentResponse\x12\x0c\n\x04\x62ody\x18\x01 \x01(\t*;\n\x0c\x41gentReqType\x12\r\n\tHEARTBEAT\x10\x00\x12\x0f\n\x0bSOCKET_INFO\x10\x01\x12\x0b\n\x07\x45XECUTE\x10\x02\x62\x06proto3')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
@@ -86,7 +86,7 @@ _AGENTREQUEST = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  # syntax='proto3',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -117,7 +117,7 @@ _AGENTRESPONSE = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  # syntax='proto3',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],

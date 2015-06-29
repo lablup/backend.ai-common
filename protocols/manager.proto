@@ -11,14 +11,15 @@ enum ActionType {
 message ManagerRequest {
     ActionType action = 1;
     string kernel_id  = 2;
-    string body       = 3;
+    string user_id    = 3;
+    string body       = 4;
 }
 
 enum ReplyType {
     PONG          = 0;
-    SUCCESS	  = 200;
+    SUCCESS       = 200;
     INVALID_INPUT = 400;
-    FAILURE	  = 500;
+    FAILURE       = 500;
 }
 
 message ManagerResponse {

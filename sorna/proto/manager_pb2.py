@@ -19,8 +19,8 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='manager.proto',
   package='sorna',
-  # syntax='proto3',
-  serialized_pb=_b('\n\rmanager.proto\x12\x05sorna\"T\n\x0eManagerRequest\x12!\n\x06\x61\x63tion\x18\x01 \x01(\x0e\x32\x11.sorna.ActionType\x12\x11\n\tkernel_id\x18\x02 \x01(\t\x12\x0c\n\x04\x62ody\x18\x03 \x01(\t\"S\n\x0fManagerResponse\x12\x1f\n\x05reply\x18\x01 \x01(\x0e\x32\x10.sorna.ReplyType\x12\x11\n\tkernel_id\x18\x02 \x01(\t\x12\x0c\n\x04\x62ody\x18\x03 \x01(\t*<\n\nActionType\x12\x08\n\x04PING\x10\x00\x12\n\n\x06\x43REATE\x10\x01\x12\x0b\n\x07\x44\x45STROY\x10\x02\x12\x0b\n\x07\x45XECUTE\x10\x03*E\n\tReplyType\x12\x08\n\x04PONG\x10\x00\x12\x0c\n\x07SUCCESS\x10\xc8\x01\x12\x12\n\rINVALID_INPUT\x10\x90\x03\x12\x0c\n\x07\x46\x41ILURE\x10\xf4\x03\x62\x06proto3')
+  syntax='proto3',
+  serialized_pb=_b('\n\rmanager.proto\x12\x05sorna\"e\n\x0eManagerRequest\x12!\n\x06\x61\x63tion\x18\x01 \x01(\x0e\x32\x11.sorna.ActionType\x12\x11\n\tkernel_id\x18\x02 \x01(\t\x12\x0f\n\x07user_id\x18\x03 \x01(\t\x12\x0c\n\x04\x62ody\x18\x04 \x01(\t\"S\n\x0fManagerResponse\x12\x1f\n\x05reply\x18\x01 \x01(\x0e\x32\x10.sorna.ReplyType\x12\x11\n\tkernel_id\x18\x02 \x01(\t\x12\x0c\n\x04\x62ody\x18\x03 \x01(\t*<\n\nActionType\x12\x08\n\x04PING\x10\x00\x12\n\n\x06\x43REATE\x10\x01\x12\x0b\n\x07\x44\x45STROY\x10\x02\x12\x0b\n\x07\x45XECUTE\x10\x03*E\n\tReplyType\x12\x08\n\x04PONG\x10\x00\x12\x0c\n\x07SUCCESS\x10\xc8\x01\x12\x12\n\rINVALID_INPUT\x10\x90\x03\x12\x0c\n\x07\x46\x41ILURE\x10\xf4\x03\x62\x06proto3')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -49,8 +49,8 @@ _ACTIONTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=195,
-  serialized_end=255,
+  serialized_start=212,
+  serialized_end=272,
 )
 _sym_db.RegisterEnumDescriptor(_ACTIONTYPE)
 
@@ -80,8 +80,8 @@ _REPLYTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=257,
-  serialized_end=326,
+  serialized_start=274,
+  serialized_end=343,
 )
 _sym_db.RegisterEnumDescriptor(_REPLYTYPE)
 
@@ -119,8 +119,15 @@ _MANAGERREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='body', full_name='sorna.ManagerRequest.body', index=2,
+      name='user_id', full_name='sorna.ManagerRequest.user_id', index=2,
       number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='body', full_name='sorna.ManagerRequest.body', index=3,
+      number=4, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -133,12 +140,12 @@ _MANAGERREQUEST = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  # syntax='proto3',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
   serialized_start=24,
-  serialized_end=108,
+  serialized_end=125,
 )
 
 
@@ -178,12 +185,12 @@ _MANAGERRESPONSE = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  # syntax='proto3',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=110,
-  serialized_end=193,
+  serialized_start=127,
+  serialized_end=210,
 )
 
 _MANAGERREQUEST.fields_by_name['action'].enum_type = _ACTIONTYPE
