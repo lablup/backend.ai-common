@@ -16,7 +16,9 @@ def _kv2ns(kvlist):
     return ns
 
 def encode(o):
-    return json.dumps(o, cls=SornaJsonEncoder)
+    return bytes(json.dumps(o, cls=SornaJsonEncoder), encoding='utf8')
 
 def decode(s):
+    if isinstance(s, bytes):
+        s = s.decode('utf8')
     return json.loads(s, object_pairs_hook=_kv2ns)
