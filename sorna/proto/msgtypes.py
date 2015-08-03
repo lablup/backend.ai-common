@@ -7,6 +7,7 @@ class ManagerRequestTypes(enum.IntEnum):
     CREATE  = 1
     DESTROY = 2
     EXECUTE = 3
+    REFRESH = 4
 
 class ManagerResponseTypes(enum.IntEnum):
     PONG          = 0
