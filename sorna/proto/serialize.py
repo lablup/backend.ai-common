@@ -1,24 +1,14 @@
 #! /usr/bin/env python3
 
-from argparse import Namespace
+from collections import OrderedDict as odict
+import base64
 import json
+import uuid
 
-class SornaJsonEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, Namespace):
-            return vars(o)
-        return super().default(self, o)
+def msg_encode(o):
+    return bytes(json.dumps(o), encoding='utf8')
 
-def _kv2ns(kvlist):
-    ns = Namespace()
-    for k, v in kvlist:
-        setattr(ns, k, v)
-    return ns
-
-def encode(o):
-    return bytes(json.dumps(o, cls=SornaJsonEncoder), encoding='utf8')
-
-def decode(s):
+def msg_decode(s):
     if isinstance(s, bytes):
         s = s.decode('utf8')
-    return json.loads(s, object_pairs_hook=_kv2ns)
+    return json.loads(s, object_pairs_hook=odict)
