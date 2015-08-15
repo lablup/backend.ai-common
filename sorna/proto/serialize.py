@@ -1,9 +1,10 @@
 #! /usr/bin/env python3
 
-from collections import OrderedDict
+from collections import OrderedDict, UserDict
 import base64
 import json
 import uuid
+
 
 def odict(*args):
     '''
@@ -12,15 +13,35 @@ def odict(*args):
     '''
     return OrderedDict(args)
 
-def msg_encode(o):
-    return bytes(json.dumps(o), encoding='utf8')
-
-def msg_decode(s):
-    if isinstance(s, bytes):
-        s = s.decode('utf8')
-    return json.loads(s, object_pairs_hook=OrderedDict)
-
 def generate_uuid():
     u = uuid.uuid4()
     # Strip the last two padding characters because u always has fixed length.
-    return base64.urlsafe_b64encode(u.bytes)[:-2]
+    return base64.urlsafe_b64encode(u.bytes)[:-2].decode('ascii')
+
+
+class Message(UserDict):
+    '''
+    A dictionary-like container for API messages.
+    '''
+
+    def __init__(self, *args, **kwargs):
+        self.data = odict(*args)
+        self.data.update(kwargs)
+
+    @staticmethod
+    def _from_odict(od):
+        assert isinstance(od, OrderedDict)
+        m = Message()
+        m.data = od
+        return m
+
+    def encode(self):
+        return bytes(json.dumps(self.data), encoding='utf8')
+
+    @staticmethod
+    def decode(s):
+        if isinstance(s, bytes):
+            s = s.decode('utf8')
+        root_od = json.loads(s, object_pairs_hook=OrderedDict)
+        return Message._from_odict(root_od)
+
