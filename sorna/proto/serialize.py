@@ -1,9 +1,16 @@
 #! /usr/bin/env python3
 
-from collections import OrderedDict as odict
+from collections import OrderedDict
 import base64
 import json
 import uuid
+
+def odict(*args):
+    '''
+    A short-hand for the constructor of OrderedDict.
+    :code:`odict(('a':1), ('b':2))` is equivalent to :code:`OrderedDict([('a':1), ('b':2)])`.
+    '''
+    return OrderedDict(args)
 
 def msg_encode(o):
     return bytes(json.dumps(o), encoding='utf8')
@@ -11,7 +18,7 @@ def msg_encode(o):
 def msg_decode(s):
     if isinstance(s, bytes):
         s = s.decode('utf8')
-    return json.loads(s, object_pairs_hook=odict)
+    return json.loads(s, object_pairs_hook=OrderedDict)
 
 def generate_uuid():
     u = uuid.uuid4()
