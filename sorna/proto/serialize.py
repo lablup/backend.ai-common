@@ -2,7 +2,8 @@
 
 from collections import OrderedDict, UserDict
 import base64
-import json
+# simplejson serializes namedtuples into objects and offers C-based acceleration. (Yay!)
+import simplejson as json
 import uuid
 
 
@@ -36,7 +37,8 @@ class Message(UserDict):
         return m
 
     def encode(self):
-        return bytes(json.dumps(self.data), encoding='utf8')
+        return bytes(json.dumps(self.data, ensure_ascii=False),
+                     encoding='utf8')
 
     @staticmethod
     def decode(s):
