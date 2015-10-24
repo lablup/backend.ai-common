@@ -2,22 +2,19 @@
 
 import enum
 
-class ManagerRequestTypes(enum.IntEnum):
-    PING    = 0
-    CREATE  = 1
-    DESTROY = 2
-    EXECUTE = 3
-    REFRESH = 4
-    GET_OR_CREATE = 5
-
-class ManagerResponseTypes(enum.IntEnum):
+class SornaResponseTypes(enum.IntEnum):
     PONG          = 0
     SUCCESS       = 200
     INVALID_INPUT = 400
     FAILURE       = 500
 
+class ManagerRequestTypes(enum.IntEnum):
+    PING          = 0  # used for service status monitoring
+    HEARTBEAT     = 1  # sent by agents to inform their
+    GET_OR_CREATE = 2
+
 class AgentRequestTypes(enum.IntEnum):
-    HEARTBEAT   = 0
-    EXECUTE     = 1
-    SOCKET_INFO = 2
+    EXECUTE        = 1
+    CREATE_KERNEL  = 2
+    DESTROY_KERNEL = 3
 
