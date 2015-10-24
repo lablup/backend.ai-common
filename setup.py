@@ -28,9 +28,6 @@ setup(
         'dev': [],
         'test': [],
     },
-    package_data={
-        'protocols': ['agent.proto', 'manager.proto'],
-    },
     data_files=[],
 
     entry_points={
