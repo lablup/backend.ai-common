@@ -18,6 +18,8 @@ class LogstashHandler(logging.Handler):
         self._cached_inst_id = None
         self._ctx = _logging_ctx
         self._sock = self._ctx.socket(zmq.PUB)
+        self._sock.setsockopt(zmq.LINGER, 50)
+        self._sock.setsockopt(zmq.HWM, 20)
         self._sock.connect(self.endpoint)
 
     def emit(self, record):
