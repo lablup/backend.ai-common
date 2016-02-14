@@ -37,8 +37,8 @@ class Message(UserDict):
         return m
 
     def encode(self):
-        return bytes(json.dumps(self.data, ensure_ascii=False),
-                     encoding='utf8')
+        return json.dumps(self.data, ensure_ascii=False) \
+               .encode('utf8', errors='replace')
 
     @staticmethod
     def decode(s):
