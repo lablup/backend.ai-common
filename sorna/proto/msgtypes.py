@@ -10,11 +10,12 @@ class SornaResponseTypes(enum.IntEnum):
 
 class ManagerRequestTypes(enum.IntEnum):
     PING          = 0  # used for service status monitoring
-    HEARTBEAT     = 1  # sent by agents to inform their
+    HEARTBEAT     = 1  # (unused)
     GET_OR_CREATE = 2
     DESTROY       = 3
 
 class AgentRequestTypes(enum.IntEnum):
+    PING           = 0  # used for service status monitoring
     EXECUTE        = 1
     CREATE_KERNEL  = 2
     DESTROY_KERNEL = 3
