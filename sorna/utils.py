@@ -4,8 +4,8 @@ import aiohttp
 
 async def curl(url, default_value=None, loop=None):
     try:
-        with aiohttp.Timeout(0.2):
-            resp = await aiohttp.get(url, loop=loop)
+        with aiohttp.ClientSession(loop=loop) as session, aiohttp.Timeout(0.2):
+            resp = await session.get(url)
             if resp.status == 200:
                 body = await resp.text()
                 return body.strip()
