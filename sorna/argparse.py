@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import argparse
+import ipaddress
 
 def port_no(s):
     try:
@@ -32,3 +33,10 @@ def host_port_pair(s):
         except (ValueError, AssertionError) as e:
             raise argparse.ArgumentTypeError('The port number should be a positive integer between 0 and 65536.') from e
     return (ipaddr, port)
+
+def ipaddr(s):
+    try:
+        addr = ipaddress.ip_address(s)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError('The value is not a valid IP address.') from e
+    return addr

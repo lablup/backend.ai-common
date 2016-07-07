@@ -20,7 +20,7 @@ setup(
     author_email='joongi@lablup.com',
     license='Private',
 
-    packages=find_packages(exclude=['contrib', 'docs', 'tests*']),
+    packages=['sorna.proto', 'sorna'],
     namespace_packages=['sorna'],
 
     install_requires=['simplejson', 'pyzmq', 'aiohttp'],
