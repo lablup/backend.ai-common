@@ -1,23 +1,10 @@
 #! /usr/bin/env python3
 
 from collections import OrderedDict, UserDict
-import base64
 # simplejson serializes namedtuples into objects and offers C-based acceleration. (Yay!)
 import simplejson as json
-import uuid
 
-
-def odict(*args):
-    '''
-    A short-hand for the constructor of OrderedDict.
-    :code:`odict(('a':1), ('b':2))` is equivalent to :code:`OrderedDict([('a':1), ('b':2)])`.
-    '''
-    return OrderedDict(args)
-
-def generate_uuid():
-    u = uuid.uuid4()
-    # Strip the last two padding characters because u always has fixed length.
-    return base64.urlsafe_b64encode(u.bytes)[:-2].decode('ascii')
+from ..utils import odict
 
 
 class Message(UserDict):

@@ -1,6 +1,51 @@
 #! /usr/bin/env python3
+import base64
+from collections import OrderedDict
+import uuid
+
 import asyncio
 import aiohttp
+
+
+def odict(*args):
+    '''
+    A short-hand for the constructor of OrderedDict.
+    :code:`odict(('a':1), ('b':2))` is equivalent to
+    :code:`OrderedDict([('a':1), ('b':2)])`.
+    '''
+    return OrderedDict(args)
+
+def generate_uuid():
+    u = uuid.uuid4()
+    # Strip the last two padding characters because u always has fixed length.
+    return base64.urlsafe_b64encode(u.bytes)[:-2].decode('ascii')
+
+def nmget(o, key_path, def_val=None, path_delimiter='.'):
+    '''
+    A short-hand for retrieving a value from nested mappings
+    ("nested-mapping-get").  At each level it checks if the given "path"
+    component in the given key exists and return the default value whenever
+    fails.
+
+    Example:
+    >>> o = {'a':{'b':1}}
+    >>> nmget(o, 'a', 0)
+    {'b': 1}
+    >>> nmget(o, 'a.b', 0)
+    1
+    >>> nmget(o, 'a/b', 0, '/')
+    1
+    >>> nmget(o, 'a.c', 0)
+    0
+    '''
+    pieces = key_path.split(path_delimiter)
+    while pieces:
+        p = pieces.pop(0)
+        if o is None or p not in o:
+            return def_val
+        o = o[p]
+    return o
+
 
 async def curl(url, default_value=None, loop=None):
     try:
