@@ -1,0 +1,4 @@
+simplejson
+pyzmq
+aiozmq
+aiohttp>=1.0
