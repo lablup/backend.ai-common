@@ -47,15 +47,15 @@ def nmget(o, key_path, def_val=None, path_delimiter='.'):
     return o
 
 
-async def curl(url, default_value=None, loop=None):
+async def curl(url, default_value=None, loop=None, timeout=0.2):
     try:
-        with aiohttp.ClientSession(loop=loop) as session, aiohttp.Timeout(0.2):
-            resp = await session.get(url)
-            if resp.status == 200:
-                body = await resp.text()
-                return body.strip()
-            else:
-                return default_value
+        with aiohttp.ClientSession(loop=loop) as sess:
+            async with sess.get(url, timeout=timeout) as resp:
+                if resp.status == 200:
+                    body = await resp.text()
+                    return body.strip()
+                else:
+                    return default_value
     except (asyncio.TimeoutError, aiohttp.errors.ClientOSError):
         return default_value
 
