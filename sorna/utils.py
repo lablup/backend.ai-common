@@ -1,9 +1,10 @@
 #! /usr/bin/env python3
+import asyncio
 import base64
 from collections import OrderedDict
+import socket
 import uuid
 
-import asyncio
 import aiohttp
 
 
@@ -60,7 +61,7 @@ async def curl(url, default_value=None, loop=None, timeout=0.2):
         return default_value
 
 async def get_instance_id(loop=None):
-    return (await curl('http://169.254.169.254/latest/meta-data/instance-id', 'i-00000000', loop=loop))
+    return (await curl('http://169.254.169.254/latest/meta-data/instance-id', 'i-{}'.format(socket.gethostname()), loop=loop))
 
 async def get_instance_ip(loop=None):
     return (await curl('http://169.254.169.254/latest/meta-data/local-ipv4', '127.0.0.1', loop=loop))
