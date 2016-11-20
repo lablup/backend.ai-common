@@ -24,8 +24,8 @@ class Message(UserDict):
         return m
 
     def encode(self):
-        return json.dumps(self.data, ensure_ascii=False) \
-               .encode('utf8', errors='replace')
+        s = json.dumps(self.data, ensure_ascii=False)
+        return s.encode('utf8', errors='replace')
 
     @staticmethod
     def decode(s):
@@ -33,4 +33,3 @@ class Message(UserDict):
             s = s.decode('utf8')
         root_od = json.loads(s, object_pairs_hook=OrderedDict)
         return Message._from_odict(root_od)
-

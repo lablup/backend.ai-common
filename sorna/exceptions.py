@@ -49,5 +49,3 @@ class KernelDestructionFailedError(SornaError):
     http_status = 500
     error_id    = 'https://api.sorna.io/probs/kernel-destruction-failed'
     error_title = 'Kernel destruction has failed.'
-
-

@@ -1,10 +1,8 @@
-# Always prefer setuptools over distutils
-from setuptools import setup, find_packages
-# To use a consistent encoding
-from codecs import open
-from os import path
+from setuptools import setup
+from pathlib import Path
 
-here = path.abspath(path.dirname(__file__))
+here = Path(__file__).resolve().parent
+
 
 setup(
     name='sorna-common',
@@ -12,7 +10,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.5.1.dev0',
+    version='0.5.1.dev1',
     description='Sorna common libraries',
     long_description='',
     url='https://github.com/lablup/sorna-common',
@@ -36,7 +34,8 @@ setup(
     packages=['sorna.proto', 'sorna'],
     namespace_packages=['sorna'],
 
-    install_requires=['simplejson', 'pyzmq', 'aiozmq', 'aiohttp'],
+    install_requires=['simplejson', 'pyzmq', 'aiozmq',
+                      'aiohttp', 'async_timeout'],
     extras_require={
         'dev': [],
         'test': [],

@@ -4,6 +4,7 @@ import argparse
 import ipaddress
 import pathlib
 
+
 def port_no(s):
     try:
         port = int(s)
@@ -14,6 +15,7 @@ def port_no(s):
         raise argparse.ArgumentTypeError(msg)
     return port
 
+
 def positive_int(s):
     try:
         val = int(s)
@@ -22,6 +24,7 @@ def positive_int(s):
         msg = '{!r} is not a positive integer.'.format(s)
         raise argparse.ArgumentTypeError(msg)
     return val
+
 
 def host_port_pair(s):
     pieces = s.split(':', maxsplit=1)
@@ -39,6 +42,7 @@ def host_port_pair(s):
             raise argparse.ArgumentTypeError(msg)
     return (ipaddr, port)
 
+
 def ipaddr(s):
     try:
         addr = ipaddress.ip_address(s)
@@ -46,6 +50,7 @@ def ipaddr(s):
         msg = '{!r} is not a valid IP address.'.format(s)
         raise argparse.ArgumentTypeError(msg)
     return addr
+
 
 def path(val):
     if val is None:
@@ -55,4 +60,3 @@ def path(val):
         msg = '{!r} is not a valid file/dir path.'.format(val)
         raise argparse.ArgumentTypeError(msg)
     return p
-
