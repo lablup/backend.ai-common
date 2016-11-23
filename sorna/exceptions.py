@@ -49,3 +49,9 @@ class KernelDestructionFailedError(SornaError):
     http_status = 500
     error_id    = 'https://api.sorna.io/probs/kernel-destruction-failed'
     error_title = 'Kernel destruction has failed.'
+
+
+class KernelExecutionFailedError(SornaError):
+    http_status = 500
+    error_id    = 'https://api.sorna.io/probs/kernel-execution-failed'
+    error_title = 'Executing user code in the kernel has failed.'
