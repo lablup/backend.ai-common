@@ -19,6 +19,18 @@ def odict(*args):
     return OrderedDict(args)
 
 
+def dict2kvlist(o):
+    '''
+    Serializes a dict-like object into a generator of the flatten list of
+    repeating key-value pairs.  It is useful when using HMSET method in Redis.
+
+    Example:
+    >>> list(dict2kvlist({'a': 1, 'b': 2}))
+    ['a', 1, 'b', 2]
+    '''
+    return chain.from_iterable((k, v) for k, v in o.items())
+
+
 def generate_uuid():
     u = uuid.uuid4()
     # Strip the last two padding characters because u always has fixed length.
