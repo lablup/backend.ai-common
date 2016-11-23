@@ -2,6 +2,7 @@
 import asyncio
 import base64
 from collections import OrderedDict
+from itertools import chain
 import numbers
 import socket
 import uuid
