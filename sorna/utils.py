@@ -38,7 +38,7 @@ def generate_uuid():
     return base64.urlsafe_b64encode(u.bytes)[:-2].decode('ascii')
 
 
-def nmget(o, key_path, def_val=None, path_delimiter='.'):
+def nmget(o, key_path, def_val=None, path_delimiter='.', null_as_default=True):
     '''
     A short-hand for retrieving a value from nested mappings
     ("nested-mapping-get").  At each level it checks if the given "path"
@@ -46,7 +46,7 @@ def nmget(o, key_path, def_val=None, path_delimiter='.'):
     fails.
 
     Example:
-    >>> o = {'a':{'b':1}}
+    >>> o = {'a':{'b':1}, 'x': None}
     >>> nmget(o, 'a', 0)
     {'b': 1}
     >>> nmget(o, 'a.b', 0)
@@ -55,6 +55,10 @@ def nmget(o, key_path, def_val=None, path_delimiter='.'):
     1
     >>> nmget(o, 'a.c', 0)
     0
+    >>> nmget(o, 'x', 0)
+    0
+    >>> nmget(o, 'x', 0, null_as_default=False)
+    None
     '''
     pieces = key_path.split(path_delimiter)
     while pieces:
@@ -62,6 +66,8 @@ def nmget(o, key_path, def_val=None, path_delimiter='.'):
         if o is None or p not in o:
             return def_val
         o = o[p]
+    if o is None and null_as_default:
+        return def_val
     return o
 
 
