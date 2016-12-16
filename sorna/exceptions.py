@@ -21,15 +21,22 @@ class SornaError(web.HTTPError):
     error_type  = 'https://api.sorna.io/probs/general-error'
     error_title = 'General Sorna API Error.'
 
-    def __init__(self):
+    def __init__(self, extra_msg=None):
         super().__init__()
         self.args = (self.status_code, self.reason, self.error_type)
         self.empty_body = False
         self.content_type = 'application/problem+json'
+        if extra_msg:
+            self.error_title += f' ({extra_msg})'
         self.body = json.dumps(odict(
             ('type', self.error_type),
             ('title', self.error_title),
         )).encode()
+
+
+class ServiceUnavailable(web.HTTPServiceUnavailable, SornaError):
+    error_type  = 'https://api.sorna.io/probs/service-unavailable'
+    error_title = 'Serivce unavailable.'
 
 
 class QueryNotImplemented(web.HTTPServiceUnavailable, SornaError):
