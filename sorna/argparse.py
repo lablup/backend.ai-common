@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import argparse
+from collections import namedtuple
 import ipaddress
 import pathlib
 
@@ -26,30 +27,40 @@ def positive_int(s):
     return val
 
 
+class HostPortPair(namedtuple('_HostPortPair', 'ip port')):
+    def __format__(self, spec):
+        return f'{self.ip}:{self.port}'
+
+
 def host_port_pair(s):
-    pieces = s.split(':', maxsplit=1)
+    pieces = s.rsplit(':', maxsplit=1)
     if len(pieces) == 1:
-        msg = '{!r} should contain both IP address and port number.'.format(s)
+        msg = f'{s!r} should contain both IP address and port number.'
         raise argparse.ArgumentTypeError(msg)
     elif len(pieces) == 2:
-        ipaddr = pieces[0]
+        try:
+            # strip brackets in IPv6 hostname-port strings (RFC 3986).
+            ip = ipaddress.ip_address(pieces[0].strip('[]'))
+        except ValueError:
+            msg = f'{pieces[0]!r} is not a valid IP address.'
+            raise argparse.ArgumentTypeError(msg)
         try:
             port = int(pieces[1])
             assert port > 0
             assert port < 65536
         except (ValueError, AssertionError):
-            msg = '{!r} is not a valid port number.'.format(s)
+            msg = f'{pieces[1]!r} is not a valid port number.'
             raise argparse.ArgumentTypeError(msg)
-    return (ipaddr, port)
+    return HostPortPair(ip, port)
 
 
 def ipaddr(s):
     try:
-        addr = ipaddress.ip_address(s)
+        ip = ipaddress.ip_address(s.strip('[]'))
     except ValueError as e:
-        msg = '{!r} is not a valid IP address.'.format(s)
+        msg = f'{s!r} is not a valid IP address.'
         raise argparse.ArgumentTypeError(msg)
-    return addr
+    return ip
 
 
 def path(val):
@@ -57,6 +68,6 @@ def path(val):
         return None
     p = pathlib.Path(val)
     if not p.exists():
-        msg = '{!r} is not a valid file/dir path.'.format(val)
+        msg = f'{val!r} is not a valid file/dir path.'
         raise argparse.ArgumentTypeError(msg)
     return p
