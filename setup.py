@@ -34,6 +34,7 @@ setup(
     packages=['sorna.proto', 'sorna'],
     namespace_packages=['sorna'],
 
+    python_requires='>=3.6',
     install_requires=[
         'simplejson',
         'pyzmq',
