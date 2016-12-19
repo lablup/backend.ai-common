@@ -29,6 +29,8 @@ def positive_int(s):
 
 class HostPortPair(namedtuple('_HostPortPair', 'ip port')):
     def __format__(self, spec):
+        if self.ip.version == 6:
+            return f'[{self.ip}]:{self.port}'
         return f'{self.ip}:{self.port}'
 
 
