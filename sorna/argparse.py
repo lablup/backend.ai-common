@@ -33,6 +33,9 @@ class HostPortPair(namedtuple('_HostPortPair', 'ip port')):
             return f'[{self.ip}]:{self.port}'
         return f'{self.ip}:{self.port}'
 
+    def as_sockaddr(self):
+        return str(self.ip), self.port
+
 
 def host_port_pair(s):
     pieces = s.rsplit(':', maxsplit=1)
