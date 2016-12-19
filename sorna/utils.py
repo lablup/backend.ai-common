@@ -5,10 +5,28 @@ from collections import OrderedDict
 from itertools import chain
 import numbers
 import socket
+import sys
 import uuid
 
 import aiohttp
 from async_timeout import timeout as _timeout
+
+
+def env_info():
+    '''
+    Returns a string that contains the Python version and runtime path.
+    '''
+    v = sys.version_info
+    pyver = f'Python {v.major}.{v.minor}.{v.micro}'
+    if v.releaselevel == 'alpha':
+        pyver += 'a'
+    if v.releaselevel == 'beta':
+        pyver += 'b'
+    if v.releaselevel == 'candidate':
+        pyver += 'rc'
+    if v.releaselevel != 'final':
+        pyver += str(v.serial)
+    return f'{pyver} (env: {sys.prefix})'
 
 
 def odict(*args):
