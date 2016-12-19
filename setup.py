@@ -23,7 +23,7 @@ setup(
         'Intended Audience :: Developers',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
         'Operating System :: POSIX',
         'Operating System :: MacOS :: MacOS X',
         'Environment :: No Input/Output (Daemon)',
@@ -34,8 +34,13 @@ setup(
     packages=['sorna.proto', 'sorna'],
     namespace_packages=['sorna'],
 
-    install_requires=['simplejson', 'pyzmq', 'aiozmq',
-                      'aiohttp', 'async_timeout'],
+    install_requires=[
+        'simplejson',
+        'pyzmq',
+        'aiozmq',
+        'aiohttp>=1.1',
+        'async_timeout'
+    ],
     extras_require={
         'dev': [],
         'test': [],
