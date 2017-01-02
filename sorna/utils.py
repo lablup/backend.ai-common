@@ -14,8 +14,8 @@ from async_timeout import timeout as _timeout
 def odict(*args):
     '''
     A short-hand for the constructor of OrderedDict.
-    :code:`odict(('a':1), ('b':2))` is equivalent to
-    :code:`OrderedDict([('a':1), ('b':2)])`.
+    :code:`odict(('a',1), ('b',2))` is equivalent to
+    :code:`OrderedDict([('a',1), ('b',2)])`.
     '''
     return OrderedDict(args)
 
