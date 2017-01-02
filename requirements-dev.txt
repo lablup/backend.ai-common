@@ -1,0 +1,9 @@
+simplejson
+pyzmq
+aiozmq
+aiohttp>=1.1
+async_timeout
+-e .
+pytest
+pytest-asyncio
+pytest-mock
