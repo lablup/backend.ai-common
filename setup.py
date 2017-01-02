@@ -31,7 +31,7 @@ setup(
         'Topic :: Software Development',
     ],
 
-    packages=['sorna.proto', 'sorna'],
+    packages=['sorna'],
     namespace_packages=['sorna'],
 
     python_requires='>=3.6',
@@ -40,11 +40,11 @@ setup(
         'pyzmq',
         'aiozmq',
         'aiohttp>=1.1',
-        'async_timeout'
+        'async_timeout',
     ],
     extras_require={
         'dev': [],
-        'test': [],
+        'test': ['pytest', 'pytest-asyncio', 'pytest-mock'],
     },
     data_files=[],
 

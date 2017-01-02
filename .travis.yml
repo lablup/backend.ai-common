@@ -1,0 +1,12 @@
+language: python
+python:
+  - "3.6"
+os:
+  - linux
+  # - osx  # not supported yet
+install:
+  - pip install -U pip
+  - pip install -U wheel setuptools
+  - pip install -U -r requirements-dev.txt
+script:
+  - pytest -m "not integration"
