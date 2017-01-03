@@ -1,6 +1,9 @@
 from collections import OrderedDict
 from unittest import mock
 
+import aiohttp
+import asyncio
+import asynctest
 import pytest
 
 from sorna.utils import (
@@ -9,23 +12,45 @@ from sorna.utils import (
 )
 
 
-class AsyncMock(mock.Mock):
+def mock_coroftn(return_value):
     """
-    Asynchronous Mock for testing.
+    Return mock coroutine function.
+
+    Python's default mock module does not support coroutines.
     """
-    def __call__(self, *args, **kwargs):
-        sup = super(AsyncMock, self)
-        async def coro():
-            return sup.__call__(*args, **kwargs)
-        return coro()
+    async def mock_coroftn(*args, **kargs):
+        return return_value
+    return mock.Mock(wraps=mock_coroftn)
 
-    def __await__(self):
-        return self().__await__()
 
-    def __aenter__(self):
-        pass
+async def mock_awaitable(**kwargs):
+    """
+    Mock awaitable.
 
-    def __aexit__(self):
+    An awaitable can be a native coroutine object "returned from" a native
+    coroutine function.
+    """
+    return asynctest.CoroutineMock(**kwargs)
+
+
+class AsyncContextManagerMock:
+    """
+    Mock async context manager.
+
+    Can be used to get around `async with` statement for testing.
+    Must implement `__aenter__` and `__aexit__` which returns awaitable.
+    Attributes of the awaitable (and self for convenience) can be set by
+    passing `kwargs`.
+    """
+    def __init__(self, *args, **kwargs):
+        self.context = kwargs
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    async def __aenter__(self):
+        return asynctest.CoroutineMock(**self.context)
+
+    async def __aexit__(self, exc_type, exc_value, exc_tb):
         pass
 
 
@@ -72,23 +97,37 @@ def test_readable_size_to_bytes():
         readable_size_to_bytes('TT')
 
 
-@pytest.mark.skip('not implemented yet')
 @pytest.mark.asyncio
-async def test_curl_fake(mocker):
-    pass
-    # TODO: I need to know asynchronous programming, and how to test
-    #       with them.
-    # import aiohttp
-    # mock_get = mocker.patch.object(aiohttp.ClientSession, 'get')
-    # mock_get.return_value = AsyncMock()
-    #
-    # await curl('/test/url')
+async def test_curl_returns_stripped_body(mocker):
+    mock_get = mocker.patch.object(aiohttp.ClientSession, 'get')
+    mock_resp = {'status': 200, 'text': mock_coroftn(b'success  ')}
+    mock_get.return_value = AsyncContextManagerMock(**mock_resp)
+
+    resp = await curl('/test/url')
+
+    body = await mock_resp['text']()
+    assert resp == body.strip()
+
+
+@pytest.mark.asyncio
+async def test_curl_returns_default_value_if_not_success(mocker):
+    mock_get = mocker.patch.object(aiohttp.ClientSession, 'get')
+    mock_resp = {'status': 400, 'text': mock_coroftn(b'bad request')}
+    mock_get.return_value = AsyncContextManagerMock(**mock_resp)
+
+    # Value.
+    resp = await curl('/test/url', default_value='default')
+    assert resp == 'default'
+
+    # Callable.
+    resp = await curl('/test/url', default_value=lambda: 'default')
+    assert resp == 'default'
 
 
 @pytest.mark.asyncio
 async def test_get_instance_id(mocker):
     mock_curl = mocker.patch('sorna.utils.curl')
-    mock_curl.return_value = AsyncMock()
+    mock_curl.return_value = mock_awaitable()
 
     mock_curl.assert_not_called()
     await get_instance_id()
@@ -101,7 +140,7 @@ async def test_get_instance_id(mocker):
 @pytest.mark.asyncio
 async def test_get_instance_ip(mocker):
     mock_curl = mocker.patch('sorna.utils.curl')
-    mock_curl.return_value = AsyncMock()
+    mock_curl.return_value = mock_awaitable()
 
     mock_curl.assert_not_called()
     await get_instance_ip()
@@ -113,7 +152,7 @@ async def test_get_instance_ip(mocker):
 @pytest.mark.asyncio
 async def test_get_instance_type(mocker):
     mock_curl = mocker.patch('sorna.utils.curl')
-    mock_curl.return_value = AsyncMock()
+    mock_curl.return_value = mock_awaitable()
 
     mock_curl.assert_not_called()
     await get_instance_type()
@@ -122,8 +161,37 @@ async def test_get_instance_type(mocker):
     assert 'instance-type' in args_lst[0]
 
 
-@pytest.mark.skip('not implemented yet')
-@pytest.mark.asyncio
-async def test_async_barrier():
-    pass
+class TestAsyncBarrier:
+    def test_async_barrier_initialization(self):
+        barrier = AsyncBarrier(num_parties=5)
+
+        assert barrier.num_parties == 5
+        assert barrier.loop is not None  # default event loop
+        assert barrier.cond is not None  # default condition
+
+    @pytest.mark.asyncio
+    async def test_wait_notify_all_if_cound_eq_num_parties(self, mocker):
+        mock_cond = mocker.patch.object(asyncio, 'Condition')
+        mock_resp = {
+            'notify_all': mock.Mock(),
+            'wait': await mock_awaitable()
+        }
+        mock_cond.return_value = AsyncContextManagerMock(**mock_resp)
+
+        barrier = AsyncBarrier(num_parties=1)
+        assert barrier.count == 0
+
+        await barrier.wait()
+
+        assert barrier.count == 1
+        mock_cond.return_value.notify_all.assert_called_once_with()
+        mock_cond.return_value.wait.assert_not_called()
+
+    def test_async_barrier_reset(self):
+        barrier = AsyncBarrier(num_parties=5)
+        barrier.count = 5
+
+        assert barrier.count == 5
+        barrier.reset()
+        assert barrier.count == 0
 
