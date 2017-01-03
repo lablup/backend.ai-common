@@ -7,3 +7,4 @@ async_timeout
 pytest
 pytest-asyncio
 pytest-mock
+asynctest
