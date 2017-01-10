@@ -34,6 +34,21 @@ class SornaError(web.HTTPError):
         )).encode()
 
 
+class GenericNotFound(web.HTTPNotFound, SornaError):
+    error_type  = 'https://api.sorna.io/probs/generic-not-found'
+    error_title = 'Unknown URL path.'
+
+
+class GenericBadRequest(web.HTTPNotFound, SornaError):
+    error_type  = 'https://api.sorna.io/probs/generic-bad-request'
+    error_title = 'Bad request.'
+
+
+class InternalServerError(web.HTTPInternalServerError, SornaError):
+    error_type  = 'https://api.sorna.io/probs/internal-server-error'
+    error_title = 'Internal server error.'
+
+
 class ServiceUnavailable(web.HTTPServiceUnavailable, SornaError):
     error_type  = 'https://api.sorna.io/probs/service-unavailable'
     error_title = 'Serivce unavailable.'
