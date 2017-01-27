@@ -8,7 +8,8 @@ import pytest
 
 from sorna.utils import (
     odict, dict2kvlist, generate_uuid, nmget, readable_size_to_bytes,
-    curl, get_instance_id, get_instance_ip, get_instance_type, AsyncBarrier
+    curl, get_instance_id, get_instance_ip, get_instance_type,
+    StringSetFlag, AsyncBarrier
 )
 
 
@@ -161,6 +162,44 @@ async def test_get_instance_type(mocker):
     assert 'instance-type' in args_lst[0]
 
 
+def test_string_set_flag():
+
+    class MyFlags(StringSetFlag):
+        A = 'a'
+        B = 'b'
+
+    assert MyFlags.A in {'a', 'c'}
+    assert MyFlags.B not in {'a', 'c'}
+
+    assert MyFlags.A == 'a'
+    assert MyFlags.A != 'b'
+    assert 'a' == MyFlags.A
+    assert 'b' != MyFlags.A
+
+    assert {'a', 'b'} == MyFlags.A | MyFlags.B
+    assert {'a', 'b'} == MyFlags.A | 'b'
+    assert {'a', 'b'} == 'a' | MyFlags.B
+    assert {'a', 'b', 'c'} == {'b', 'c'} | MyFlags.A
+    assert {'a', 'b', 'c'} == MyFlags.A | {'b', 'c'}
+
+    assert {'b', 'c'} == {'a', 'b', 'c'} ^ MyFlags.A
+    assert {'a', 'b', 'c'} == {'b', 'c'} ^ MyFlags.A
+    assert set() == MyFlags.A ^ 'a'
+    assert {'b',} == MyFlags.A ^ {'a', 'b'}
+    assert {'a', 'b', 'c'} == MyFlags.A ^ {'b', 'c'}
+    with pytest.raises(TypeError):
+        123 & MyFlags.A
+
+    assert {'a', 'c'} & MyFlags.A
+    assert not {'a', 'c'} & MyFlags.B
+    assert 'a' & MyFlags.A
+    assert not 'a' & MyFlags.B
+    assert MyFlags.A & 'a'
+    assert not MyFlags.A & 'b'
+    assert MyFlags.A & {'a', 'b'}
+    assert not MyFlags.A & {'b', 'c'}
+
+
 class TestAsyncBarrier:
     def test_async_barrier_initialization(self):
         barrier = AsyncBarrier(num_parties=5)
@@ -194,4 +233,3 @@ class TestAsyncBarrier:
         assert barrier.count == 5
         barrier.reset()
         assert barrier.count == 0
-
