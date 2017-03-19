@@ -1,8 +1,5 @@
 from setuptools import setup
-from pathlib import Path
 import pip
-
-here = Path(__file__).resolve().parent
 
 try:
     import pypandoc
@@ -32,7 +29,7 @@ setup(
     # https://packaging.python.org/en/latest/single_source_version.html
     version='0.9.1',
     description='Sorna common libraries',
-    long_description='',
+    long_description=long_description,
     url='https://github.com/lablup/sorna-common',
     author='Lablup Inc.',
     author_email='joongi@lablup.com',

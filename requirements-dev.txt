@@ -4,6 +4,7 @@ aiozmq
 aiohttp>=2.0
 async_timeout
 -e .
+pypandoc
 pytest
 pytest-asyncio
 pytest-mock
