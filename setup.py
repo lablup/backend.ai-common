@@ -1,7 +1,27 @@
 from setuptools import setup
 from pathlib import Path
+import pip
 
 here = Path(__file__).resolve().parent
+
+try:
+    import pypandoc
+    long_description = pypandoc.convert('README.md', 'rst')
+except (IOError, ImportError):
+    long_description = ""
+
+requires = []
+links = []
+requirements = pip.req.parse_requirements(
+    'requirements.txt', session=pip.download.PipSession()
+)
+for item in requirements:
+    if getattr(item, 'url', None):  # older pip has url
+        links.append(str(item.url))
+    if getattr(item, 'link', None):  # newer pip has link
+        links.append(str(item.link))
+    if item.req:
+        requires.append(str(item.req))  # always the package name
 
 
 setup(
@@ -10,7 +30,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.9.0',
+    version='0.9.1',
     description='Sorna common libraries',
     long_description='',
     url='https://github.com/lablup/sorna-common',
@@ -35,20 +55,10 @@ setup(
     namespace_packages=['sorna'],
 
     python_requires='>=3.6',
-    install_requires=[
-        'simplejson',
-        'pyzmq',
-        'aiozmq',
-        'aiohttp>=1.1',
-        'async_timeout',
-    ],
+    install_requires=requires,
+    dependency_links=links,
     extras_require={
         'dev': [],
         'test': ['pytest', 'pytest-asyncio', 'pytest-mock'],
-    },
-    data_files=[],
-
-    entry_points={
-        'console_scripts': [],
     },
 )
