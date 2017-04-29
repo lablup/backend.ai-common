@@ -4,6 +4,7 @@ import argparse
 from collections import namedtuple
 import ipaddress
 import pathlib
+import socket
 
 
 def port_no(s):
@@ -43,12 +44,16 @@ def host_port_pair(s):
         msg = f'{s!r} should contain both IP address and port number.'
         raise argparse.ArgumentTypeError(msg)
     elif len(pieces) == 2:
+        host = pieces[0].strip('[]')
         try:
             # strip brackets in IPv6 hostname-port strings (RFC 3986).
-            ip = ipaddress.ip_address(pieces[0].strip('[]'))
+            ip = ipaddress.ip_address(host)
         except ValueError:
-            msg = f'{pieces[0]!r} is not a valid IP address.'
-            raise argparse.ArgumentTypeError(msg)
+            try:
+                ip = socket.gethostbyname(host)
+            except IOError:
+                msg = f'{pieces[0]!r} is not a valid address.'
+                raise argparse.ArgumentTypeError(msg)
         try:
             port = int(pieces[1])
             assert port > 0

@@ -43,6 +43,12 @@ def test_host_port_pair_object():
     assert '{}'.format(pair) == '1.2.3.4:8000'
 
 
+def test_host_port_pair_by_name():
+    assert host_port_pair('localhost:1234') == HostPortPair('127.0.0.1', 1234)
+    with pytest.raises(argparse.ArgumentTypeError):
+        host_port_pair('xxx-not-existing-hostname-xxx:1234')
+
+
 def test_host_port_pair_ftn():
     ip = ipaddress.ip_address('1.2.3.4')
     assert host_port_pair('1.2.3.4:5000') == HostPortPair(ip, 5000)
