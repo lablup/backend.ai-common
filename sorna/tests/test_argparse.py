@@ -45,8 +45,10 @@ def test_host_port_pair_object():
 
 def test_host_port_pair_by_name():
     localhost_addr = host_port_pair('localhost:1234')
-    assert localhost_addr == HostPortPair('127.0.0.1', 1234) \
-           or localhost_addr == HostPortPair('::1', 1234)
+    localhost_ipv4 = ipaddress.ip_address('127.0.0.1')
+    localhost_ipv6 = ipaddress.ip_address('::1')
+    assert localhost_addr == HostPortPair(localhost_ipv4, 1234) \
+           or localhost_addr == HostPortPair(localhost_ipv6, 1234)
     with pytest.raises(argparse.ArgumentTypeError):
         host_port_pair('xxx-not-existing-hostname-xxx:1234')
 

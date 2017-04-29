@@ -51,8 +51,8 @@ def host_port_pair(s):
         except ValueError:
             try:
                 addrs = socket.getaddrinfo(host, 80)
-                ip = addrs[0][4][0]
-            except IOError:
+                ip = ipaddress.ip_address(addrs[0][4][0])
+            except (ValueError, IOError):
                 msg = f'{pieces[0]!r} is not a valid address.'
                 raise argparse.ArgumentTypeError(msg)
         try:
