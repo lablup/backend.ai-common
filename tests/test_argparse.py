@@ -7,6 +7,9 @@ from sorna.argparse import (
     port_no, positive_int, HostPortPair, host_port_pair, ipaddr, path
 )
 
+localhost_ipv4 = ipaddress.ip_address('127.0.0.1')
+localhost_ipv6 = ipaddress.ip_address('::1')
+
 
 def test_port_no():
     assert port_no(1) == 1
@@ -35,38 +38,78 @@ def test_positive_int():
         positive_int(-10)
 
 
-def test_host_port_pair_object():
+def test_host_port_pair_direct_creation():
     ip = ipaddress.ip_address('1.2.3.4')
     pair = HostPortPair(ip, 8000)
 
     assert pair.as_sockaddr() == ('1.2.3.4', 8000)
     assert '{}'.format(pair) == '1.2.3.4:8000'
+    assert str(pair) == '1.2.3.4:8000'
 
 
-def test_host_port_pair_by_name():
-    localhost_addr = host_port_pair('localhost:1234')
-    localhost_ipv4 = ipaddress.ip_address('127.0.0.1')
-    localhost_ipv6 = ipaddress.ip_address('::1')
-    assert localhost_addr == HostPortPair(localhost_ipv4, 1234) \
-           or localhost_addr == HostPortPair(localhost_ipv6, 1234)
+def test_host_port_pair_parse():
     with pytest.raises(argparse.ArgumentTypeError):
-        host_port_pair('xxx-not-existing-hostname-xxx:1234')
+        host_port_pair('oihasdfoih:oixzcghboihx')
+    with pytest.raises(argparse.ArgumentTypeError):
+        host_port_pair('oihasdfoih:-1')
+    with pytest.raises(argparse.ArgumentTypeError):
+        host_port_pair('oihasdfoih:99999')
+    with pytest.raises(argparse.ArgumentTypeError):
+        host_port_pair('oihasdfoih:123.45')
+    with pytest.raises(argparse.ArgumentTypeError):
+        host_port_pair(':')
+    with pytest.raises(argparse.ArgumentTypeError):
+        host_port_pair('::')
+    with pytest.raises(argparse.ArgumentTypeError):
+        host_port_pair(':::')
+
+    a = host_port_pair('oihasdfoih:123')
+    assert a.host == 'oihasdfoih'
+    assert a.port == 123
+
+    a = host_port_pair('[::1]:9871')
+    assert a.host == localhost_ipv6
+    assert a.port == 9871
+
+    a = host_port_pair('::1:9871')
+    assert a.host == localhost_ipv6
+    assert a.port == 9871
 
 
-def test_host_port_pair_ftn():
-    ip = ipaddress.ip_address('1.2.3.4')
-    assert host_port_pair('1.2.3.4:5000') == HostPortPair(ip, 5000)
+def test_host_port_pair_comparison():
+    a = host_port_pair('oihasdfoih:123')
+    b = host_port_pair('oihasdfoih:123')
+    assert a == b
+    b = host_port_pair('oihasdfoih:124')
+    assert a != b
+    b = host_port_pair('oihasdfoix:123')
+    assert a != b
 
-    with pytest.raises(argparse.ArgumentTypeError):
-        host_port_pair('1.2.3')
-    with pytest.raises(argparse.ArgumentTypeError):
-        host_port_pair('1.2.3.4')
-    with pytest.raises(argparse.ArgumentTypeError):
-        host_port_pair('1.2.3.4:5:6')
-    with pytest.raises(argparse.ArgumentTypeError):
-        host_port_pair('1.2.3.4:5:0')
-    with pytest.raises(argparse.ArgumentTypeError):
-        host_port_pair('1.2.3.4:5:65536')
+
+def test_host_port_pair_resolve():
+    a = host_port_pair('localhost:1234')
+    r = a.resolve()
+    assert r.host == localhost_ipv4 or r.host == localhost_ipv6
+    assert r.port == 1234
+
+    x = host_port_pair('x-x-x-x:1000')
+    assert x.host == 'x-x-x-x'
+    with pytest.raises(OSError):
+        x.resolve()
+
+
+@pytest.mark.asyncio
+async def test_host_port_pair_resolve_async():
+    a = host_port_pair('localhost:1234')
+    r = await a.resolve_async()
+    assert r.host == localhost_ipv4 or r.host == localhost_ipv6
+
+    x = host_port_pair('x-x-x-x:1000')
+    assert x.host == 'x-x-x-x'
+    # NOTE: aiodns.error.DNSError is not an instance of OSError.
+    #       See https://github.com/saghul/aiodns/issues/30
+    with pytest.raises(Exception):
+        await x.resolve_async()
 
 
 def test_ipaddr():

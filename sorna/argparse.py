@@ -1,10 +1,15 @@
-#! /usr/bin/env python3
-
+import asyncio
 import argparse
 from collections import namedtuple
 import ipaddress
 import pathlib
 import socket
+
+try:
+    import aiodns
+    _aiodns_available = True
+except ImportError:
+    _aiodns_available = False
 
 
 def port_no(s):
@@ -28,14 +33,47 @@ def positive_int(s):
     return val
 
 
-class HostPortPair(namedtuple('_HostPortPair', 'ip port')):
+class HostPortPair(namedtuple('_HostPortPair', 'host port')):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self._resolver = None
+
     def __format__(self, spec):
-        if self.ip.version == 6:
-            return f'[{self.ip}]:{self.port}'
-        return f'{self.ip}:{self.port}'
+        return self.__str__()
+
+    def __str__(self):
+        if isinstance(self.host, ipaddress.IPv6Address):
+            return f'[{self.host}]:{self.port}'
+        return f'{self.host}:{self.port}'
 
     def as_sockaddr(self):
-        return str(self.ip), self.port
+        # Translate this to a tuple of host/port pair without hostname resolving.
+        return str(self.host), self.port
+
+    def resolve(self):
+        if isinstance(self.host, ipaddress._BaseAddress):
+            # Already resolved one.
+            return self
+        # Resolve now and return a new HostPortPair.
+        addrs = socket.getaddrinfo(self.host, 80)
+        ip = ipaddress.ip_address(addrs[0][4][0])
+        return HostPortPair(ip, self.port)
+
+    async def resolve_async(self):
+        if isinstance(self.host, ipaddress._BaseAddress):
+            return self
+        loop = asyncio.get_event_loop()
+        if _aiodns_available:
+            if self._resolver is None:
+                self._resolver = aiodns.DNSResolver(loop=loop)
+            result = await self._resolver.gethostbyname(self.host, 0)
+            ip = ipaddress.ip_address(result.addresses[0])
+            return HostPortPair(ip, self.port)
+        else:
+            addrs = await loop.getaddrinfo(self.host, 80)
+            ip = ipaddress.ip_address(addrs[0][4][0])
+            return HostPortPair(ip, self.port)
 
 
 def host_port_pair(s):
@@ -44,17 +82,13 @@ def host_port_pair(s):
         msg = f'{s!r} should contain both IP address and port number.'
         raise argparse.ArgumentTypeError(msg)
     elif len(pieces) == 2:
+        # strip potential brackets in IPv6 hostname-port strings (RFC 3986).
         host = pieces[0].strip('[]')
         try:
-            # strip brackets in IPv6 hostname-port strings (RFC 3986).
-            ip = ipaddress.ip_address(host)
+            host = ipaddress.ip_address(host)
         except ValueError:
-            try:
-                addrs = socket.getaddrinfo(host, 80)
-                ip = ipaddress.ip_address(addrs[0][4][0])
-            except (ValueError, IOError):
-                msg = f'{pieces[0]!r} is not a valid address.'
-                raise argparse.ArgumentTypeError(msg)
+            # Let it be just a hostname.
+            host = host
         try:
             port = int(pieces[1])
             assert port > 0
@@ -62,7 +96,7 @@ def host_port_pair(s):
         except (ValueError, AssertionError):
             msg = f'{pieces[1]!r} is not a valid port number.'
             raise argparse.ArgumentTypeError(msg)
-    return HostPortPair(ip, port)
+    return HostPortPair(host, port)
 
 
 def ipaddr(s):

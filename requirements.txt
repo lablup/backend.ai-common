@@ -1,4 +1,5 @@
 simplejson
 pyzmq
 aiozmq
-aiohttp>=2.0
+aiohttp~=2.0.0
+aiodns
