@@ -2,10 +2,12 @@ import argparse
 import ipaddress
 
 import pytest
+import aiodns
 
 from sorna.argparse import (
-    port_no, positive_int, HostPortPair, host_port_pair, ipaddr, path
+    port_no, positive_int, HostPortPair, host_port_pair, ipaddr, path,
 )
+import sorna.argparse
 
 localhost_ipv4 = ipaddress.ip_address('127.0.0.1')
 localhost_ipv6 = ipaddress.ip_address('::1')
@@ -108,8 +110,24 @@ async def test_host_port_pair_resolve_async():
     assert x.host == 'x-x-x-x'
     # NOTE: aiodns.error.DNSError is not an instance of OSError.
     #       See https://github.com/saghul/aiodns/issues/30
-    with pytest.raises(Exception):
+    with pytest.raises(aiodns.error.DNSError):
         await x.resolve_async()
+
+
+@pytest.mark.asyncio
+async def test_host_port_pair_resolve_async_vanilla():
+    sorna.argparse._aiodns_available = False
+
+    a = host_port_pair('localhost:1234')
+    r = await a.resolve_async()
+    assert r.host == localhost_ipv4 or r.host == localhost_ipv6
+
+    x = host_port_pair('x-x-x-x:1000')
+    assert x.host == 'x-x-x-x'
+    with pytest.raises(OSError):
+        await x.resolve_async()
+
+    sorna.argparse._aiodns_available = True
 
 
 def test_ipaddr():
