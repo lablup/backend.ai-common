@@ -67,6 +67,8 @@ class HostPortPair(namedtuple('_HostPortPair', 'host port')):
         if _aiodns_available:
             if _aiodns_ctx.resolver is None:
                 _aiodns_ctx.resolver = aiodns.DNSResolver(loop=loop)
+            else:
+                assert _aiodns_ctx.resolver.loop is loop
             result = await _aiodns_ctx.resolver.gethostbyname(self.host, 0)
             ip = ipaddress.ip_address(result.addresses[0])
             return HostPortPair(ip, self.port)
