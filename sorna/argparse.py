@@ -4,12 +4,16 @@ from collections import namedtuple
 import ipaddress
 import pathlib
 import socket
+import threading
 
 try:
     import aiodns
     _aiodns_available = True
+    _aiodns_ctx = threading.local()
+    _aiodns_ctx.resolver = None
 except ImportError:
     _aiodns_available = False
+    _aiodns_ctx = None
 
 
 def port_no(s):
@@ -34,10 +38,6 @@ def positive_int(s):
 
 
 class HostPortPair(namedtuple('_HostPortPair', 'host port')):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        self._resolver = None
 
     def __format__(self, spec):
         return self.__str__()
@@ -65,9 +65,9 @@ class HostPortPair(namedtuple('_HostPortPair', 'host port')):
             return self
         loop = asyncio.get_event_loop()
         if _aiodns_available:
-            if self._resolver is None:
-                self._resolver = aiodns.DNSResolver(loop=loop)
-            result = await self._resolver.gethostbyname(self.host, 0)
+            if _aiodns_ctx.resolver is None:
+                _aiodns_ctx.resolver = aiodns.DNSResolver(loop=loop)
+            result = await _aiodns_ctx.resolver.gethostbyname(self.host, 0)
             ip = ipaddress.ip_address(result.addresses[0])
             return HostPortPair(ip, self.port)
         else:
