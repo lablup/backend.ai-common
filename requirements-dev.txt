@@ -2,6 +2,8 @@ simplejson
 pyzmq
 aiozmq
 aiohttp~=2.0.0
+aiodns
+etcd3~=0.5.2
 async_timeout
 -e .
 pypandoc
@@ -10,5 +12,4 @@ pytest-cov
 pytest-asyncio
 pytest-mock
 asynctest
-aiodns
 codecov
