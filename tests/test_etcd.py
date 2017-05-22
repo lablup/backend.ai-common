@@ -9,7 +9,7 @@ from sorna.argparse import host_port_pair
 @pytest.mark.asyncio
 async def test_basic_crud():
 
-    etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='test')
+    etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='local')
 
     await etcd.put('wow', 'abc')
 
@@ -37,7 +37,7 @@ async def test_basic_crud():
 @pytest.mark.asyncio
 async def test_watch(event_loop):
 
-    etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='test')
+    etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='local')
 
     records = []
     records_prefix = []

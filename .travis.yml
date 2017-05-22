@@ -1,5 +1,7 @@
 language: python
 
+cache: pip
+
 services:
   - docker
 
@@ -12,23 +14,25 @@ install:
   - pip install -U -r requirements-dev.txt
 
 before_script:
-  - docker run -d -v /tmp/etcd:/etcd-data -p 2379:2379 quay.io/coreos/etcd:v3.1.5
-    '/usr/local/bin/etcd
-     --name sorna-etcd
-     --data-dir /etcd-data
-     --listen-client-urls http://0.0.0.0:2379
-     --advertise-client-urls http://0.0.0.0:2379
-     --listen-peer-urls http://0.0.0.0:2380
-     --initial-advertise-peer-urls http://0.0.0.0:2380
-     --initial-cluster sorna-etcd=http://0.0.0.0:2380
-     --initial-cluster-token sorna-etcd-token
-     --initial-cluster-state new
-     --auto-compaction-retention 1'
+  - mkdir -p /tmp/etcd
+  - docker run -d -v /tmp/etcd:/etcd-data -p 2379:2379 -p 2380:2380 --name sorna-etcd
+     quay.io/coreos/etcd:v3.1.8
+     /usr/local/bin/etcd
+     -name sorna-etcd
+     -data-dir /etcd-data
+     -listen-client-urls http://0.0.0.0:2379
+     -advertise-client-urls http://0.0.0.0:2379
+     -listen-peer-urls http://0.0.0.0:2380
+     -initial-advertise-peer-urls http://0.0.0.0:2380
+     -initial-cluster sorna-etcd=http://0.0.0.0:2380
+     -initial-cluster-token sorna-etcd-token
+     -initial-cluster-state new
+     -auto-compaction-retention 1
   - docker run -d -p 15672:15672
-    -e RABBITMQ_DEFAULT_USER=sorna
-    -e RABBITMQ_DEFAULT_PASS=develove
-    -e RABBITMQ_DEFAULT_VHOST=local
-    rabbitmq:3.6
+     -e RABBITMQ_DEFAULT_USER=sorna
+     -e RABBITMQ_DEFAULT_PASS=develove
+     -e RABBITMQ_DEFAULT_VHOST=local
+     rabbitmq:3.6
 
 script:
   - python -m pytest -m "not integration" --cov=sorna
