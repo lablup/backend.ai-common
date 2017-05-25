@@ -22,6 +22,8 @@ env:
     - SORNA_NAMESPACE=local
 
 before_script:
+  - ls /var/log/rabbitmq
+  - rm /var/log/rabbitmq/*
   - mkdir -p /tmp/etcd
   - docker run -d -p 2379:2379 -p 2380:2380
      -v /tmp/etcd:/etcd-data
@@ -48,8 +50,7 @@ before_script:
   - docker ps
 
 script:
-  - docker exec -it sorna-mq rabbitmqctl list_vhosts
-  - docker exec -it sorna-mq rabbitmqctl list_permissions -p local
+  - docker exec -it sorna-mq rabbitmqctl status
   - python -m pytest -m "not integration" --cov=sorna
 
 after_success:
