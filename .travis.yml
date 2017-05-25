@@ -26,8 +26,8 @@ env:
 
 before_script:
   - mkdir -p /tmp/etcd
-  - rabbitmqctl add_vhost "$SORNA_NAMESPACE"
-  - rabbitmqctl set_permissions -p "$SORNA_NAMESPACE" "$SORNA_MQ_LOGIN" '.*' '.*' '.*'
+  - sudo rabbitmqctl add_vhost "$SORNA_NAMESPACE"
+  - sudo rabbitmqctl set_permissions -p "$SORNA_NAMESPACE" "$SORNA_MQ_LOGIN" '.*' '.*' '.*'
   - docker run -d -p 2379:2379 -p 2380:2380
      -v /tmp/etcd:/etcd-data
      --name sorna-etcd
