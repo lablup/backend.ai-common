@@ -38,7 +38,6 @@ before_script:
      -initial-cluster-token sorna-etcd-token
      -initial-cluster-state new
      -auto-compaction-retention 1
-  - docker pull rabbitmq:3.6-alpine
   - docker run -d -p 5672:5672
      -h sorna-mq
      --name sorna-mq
