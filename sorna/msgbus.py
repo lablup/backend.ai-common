@@ -60,6 +60,7 @@ class AMQPBroker:
         await self.channel.exchange_declare(self.exchange_name, self.exchange_type.value)
 
     async def close(self):
+        await self.channel.close()
         await self.protocol.close()
         self.transport.close()
 

@@ -88,3 +88,35 @@ async def test_pub_sub(publisher, subscriber):
     assert len(recv) == 2
     assert recv[0]['a'] == 42
     assert recv[1]['a'] == 42
+
+
+@pytest.mark.asyncio
+async def test_pub_sub_cb_error(publisher, subscriber):
+    pub = publisher
+    sub = subscriber
+    recv = []
+    idx = [1, 2, 3, 4]
+    lock = asyncio.Lock()
+
+    assert sub.consumer_tag != ''
+
+    async def cb(body, envelope, props):
+        my_idx = idx.pop(0)
+        await asyncio.sleep(0.05)
+        if my_idx == 2:
+            raise ZeroDivisionError
+        recv.append(body)
+
+    await sub.subscribe(cb)
+    await sub.subscribe(cb)
+    await sub.subscribe(cb)
+    await sub.subscribe(cb)
+    await pub.publish({'a': 42}, routing_key='dummy')
+
+    await asyncio.sleep(0.2)
+
+    # only successful callbacks records their results.
+    assert len(recv) == 3
+    assert recv[0]['a'] == 42
+    assert recv[1]['a'] == 42
+    assert recv[2]['a'] == 42
