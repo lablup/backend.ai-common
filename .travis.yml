@@ -45,6 +45,7 @@ before_script:
      -e RABBITMQ_DEFAULT_PASS=$SORNA_MQ_PASS
      -e RABBITMQ_DEFAULT_VHOST=$SORNA_NAMESPACE
      rabbitmq:3.6-alpine
+  - docker ps
 
 script:
   - docker exec -it sorna-mq rabbitmqctl list_vhosts
