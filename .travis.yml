@@ -23,7 +23,7 @@ env:
 
 before_script:
   - ls /var/log/rabbitmq
-  - rm /var/log/rabbitmq/*
+  - rm -rf /var/log/rabbitmq/*
   - mkdir -p /tmp/etcd
   - docker run -d -p 2379:2379 -p 2380:2380
      -v /tmp/etcd:/etcd-data
