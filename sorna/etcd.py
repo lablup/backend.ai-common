@@ -3,6 +3,7 @@ Implements a asynchronous wrapper of etcd client.
 
 In the future, we may replace the underlying etcd3 library with an asyncio-version
 of etcd3 client libraries, hopefully, when gRPC ships asyncio stub generation.
+(see https://github.com/grpc/grpc/issues/6046)
 '''
 
 import asyncio
