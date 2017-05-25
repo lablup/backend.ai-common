@@ -2,8 +2,11 @@ language: python
 
 cache: pip
 
+sudo: required
+
 services:
   - docker
+  - rabbitmq
 
 python:
   - "3.6"
@@ -17,12 +20,14 @@ env:
   global:
     - SORNA_ETCD_ADDR=localhost:2379
     - SORNA_MQ_ADDR=localhost:5672
-    - SORNA_MQ_LOGIN=sorna
-    - SORNA_MQ_PASS=develove
+    - SORNA_MQ_LOGIN=guest
+    - SORNA_MQ_PASS=guest
     - SORNA_NAMESPACE=local
 
 before_script:
   - mkdir -p /tmp/etcd
+  - rabbitmqctl add_vhost "$SORNA_NAMESPACE"
+  - rabbitmqctl set_permissions -p "$SORNA_NAMESPACE" "$SORNA_MQ_LOGIN" '.*' '.*' '.*'
   - docker run -d -p 2379:2379 -p 2380:2380
      -v /tmp/etcd:/etcd-data
      --name sorna-etcd
@@ -38,19 +43,9 @@ before_script:
      -initial-cluster-token sorna-etcd-token
      -initial-cluster-state new
      -auto-compaction-retention 1
-  - docker run -d -p 5672:5672
-     -h sorna-mq
-     --name sorna-mq
-     -e RABBITMQ_DEFAULT_USER=$SORNA_MQ_LOGIN
-     -e RABBITMQ_DEFAULT_PASS=$SORNA_MQ_PASS
-     -e RABBITMQ_DEFAULT_VHOST=$SORNA_NAMESPACE
-     rabbitmq:3.6-alpine
-  - docker ps
 
 script:
   - sudo cat /var/lib/rabbitmq/.erlang.cookie
-  - docker exec -it sorna-mq rabbitmqctl status
-  - docker exec -it sorna-mq cat /var/lib/rabbitmq/.erlang.cookie
   - python -m pytest -m "not integration" --cov=sorna
 
 after_success:
