@@ -9,8 +9,10 @@ async_timeout
 -e .
 pypandoc
 pytest
+pytest-asyncio>=0.6.0
 pytest-cov
-pytest-asyncio
 pytest-mock
+pytest-sugar
 asynctest
+aioresponses
 codecov

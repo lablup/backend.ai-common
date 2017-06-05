@@ -3,8 +3,8 @@ import os
 
 import pytest
 
-from sorna.argparse import host_port_pair
-from sorna.msgbus import Publisher, Subscriber, ExchangeTypes
+from sorna.common.argparse import host_port_pair
+from sorna.common.msgbus import Publisher, Subscriber, ExchangeTypes
 
 
 @pytest.fixture

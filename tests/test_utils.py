@@ -1,58 +1,18 @@
+import asyncio
 from collections import OrderedDict
 from unittest import mock
 
 import aiohttp
-import asyncio
 import asynctest
 import pytest
 
-from sorna.utils import (
+from sorna.common.utils import (
     odict, dict2kvlist, generate_uuid, nmget, readable_size_to_bytes,
-    curl, get_instance_id, get_instance_ip, get_instance_type,
-    StringSetFlag, AsyncBarrier
+    curl, StringSetFlag, AsyncBarrier
 )
-
-
-def mock_coroftn(return_value):
-    """
-    Return mock coroutine function.
-
-    Python's default mock module does not support coroutines.
-    """
-    async def mock_coroftn(*args, **kargs):
-        return return_value
-    return mock.Mock(wraps=mock_coroftn)
-
-
-async def mock_awaitable(**kwargs):
-    """
-    Mock awaitable.
-
-    An awaitable can be a native coroutine object "returned from" a native
-    coroutine function.
-    """
-    return asynctest.CoroutineMock(**kwargs)
-
-
-class AsyncContextManagerMock:
-    """
-    Mock async context manager.
-
-    Can be used to get around `async with` statement for testing.
-    Must implement `__aenter__` and `__aexit__` which returns awaitable.
-    Attributes of the awaitable (and self for convenience) can be set by
-    passing `kwargs`.
-    """
-    def __init__(self, *args, **kwargs):
-        self.context = kwargs
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-
-    async def __aenter__(self):
-        return asynctest.CoroutineMock(**self.context)
-
-    async def __aexit__(self, exc_type, exc_value, exc_tb):
-        pass
+from sorna.common.testutils import (
+    mock_corofunc, mock_awaitable, AsyncContextManagerMock
+)
 
 
 def test_odict():
@@ -84,14 +44,22 @@ def test_nmget():
 def test_readable_size_to_bytes():
     assert readable_size_to_bytes(2) == 2
     assert readable_size_to_bytes('2') == 2
-    assert readable_size_to_bytes('2K') == 2 * 1024
-    assert readable_size_to_bytes('2k') == 2 * 1024
-    assert readable_size_to_bytes('2M') == 2 * 1024 * 1024
-    assert readable_size_to_bytes('2m') == 2 * 1024 * 1024
-    assert readable_size_to_bytes('2G') == 2 * 1024 * 1024 * 1024
-    assert readable_size_to_bytes('2g') == 2 * 1024 * 1024 * 1024
-    assert readable_size_to_bytes('2T') == 2 * 1024 * 1024 * 1024 * 1024
-    assert readable_size_to_bytes('2t') == 2 * 1024 * 1024 * 1024 * 1024
+    assert readable_size_to_bytes('2K') == 2 * (2 ** 10)
+    assert readable_size_to_bytes('2k') == 2 * (2 ** 10)
+    assert readable_size_to_bytes('2M') == 2 * (2 ** 20)
+    assert readable_size_to_bytes('2m') == 2 * (2 ** 20)
+    assert readable_size_to_bytes('2G') == 2 * (2 ** 30)
+    assert readable_size_to_bytes('2g') == 2 * (2 ** 30)
+    assert readable_size_to_bytes('2T') == 2 * (2 ** 40)
+    assert readable_size_to_bytes('2t') == 2 * (2 ** 40)
+    assert readable_size_to_bytes('2P') == 2 * (2 ** 50)
+    assert readable_size_to_bytes('2p') == 2 * (2 ** 50)
+    assert readable_size_to_bytes('2E') == 2 * (2 ** 60)
+    assert readable_size_to_bytes('2e') == 2 * (2 ** 60)
+    assert readable_size_to_bytes('2Z') == 2 * (2 ** 70)
+    assert readable_size_to_bytes('2z') == 2 * (2 ** 70)
+    assert readable_size_to_bytes('2Y') == 2 * (2 ** 80)
+    assert readable_size_to_bytes('2y') == 2 * (2 ** 80)
     with pytest.raises(KeyError):
         readable_size_to_bytes('3A')
     with pytest.raises(ValueError):
@@ -101,7 +69,7 @@ def test_readable_size_to_bytes():
 @pytest.mark.asyncio
 async def test_curl_returns_stripped_body(mocker):
     mock_get = mocker.patch.object(aiohttp.ClientSession, 'get')
-    mock_resp = {'status': 200, 'text': mock_coroftn(b'success  ')}
+    mock_resp = {'status': 200, 'text': mock_corofunc(b'success  ')}
     mock_get.return_value = AsyncContextManagerMock(**mock_resp)
 
     resp = await curl('/test/url')
@@ -113,7 +81,7 @@ async def test_curl_returns_stripped_body(mocker):
 @pytest.mark.asyncio
 async def test_curl_returns_default_value_if_not_success(mocker):
     mock_get = mocker.patch.object(aiohttp.ClientSession, 'get')
-    mock_resp = {'status': 400, 'text': mock_coroftn(b'bad request')}
+    mock_resp = {'status': 400, 'text': mock_corofunc(b'bad request')}
     mock_get.return_value = AsyncContextManagerMock(**mock_resp)
 
     # Value.
@@ -123,43 +91,6 @@ async def test_curl_returns_default_value_if_not_success(mocker):
     # Callable.
     resp = await curl('/test/url', default_value=lambda: 'default')
     assert resp == 'default'
-
-
-@pytest.mark.asyncio
-async def test_get_instance_id(mocker):
-    mock_curl = mocker.patch('sorna.utils.curl')
-    mock_curl.return_value = mock_awaitable()
-
-    mock_curl.assert_not_called()
-    await get_instance_id()
-    args_lst = mock_curl.call_args[0]
-
-    assert 'instance-id' in args_lst[0]
-    assert callable(args_lst[1])
-
-
-@pytest.mark.asyncio
-async def test_get_instance_ip(mocker):
-    mock_curl = mocker.patch('sorna.utils.curl')
-    mock_curl.return_value = mock_awaitable()
-
-    mock_curl.assert_not_called()
-    await get_instance_ip()
-    args_lst = mock_curl.call_args[0]
-
-    assert 'local-ipv' in args_lst[0]
-
-
-@pytest.mark.asyncio
-async def test_get_instance_type(mocker):
-    mock_curl = mocker.patch('sorna.utils.curl')
-    mock_curl.return_value = mock_awaitable()
-
-    mock_curl.assert_not_called()
-    await get_instance_type()
-    args_lst = mock_curl.call_args[0]
-
-    assert 'instance-type' in args_lst[0]
 
 
 def test_string_set_flag():

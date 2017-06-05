@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from sorna.etcd import AsyncEtcd, Event
-from sorna.argparse import host_port_pair
+from sorna.common.etcd import AsyncEtcd, Event
+from sorna.common.argparse import host_port_pair
 
 
 @pytest.mark.asyncio

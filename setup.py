@@ -48,14 +48,33 @@ setup(
         'Topic :: Software Development',
     ],
 
-    packages=['sorna'],
+    packages=['sorna.common'],
     namespace_packages=['sorna'],
 
     python_requires='>=3.6',
     install_requires=requires,
     dependency_links=links,
     extras_require={
-        'dev': [],
-        'test': ['pytest', 'pytest-asyncio', 'pytest-mock'],
+        'dev': [
+            'pypandoc',
+            'pytest',
+            'pytest-asyncio>=0.6.0',
+            'pytest-cov',
+            'pytest-mock',
+            'pytest-sugar',
+            'asynctest',
+            'aioresponses',
+            'codecov',
+        ],
+        'test': [
+            'pytest',
+            'pytest-asyncio>=0.6.0',
+            'pytest-cov',
+            'pytest-mock',
+            'pytest-sugar',
+            'asynctest',
+            'aioresponses',
+            'codecov',
+        ],
     },
 )

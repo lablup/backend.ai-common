@@ -5,7 +5,6 @@ from collections import OrderedDict
 import enum
 from itertools import chain
 import numbers
-import socket
 import sys
 import uuid
 
@@ -99,47 +98,32 @@ def readable_size_to_bytes(expr):
         except ValueError:
             suffix = expr[-1]
             suffix_map = {
-                't': 1024 * 1024 * 1024 * 1024,
-                'T': 1024 * 1024 * 1024 * 1024,
-                'g': 1024 * 1024 * 1024,
-                'G': 1024 * 1024 * 1024,
-                'm': 1024 * 1024,
-                'M': 1024 * 1024,
-                'k': 1024,
-                'K': 1024,
+                'y': 2 ** 80, 'Y': 2 ** 80,  # yotta
+                'z': 2 ** 70, 'Z': 2 ** 70,  # zetta
+                'e': 2 ** 60, 'E': 2 ** 60,  # exa
+                'p': 2 ** 50, 'P': 2 ** 50,  # peta
+                't': 2 ** 40, 'T': 2 ** 40,  # tera
+                'g': 2 ** 30, 'G': 2 ** 30,  # giga
+                'm': 2 ** 20, 'M': 2 ** 20,  # mega
+                'k': 2 ** 10, 'K': 2 ** 10,  # kilo
             }
             return int(float(expr[:-1]) * suffix_map[suffix])
     else:
         raise ValueError('unconvertible type')
 
 
-async def curl(url, default_value=None, loop=None, timeout=0.2):
+async def curl(url, default_value=None, params=None, headers=None, timeout=0.2):
     try:
-        async with aiohttp.ClientSession(loop=loop) as sess:
+        async with aiohttp.ClientSession() as sess:
             with aiohttp.Timeout(timeout):
-                async with sess.get(url) as resp:
+                async with sess.get(url, params=params, headers=headers) as resp:
                     assert resp.status == 200
                     body = await resp.text()
                     return body.strip()
-    except (asyncio.TimeoutError, aiohttp.ClientOSError, AssertionError) as e:
+    except (asyncio.TimeoutError, aiohttp.ClientError, AssertionError) as e:
         if callable(default_value):
             return default_value()
         return default_value
-
-
-async def get_instance_id(loop=None):
-    return (await curl('http://169.254.169.254/latest/meta-data/instance-id',
-                       lambda: 'i-{}'.format(socket.gethostname()), loop=loop))
-
-
-async def get_instance_ip(loop=None):
-    return (await curl('http://169.254.169.254/latest/meta-data/local-ipv4',
-                       '127.0.0.1', loop=loop))
-
-
-async def get_instance_type(loop=None):
-    return (await curl('http://169.254.169.254/latest/meta-data/instance-type',
-                       'unknown', loop=loop))
 
 
 class StringSetFlag(enum.Flag):
