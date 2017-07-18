@@ -1,24 +1,41 @@
 from setuptools import setup
-import pip
-
+import sys
 try:
     import pypandoc
     long_description = pypandoc.convert('README.md', 'rst')
 except (IOError, ImportError):
     long_description = ""
 
-requires = []
-links = []
-requirements = pip.req.parse_requirements(
-    'requirements.txt', session=pip.download.PipSession()
-)
-for item in requirements:
-    if getattr(item, 'url', None):  # older pip has url
-        links.append(str(item.url))
-    if getattr(item, 'link', None):  # newer pip has link
-        links.append(str(item.link))
-    if item.req:
-        requires.append(str(item.req))  # always the package name
+requires = [
+    'simplejson',
+    'pyzmq',
+    'aiozmq',
+    'aiohttp~=2.2.0',
+    'aiodns',
+    'async_timeout',
+]
+build_requires = [
+    'pypandoc',
+    'wheel',
+    'twine',
+]
+test_requires = [
+    'pytest>=3.1',
+    'pytest-cov',
+    'pytest-asyncio',
+    'pytest-mock',
+    'asynctest',
+    'codecov',
+    'flake8',
+]
+dev_requires = build_requires + test_requires + [
+    'pytest-sugar',
+]
+ci_requires = []
+monitor_requires = [
+    'datadog>=5.2',
+    'raven>=6.1',
+]
 
 
 setup(
@@ -53,9 +70,11 @@ setup(
 
     python_requires='>=3.6',
     install_requires=requires,
-    dependency_links=links,
     extras_require={
-        'dev': [],
-        'test': ['pytest', 'pytest-asyncio', 'pytest-mock'],
+        'build': build_requires,
+        'test': test_requires,
+        'dev': dev_requires,
+        'ci': ci_requires,
+        'monitor': monitor_requires,
     },
 )
