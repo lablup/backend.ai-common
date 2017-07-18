@@ -33,7 +33,7 @@ dev_requires = build_requires + test_requires + [
 ]
 ci_requires = []
 monitor_requires = [
-    'datadog>=5.2',
+    'datadog>=0.16.0',
     'raven>=6.1',
 ]
 
@@ -44,7 +44,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.9.5',
+    version='0.9.6',
     description='Sorna common libraries',
     long_description=long_description,
     url='https://github.com/lablup/sorna-common',
