@@ -10,6 +10,7 @@ requires = [
     'simplejson',
     'pyzmq',
     'aiozmq',
+    'aioamqp>=0.10',
     'aiohttp~=2.2.0',
     'aiodns',
     'async_timeout',
@@ -28,6 +29,7 @@ test_requires = [
     'asynctest',
     'codecov',
     'flake8',
+    'aioresponses',
 ]
 dev_requires = build_requires + test_requires + [
     'pytest-sugar',
