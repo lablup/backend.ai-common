@@ -3,7 +3,6 @@ from collections import OrderedDict
 from unittest import mock
 
 import aiohttp
-import asynctest
 import pytest
 
 from sorna.common.utils import (

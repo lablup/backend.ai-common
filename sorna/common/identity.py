@@ -47,6 +47,7 @@ get_instance_id = None
 get_instance_ip = None
 get_instance_type = None
 
+
 def _define_functions():
     global _defined, get_instance_id, get_instance_ip, get_instance_type
     if _defined:
@@ -134,5 +135,6 @@ def _define_functions():
     get_instance_ip = _get_instance_ip
     get_instance_type = _get_instance_type
     _defined = True
+
 
 _define_functions()

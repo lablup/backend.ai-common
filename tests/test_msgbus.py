@@ -96,7 +96,6 @@ async def test_pub_sub_cb_error(publisher, subscriber):
     sub = subscriber
     recv = []
     idx = [1, 2, 3, 4]
-    lock = asyncio.Lock()
 
     assert sub.consumer_tag != ''
 

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from sorna.common.etcd import AsyncEtcd, Event
+from sorna.common.etcd import AsyncEtcd
 from sorna.common.argparse import host_port_pair
 
 
@@ -41,9 +41,11 @@ async def test_watch(event_loop):
 
     records = []
     records_prefix = []
+
     async def _record():
         async for ev in etcd.watch('wow'):
             records.append(ev)
+
     async def _record_prefix():
         async for ev in etcd.watch_prefix('wow'):
             records_prefix.append(ev)
@@ -93,9 +95,11 @@ async def test_watch_once(event_loop):
 
     records = []
     records_prefix = []
+
     async def _record():
         async for ev in etcd.watch('wow', once=True):
             records.append(ev)
+
     async def _record_prefix():
         async for ev in etcd.watch_prefix('wow', once=True):
             records_prefix.append(ev)

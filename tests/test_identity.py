@@ -6,7 +6,6 @@ import pytest
 from aioresponses import aioresponses
 
 import sorna.common.identity
-from sorna.common.testutils import mock_awaitable
 
 
 @pytest.mark.asyncio
@@ -24,7 +23,8 @@ async def test_get_instance_id(mocker, provider):
             ret = await sorna.common.identity.get_instance_id()
             assert ret == random_id
         elif provider == 'azure':
-            m.get('http://169.254.169.254/metadata/instance',
+            m.get(
+                'http://169.254.169.254/metadata/instance',
                 payload={
                     'compute': {
                         'vmId': random_id,
@@ -49,9 +49,8 @@ async def test_get_instance_id_failures(mocker, provider):
     sorna.common.identity._defined = False
     sorna.common.identity._define_functions()
 
-    with aioresponses() as m:
+    with aioresponses():
         # If we don't set any mocked responses, aioresponses will raise ClientConnectionError.
-        random_id = secrets.token_hex(16)
         ret = await sorna.common.identity.get_instance_id()
         assert ret == f'i-{socket.gethostname()}'
 
@@ -71,7 +70,8 @@ async def test_get_instance_ip(mocker, provider):
             ret = await sorna.common.identity.get_instance_ip()
             assert ret == random_ip
         elif provider == 'azure':
-            m.get('http://169.254.169.254/metadata/instance',
+            m.get(
+                'http://169.254.169.254/metadata/instance',
                 payload={
                     'network': {
                         'interface': [
@@ -83,7 +83,7 @@ async def test_get_instance_ip(mocker, provider):
                                 },
                             },
                         ],
-                    }
+                    },
                 })
             ret = await sorna.common.identity.get_instance_ip()
             assert ret == random_ip
@@ -112,7 +112,8 @@ async def test_get_instance_type(mocker, provider):
             ret = await sorna.common.identity.get_instance_type()
             assert ret == random_type
         elif provider == 'azure':
-            m.get('http://169.254.169.254/metadata/instance',
+            m.get(
+                'http://169.254.169.254/metadata/instance',
                 payload={
                     'compute': {
                         'vmSize': random_type,

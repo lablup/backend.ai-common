@@ -7,16 +7,15 @@ It is encouraged to subclass and add your own notification methods.
 
 import asyncio
 import enum
-import functools
 import json
 import os
 import secrets
-from typing import Union, Optional, Any
+from typing import Optional, Any
 import warnings
 
 import aioamqp
-from aioamqp.envelope import Envelope
-from aioamqp.properties import Properties
+# from aioamqp.envelope import Envelope
+# from aioamqp.properties import Properties
 
 from .argparse import HostPortPair
 
@@ -55,7 +54,7 @@ class AMQPBroker:
         # Declare the exchange and queue.
         if self.exchange_name == '':
             assert self.exchange_type == ExchangeTypes.DIRECT
-        if self.exchange_type == ExchangeTypes.FANOUT and topic:
+        if self.exchange_type == ExchangeTypes.FANOUT and hasattr(self, 'topic'):
             warnings.warn('fanout exchanges will ignore routing keys', RuntimeWarning)
         await self.channel.exchange_declare(self.exchange_name, self.exchange_type.value)
 
@@ -73,9 +72,11 @@ class Publisher(AMQPBroker):
 
     async def publish(self, msg: Any,
                       routing_key: str=''):
-        await self.channel.publish(self.encoder(msg),
+        await self.channel.publish(
+            self.encoder(msg),
             exchange_name=self.exchange_name,
-            routing_key=routing_key)
+            routing_key=routing_key
+        )
 
 
 class Subscriber(AMQPBroker):
