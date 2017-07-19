@@ -1,18 +1,1 @@
-simplejson
-pyzmq
-aiozmq
-aiohttp~=2.1.0
-aioamqp~=0.10.0
-aiodns
-etcd3~=0.5.2
-async_timeout
--e .
-pypandoc
-pytest
-pytest-asyncio>=0.6.0
-pytest-cov
-pytest-mock
-pytest-sugar
-asynctest
-aioresponses
-codecov
+-e .[dev]

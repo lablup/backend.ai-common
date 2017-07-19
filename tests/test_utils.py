@@ -116,7 +116,7 @@ def test_string_set_flag():
     assert {'b', 'c'} == {'a', 'b', 'c'} ^ MyFlags.A
     assert {'a', 'b', 'c'} == {'b', 'c'} ^ MyFlags.A
     assert set() == MyFlags.A ^ 'a'
-    assert {'b',} == MyFlags.A ^ {'a', 'b'}
+    assert {'b', } == MyFlags.A ^ {'a', 'b'}
     assert {'a', 'b', 'c'} == MyFlags.A ^ {'b', 'c'}
     with pytest.raises(TypeError):
         123 & MyFlags.A

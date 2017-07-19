@@ -18,9 +18,8 @@ env:
     - SORNA_NAMESPACE=local
 
 install:
-  - pip install -U pip
-  - pip install -U wheel setuptools
-  - pip install -U -r requirements-dev.txt
+  - pip install -U pip setuptools
+  - pip install -U -r requirements-ci.txt
 
 before_script:
   - mkdir -p /tmp/etcd
@@ -43,6 +42,7 @@ before_script:
      -auto-compaction-retention 1
 
 script:
+  - flake8 sorna tests
   - python -m pytest -m "not integration" --cov=sorna
 
 after_success:
