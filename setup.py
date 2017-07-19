@@ -15,6 +15,7 @@ requires = [
     'aiodns',
     'async_timeout',
     'etcd3~=0.5.2',
+    'msgpack-python~=0.4.8',
 ]
 build_requires = [
     'pypandoc',
