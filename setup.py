@@ -13,7 +13,7 @@ requires = [
     'aiohttp~=2.2.0',
     'aiodns',
     'async_timeout',
-    'etcd~=0.5.2',
+    'etcd3~=0.5.2',
 ]
 build_requires = [
     'pypandoc',
