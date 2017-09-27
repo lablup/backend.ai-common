@@ -1,4 +1,5 @@
 import logging
+import os
 import socket
 import sys
 from pathlib import Path
@@ -6,6 +7,15 @@ from pathlib import Path
 import simplejson as json
 
 from .utils import curl
+
+__all__ = (
+    'detect_cloud',
+    'current_provider',
+    'get_instance_id',
+    'get_instance_ip',
+    'get_instance_type',
+    'get_instance_region',
+)
 
 log = logging.getLogger(__name__)
 
@@ -46,28 +56,41 @@ _defined = False
 get_instance_id = None
 get_instance_ip = None
 get_instance_type = None
+get_instance_region = None
 
 
 def _define_functions():
-    global _defined, get_instance_id, get_instance_ip, get_instance_type
+    global _defined
+    global get_instance_id
+    global get_instance_ip
+    global get_instance_type
+    global get_instance_region
     if _defined:
         return
 
     if current_provider == 'amazon':
         # ref: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
         _metadata_prefix = 'http://169.254.169.254/latest/meta-data/'
+        _dynamic_prefix = 'http://169.254.169.254/latest/dynamic/'
 
         async def _get_instance_id():
-            return (await curl(_metadata_prefix + 'instance-id',
-                               lambda: f'i-{socket.gethostname()}'))
+            return await curl(_metadata_prefix + 'instance-id',
+                              lambda: f'i-{socket.gethostname()}')
 
         async def _get_instance_ip():
-            return (await curl(_metadata_prefix + 'local-ipv4',
-                               '127.0.0.1'))
+            return await curl(_metadata_prefix + 'local-ipv4',
+                              '127.0.0.1')
 
         async def _get_instance_type():
-            return (await curl(_metadata_prefix + 'instance-type',
-                               'unknown'))
+            return await curl(_metadata_prefix + 'instance-type',
+                              'unknown')
+
+        async def _get_instance_region():
+            doc = await curl(_dynamic_prefix + 'instance-identity/document')
+            if doc is None:
+                return 'amazon/unknown'
+            region = json.loads(doc)['region']
+            return f'amazon/{region}'
 
     elif current_provider == 'azure':
         # ref: https://docs.microsoft.com/azure/virtual-machines/virtual-machines-instancemetadataservice-overview
@@ -100,24 +123,41 @@ def _define_functions():
             o = json.loads(data)
             return o['compute']['vmSize']
 
+        async def _get_instance_region():
+            data = await curl(_metadata_prefix, None,
+                              params={'version': '2017-03-01'},
+                              headers={'Metadata': 'true'})
+            if data is None:
+                return 'azure/unknown'
+            o = json.loads(data)
+            region = o['compute']['location']
+            return f'azure/{region}'
+
     elif current_provider == 'google':
         # ref: https://cloud.google.com/compute/docs/storing-retrieving-metadata
         _metadata_prefix = 'http://metadata.google.internal/computeMetadata/v1/'
 
         async def _get_instance_id():
-            return (await curl(_metadata_prefix + 'instance/id',
-                               lambda: f'i-{socket.gethostname()}',
-                               headers={'Metadata-Flavor': 'Google'}))
+            return await curl(_metadata_prefix + 'instance/id',
+                              lambda: f'i-{socket.gethostname()}',
+                              headers={'Metadata-Flavor': 'Google'})
 
         async def _get_instance_ip():
-            return (await curl(_metadata_prefix + 'instance/network-interfaces/0/ip',
-                               '127.0.0.1',
-                               headers={'Metadata-Flavor': 'Google'}))
+            return await curl(_metadata_prefix + 'instance/network-interfaces/0/ip',
+                              '127.0.0.1',
+                              headers={'Metadata-Flavor': 'Google'})
 
         async def _get_instance_type():
-            return (await curl(_metadata_prefix + 'instance/machine-type',
-                               'unknown',
-                               headers={'Metadata-Flavor': 'Google'}))
+            return await curl(_metadata_prefix + 'instance/machine-type',
+                              'unknown',
+                              headers={'Metadata-Flavor': 'Google'})
+
+        async def _get_instance_region():
+            zone = await curl(_metadata_prefix + 'instance/zone',
+                              'unknown',
+                              headers={'Metadata-Flavor': 'Google'})
+            region = zone.rsplit('-', 1)[0]
+            return f'google/{region}'
 
     else:
         _metadata_prefix = None
@@ -131,9 +171,13 @@ def _define_functions():
         async def _get_instance_type():
             return 'unknown'
 
+        async def _get_instance_region():
+            return os.environ.get('BACKEND_REGION', 'local/unknown')
+
     get_instance_id = _get_instance_id
     get_instance_ip = _get_instance_ip
     get_instance_type = _get_instance_type
+    get_instance_region = _get_instance_region
     _defined = True
 
 
