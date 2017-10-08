@@ -11,17 +11,29 @@ import collections
 import functools
 import logging
 
+from aioetcd3.client import client
+from aioetcd3.help import range_prefix
+from aioetcd3.kv import _put_request
+from aioetcd3.transaction import Value
+from aioetcd3.watch import EVENT_TYPE_CREATE, EVENT_TYPE_DELETE, EVENT_TYPE_PUT
 import etcd3
 
 Event = collections.namedtuple('Event', 'key event value')
 log = logging.getLogger(__name__)
+
+event_map = {
+    EVENT_TYPE_CREATE: 'create',
+    EVENT_TYPE_DELETE: 'delete',
+    EVENT_TYPE_PUT: 'put',
+}
 
 
 class AsyncEtcd:
 
     def __init__(self, addr, namespace, encoding='utf8', loop=None, **kwargs):
         self.loop = loop if loop else asyncio.get_event_loop()
-        self.etcd = etcd3.client(host=str(addr.host), port=addr.port, **kwargs)
+        self.etcd = client(str(addr))
+        self.etcd_sync = etcd3.client(host=str(addr.host), port=addr.port)
         self.ns = namespace
         log.info(f'using etcd cluster from {addr} with namespace "{namespace}"')
         self.encoding = encoding
@@ -42,32 +54,70 @@ class AsyncEtcd:
 
     async def put(self, key, val):
         key = self._mangle_key(key)
-        self.etcd.put(key, str(val).encode(self.encoding))
+        await self.etcd.put(key, str(val).encode(self.encoding))
 
     async def get(self, key):
         key = self._mangle_key(key)
-        val, metadata = self.etcd.get(key)
+        val, metadata = await self.etcd.get(key)
         if val is None:
             return None
         return val.decode(self.encoding)
 
     async def get_prefix(self, key_prefix):
         key_prefix = self._mangle_key(key_prefix)
-        results = self.etcd.get_prefix(key_prefix)
-        return (t[0].decode(self.encoding) for t in results)
+        results = await self.etcd.range(range_prefix(key_prefix))
+        # results is a list of tuples (key, val, kvmeta)
+        return ((self._demangle_key(t[0]),
+                 t[1].decode(self.encoding))
+                for t in results)
 
     async def replace(self, key, initial_val, new_val):
         key = self._mangle_key(key)
-        success = self.etcd.replace(key, initial_val, new_val)
+        success, _ = await self.etcd.txn(
+            [Value(key) == initial_val],
+            [(_put_request(key, new_val), None)],
+            [],
+        )
         return success
 
     async def delete(self, key):
         key = self._mangle_key(key)
-        self.etcd.delete(key)
+        await self.etcd.delete(key)
 
     async def delete_prefix(self, key_prefix):
         key_prefix = self._mangle_key(key_prefix)
-        self.etcd.delete_prefix(key_prefix)
+        await self.etcd.delete(range_prefix(key_prefix))
+
+#    def stop_task(self):
+#        self.etcd.stop_task()
+#
+#    async def watch(self, key, once=False):
+#        key = self._mangle_key(key)
+#        try:
+#            async for event, meta in self.etcd.watch(key, prev_kv=True):
+#                print(event)
+#                yield Event(
+#                    self._demangle_key(event.key),
+#                    event_map[event.type],
+#                    event.value.decode(self.encoding))
+#                if once:
+#                    break
+#        finally:
+#            self.etcd.stop_task()
+#
+#    async def watch_prefix(self, key_prefix, once=False):
+#        key_prefix = self._mangle_key(key_prefix)
+#        try:
+#            async with self.etcd.watch_scope(key_prefix, prev_kv=True) as resp:
+#                async for event, meta in resp:
+#                    yield Event(
+#                        self._demangle_key(event.key),
+#                        event_map[event.type],
+#                        event.value.decode(self.encoding))
+#                    if once:
+#                        break
+#        finally:
+#            self.etcd.stop_task()
 
     def _watch_cb(self, queue, ev):
         if isinstance(ev, etcd3.events.PutEvent):
@@ -85,7 +135,7 @@ class AsyncEtcd:
     async def _watch_impl(self, raw_key, **kwargs):
         queue = asyncio.Queue(loop=self.loop)
         cb = functools.partial(self._watch_cb, queue)
-        watch_id = self.etcd.add_watch_callback(raw_key, cb, **kwargs)
+        watch_id = self.etcd_sync.add_watch_callback(raw_key, cb, **kwargs)
         try:
             while True:
                 ev = await queue.get()
@@ -94,7 +144,7 @@ class AsyncEtcd:
         except asyncio.CancelledError:
             pass
         finally:
-            self.etcd.cancel_watch(watch_id)
+            self.etcd_sync.cancel_watch(watch_id)
             del queue
 
     async def watch(self, key, once=False):

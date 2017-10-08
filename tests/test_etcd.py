@@ -17,7 +17,7 @@ async def test_basic_crud():
     assert v == 'abc'
     v = list(await etcd.get_prefix('wow'))
     assert len(v) == 1
-    assert v[0] == 'abc'
+    assert v[0] == ('wow', 'abc')
 
     r = await etcd.replace('wow', 'aaa', 'ccc')
     assert r is False
@@ -43,12 +43,18 @@ async def test_watch(event_loop):
     records_prefix = []
 
     async def _record():
-        async for ev in etcd.watch('wow'):
-            records.append(ev)
+        try:
+            async for ev in etcd.watch('wow'):
+                records.append(ev)
+        except asyncio.CancelledError:
+            pass
 
     async def _record_prefix():
-        async for ev in etcd.watch_prefix('wow'):
-            records_prefix.append(ev)
+        try:
+            async for ev in etcd.watch_prefix('wow'):
+                records_prefix.append(ev)
+        except asyncio.CancelledError:
+            pass
 
     t1 = event_loop.create_task(_record())
     t2 = event_loop.create_task(_record_prefix())
@@ -97,12 +103,18 @@ async def test_watch_once(event_loop):
     records_prefix = []
 
     async def _record():
-        async for ev in etcd.watch('wow', once=True):
-            records.append(ev)
+        try:
+            async for ev in etcd.watch('wow', once=True):
+                records.append(ev)
+        except asyncio.CancelledError:
+            pass
 
     async def _record_prefix():
-        async for ev in etcd.watch_prefix('wow', once=True):
-            records_prefix.append(ev)
+        try:
+            async for ev in etcd.watch_prefix('wow', once=True):
+                records_prefix.append(ev)
+        except asyncio.CancelledError:
+            pass
 
     t1 = event_loop.create_task(_record())
     t2 = event_loop.create_task(_record_prefix())
