@@ -22,7 +22,7 @@ Event = collections.namedtuple('Event', 'key event value')
 log = logging.getLogger(__name__)
 
 event_map = {
-    EVENT_TYPE_CREATE: 'create',
+    EVENT_TYPE_CREATE: 'put',  # for compatibility
     EVENT_TYPE_DELETE: 'delete',
     EVENT_TYPE_PUT: 'put',
 }
@@ -75,7 +75,7 @@ class AsyncEtcd:
         key = self._mangle_key(key)
         success, _ = await self.etcd.txn(
             [Value(key) == initial_val],
-            [(_put_request(key, new_val), None)],
+            [self.etcd.put.txn(key, new_val)],
             [],
         )
         return success
@@ -87,6 +87,8 @@ class AsyncEtcd:
     async def delete_prefix(self, key_prefix):
         key_prefix = self._mangle_key(key_prefix)
         await self.etcd.delete(range_prefix(key_prefix))
+
+# NOTE: aioetcd3's watch API is not finalized yet as of 2017 October.
 
 #    def stop_task(self):
 #        self.etcd.stop_task()
@@ -127,10 +129,12 @@ class AsyncEtcd:
         else:
             assert False, 'Not recognized etcd event type.'
         # etcd3 library uses a separate thread for its watchers.
-        self.loop.call_soon_threadsafe(
-            queue.put_nowait,
-            Event(self._demangle_key(ev.key), ev_type, ev.value.decode(self.encoding))
+        event = Event(
+            self._demangle_key(ev.key),
+            ev_type,
+            ev.value.decode(self.encoding),
         )
+        self.loop.call_soon_threadsafe(queue.put_nowait, event)
 
     async def _watch_impl(self, raw_key, **kwargs):
         queue = asyncio.Queue(loop=self.loop)
