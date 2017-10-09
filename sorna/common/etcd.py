@@ -1,9 +1,10 @@
 '''
-Implements a asynchronous wrapper of etcd client.
+An asynchronous client wrapper for etcd v3 API.
 
-In the future, we may replace the underlying etcd3 library with an asyncio-version
-of etcd3 client libraries, hopefully, when gRPC ships asyncio stub generation.
-(see https://github.com/grpc/grpc/issues/6046)
+It uses the aioetcd3 library for basic CRUD operations. But it also uses the
+synchronous etcd3 library for implementing asynchronouse watchers because
+aioetcd3's watch API is not finalized yet (v1.4) and etcd3's watchers do not
+have blocking issues as they are implemented using threads.
 '''
 
 import asyncio
