@@ -30,14 +30,13 @@ event_map = {
 
 class AsyncEtcd:
 
-    def __init__(self, addr, namespace, encoding='utf8', loop=None, **kwargs):
+    def __init__(self, addr, namespace, *, encoding='utf8', loop=None):
         self.loop = loop if loop else asyncio.get_event_loop()
         self.etcd = client(str(addr))
         self.etcd_sync = etcd3.client(host=str(addr.host), port=addr.port)
         self.ns = namespace
         log.info(f'using etcd cluster from {addr} with namespace "{namespace}"')
         self.encoding = encoding
-        self.watch_queues = dict()
 
     def _mangle_key(self, k):
         if k.startswith('/'):
