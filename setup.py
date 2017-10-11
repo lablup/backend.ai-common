@@ -1,25 +1,18 @@
 from setuptools import setup
-import sys
-try:
-    import pypandoc
-    long_description = pypandoc.convert('README.md', 'rst')
-except (IOError, ImportError):
-    long_description = ""
+from pathlib import Path
 
 requires = [
     'simplejson',
     'pyzmq',
     'aiozmq',
-    'aioamqp>=0.10',
     'aiohttp~=2.2.0',
     'aiodns',
     'async_timeout',
     'etcd3~=0.7.0',
-    'aioetcd~=1.4.0',
+    'aioetcd3~=1.4.0',
     'msgpack-python~=0.4.8',
 ]
 build_requires = [
-    'pypandoc',
     'wheel',
     'twine',
 ]
@@ -44,15 +37,15 @@ monitor_requires = [
 
 
 setup(
-    name='sorna-common',
+    name='backend.ai-common',
 
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.0.0a1',
-    description='Sorna common libraries',
-    long_description=long_description,
-    url='https://github.com/lablup/sorna-common',
+    version='1.0.0',
+    description='Backend.AI commons library',
+    long_description=Path('README.rst').read_text(),
+    url='https://github.com/lablup/backend.ai-common',
     author='Lablup Inc.',
     author_email='joongi@lablup.com',
     license='LGPLv3',
@@ -69,10 +62,7 @@ setup(
         'Topic :: Scientific/Engineering',
         'Topic :: Software Development',
     ],
-
-    packages=['sorna.common'],
-    namespace_packages=['sorna'],
-
+    packages=['ai.backend.common'],
     python_requires='>=3.6',
     install_requires=requires,
     extras_require={

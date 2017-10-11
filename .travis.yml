@@ -1,52 +1,67 @@
-sudo: required
-
 language: python
-python:
-  - "3.6"
 cache: pip
-
 services:
   - docker
-  - rabbitmq
 
+# stage decl.
+stages:
+  - name: test
+  - name: deploy
+    if: tag IS present
+
+# build matrix for test stage
+python:
+  - "3.6"
 env:
   global:
-    - SORNA_ETCD_ADDR=localhost:2379
-    - SORNA_MQ_ADDR=localhost:5672
-    - SORNA_MQ_LOGIN=guest
-    - SORNA_MQ_PASS=guest
-    - SORNA_NAMESPACE=local
+    - BACKEND_ETCD_ADDR=localhost:2379
+    - BACKEND_NAMESPACE=local
 
-install:
-  - pip install -U pip setuptools
-  - pip install -U -r requirements-ci.txt
+# stage def.
+jobs:
+  include:
 
-before_script:
-  - mkdir -p /tmp/etcd
-  - sudo rabbitmqctl add_vhost "$SORNA_NAMESPACE"
-  - sudo rabbitmqctl set_permissions -p "$SORNA_NAMESPACE" "$SORNA_MQ_LOGIN" '.*' '.*' '.*'
-  - docker run -d -p 2379:2379 -p 2380:2380
-     -v /tmp/etcd:/etcd-data
-     --name sorna-etcd
-     quay.io/coreos/etcd:v3.1.8
-     /usr/local/bin/etcd
-     -name sorna-etcd
-     -data-dir /etcd-data
-     -listen-client-urls http://0.0.0.0:2379
-     -advertise-client-urls http://0.0.0.0:2379
-     -listen-peer-urls http://0.0.0.0:2380
-     -initial-advertise-peer-urls http://0.0.0.0:2380
-     -initial-cluster sorna-etcd=http://0.0.0.0:2380
-     -initial-cluster-token sorna-etcd-token
-     -initial-cluster-state new
-     -auto-compaction-retention 1
+    - stage: test
+      install:
+        - pip install -U pip setuptools
+        - pip install -U -r requirements-ci.txt
+      before_script:
+        - mkdir -p /tmp/etcd
+        - docker run -d -p 2379:2379 -p 2380:2380
+           -v /tmp/etcd:/etcd-data
+           --name backendai-etcd
+           quay.io/coreos/etcd:v3.2.8
+           /usr/local/bin/etcd
+           -name backendai-etcd
+           -data-dir /etcd-data
+           -listen-client-urls http://0.0.0.0:2379
+           -advertise-client-urls http://0.0.0.0:2379
+           -listen-peer-urls http://0.0.0.0:2380
+           -initial-advertise-peer-urls http://0.0.0.0:2380
+           -initial-cluster backendai-etcd=http://0.0.0.0:2380
+           -initial-cluster-token backendai-etcd-token
+           -initial-cluster-state new
+           -auto-compaction-retention 1
+      script:
+        - flake8 ai/backend tests
+        - python -m pytest -m "not integration" --cov=ai.backend
+      after_success:
+        - codecov
 
-script:
-  - flake8 sorna tests
-  - python -m pytest -m "not integration" --cov=sorna
-
-after_success:
-  - codecov
+    - stage: deploy
+      python: "3.6"
+      install: skip
+      script: skip
+      after_success: skip
+      deploy:
+        on:
+          tags: true
+        provider: pypi
+        distributions: sdist bdist_wheel
+        skip_upload_docs: true
+        user: joongi
+        password:
+          secure: "jQ7WHrKqXwSWLxnBz/ckGpcPCPzNj/rlqT13tXt/giv5ZZEptxuRSW+/BcTP/wnhEcc48BnOQxC2UaJLgBl1zNcaXA/KnKPON+C3CtccwRFrHseTjoCY9GEEdgTHh2Vqr0AZKfvNpQOfn1WnijwLaxRRIQ8GaooxDvEqKiM0UFeWp8r9QRrW4WFu1ffmuejF/ehCGgCv16s5EZ8KZ9bOzvIctPF+hP2GCOoC+aPCbluUqGi0GsrmUY3mbjTQTcNt1iVkqlvB1LGFRuD+pd564kgxHjTd9uraRdDMbblfwMD217LrHwuJS890/X37k1F8ITnKtSVInuEb5n1tnlbVE7WVwEJoPzgFh6sTsLiwkfW1ZUYkrRu2wHVYqogOb8K4REoljObBDMZ/7DiStkZudM6RcsPFsJcwp5acH/rS/fjc71JIH0zIn8+5T/c0YGIej2D+qdh7hE9eaDsSK3kyEAdmogUIjIWktLx41xL1p6oGMIFB4DjBivGvBLQXkk3LGLL5fxoG245eeGrOBOfXFR3nhOpPg6jYNOdxk8SBEFrEwO6RuYK6q7OqIIlnaucMJQavkOeGTk/lcUwrxjStQYZwZKYBm+lw12+9skYMpSXw7G9VaUjgU/+qF4DHcgKSydv4p8KNWEc660CR3+bcGGryR0Q96FW5SBojgDznfrE="
 
 notifications:
   webhooks:

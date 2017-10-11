@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from sorna.common.etcd import AsyncEtcd
-from sorna.common.argparse import host_port_pair
+from ai.backend.common.etcd import AsyncEtcd
+from ai.backend.common.argparse import host_port_pair
 
 
 @pytest.mark.asyncio

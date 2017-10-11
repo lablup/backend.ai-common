@@ -5,11 +5,11 @@ from unittest import mock
 import aiohttp
 import pytest
 
-from sorna.common.utils import (
+from ai.backend.common.utils import (
     odict, dict2kvlist, generate_uuid, nmget, readable_size_to_bytes,
     curl, StringSetFlag, AsyncBarrier
 )
-from sorna.common.testutils import (
+from ai.backend.common.testutils import (
     mock_corofunc, mock_awaitable, AsyncContextManagerMock
 )
 

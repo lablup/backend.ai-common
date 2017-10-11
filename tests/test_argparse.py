@@ -4,10 +4,10 @@ import ipaddress
 import pytest
 import aiodns
 
-from sorna.common.argparse import (
+from ai.backend.common.argparse import (
     port_no, positive_int, HostPortPair, host_port_pair, ipaddr, path,
 )
-import sorna.common.argparse
+import ai.backend.common.argparse
 
 localhost_ipv4 = ipaddress.ip_address('127.0.0.1')
 localhost_ipv6 = ipaddress.ip_address('::1')
@@ -116,7 +116,7 @@ async def test_host_port_pair_resolve_async():
 
 @pytest.mark.asyncio
 async def test_host_port_pair_resolve_async_vanilla():
-    sorna.common.argparse._aiodns_available = False
+    ai.backend.common.argparse._aiodns_available = False
 
     a = host_port_pair('localhost:1234')
     r = await a.resolve_async()
@@ -127,7 +127,7 @@ async def test_host_port_pair_resolve_async_vanilla():
     with pytest.raises(OSError):
         await x.resolve_async()
 
-    sorna.common.argparse._aiodns_available = True
+    ai.backend.common.argparse._aiodns_available = True
 
 
 def test_ipaddr():
