@@ -1,1 +1,2 @@
+--no-binary :all: protobuf
 -e .[build,test,ci]

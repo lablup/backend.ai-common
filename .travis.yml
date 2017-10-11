@@ -32,19 +32,19 @@ jobs:
            --name backendai-etcd
            quay.io/coreos/etcd:v3.2.8
            /usr/local/bin/etcd
-           -name backendai-etcd
-           -data-dir /etcd-data
-           -listen-client-urls http://0.0.0.0:2379
-           -advertise-client-urls http://0.0.0.0:2379
-           -listen-peer-urls http://0.0.0.0:2380
-           -initial-advertise-peer-urls http://0.0.0.0:2380
-           -initial-cluster backendai-etcd=http://0.0.0.0:2380
-           -initial-cluster-token backendai-etcd-token
-           -initial-cluster-state new
-           -auto-compaction-retention 1
+           --name backendai-etcd
+           --data-dir /etcd-data
+           --listen-client-urls http://0.0.0.0:2379
+           --advertise-client-urls http://0.0.0.0:2379
+           --listen-peer-urls http://0.0.0.0:2380
+           --initial-advertise-peer-urls http://0.0.0.0:2380
+           --initial-cluster backendai-etcd=http://0.0.0.0:2380
+           --initial-cluster-token backendai-etcd-token
+           --initial-cluster-state new
+           --auto-compaction-retention 1
       script:
-        - flake8 ai/backend tests
-        - python -m pytest -m "not integration" --cov=ai.backend
+        - python -m flake8 ai/backend tests
+        - python -m pytest tests --cov=ai/backend
       after_success:
         - codecov
 
