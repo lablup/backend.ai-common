@@ -12,6 +12,8 @@ stages:
 # build matrix for test stage
 python:
   - "3.6"
+os:
+  - linux
 env:
   global:
     - BACKEND_ETCD_ADDR=localhost:2379
@@ -50,6 +52,8 @@ jobs:
 
     - stage: deploy
       python: "3.6"
+      install: skip
+      script: skip
       deploy:
         on:
           tags: true
