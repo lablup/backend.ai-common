@@ -1,2 +1,2 @@
---no-binary :all: protobuf
+--no-binary protobuf protobuf
 -e .[dev]
