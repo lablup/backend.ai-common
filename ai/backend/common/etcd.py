@@ -15,7 +15,7 @@ import logging
 from aioetcd3.client import client
 from aioetcd3.help import range_prefix
 from aioetcd3.transaction import Value
-from aioetcd3.watch import EVENT_TYPE_CREATE, EVENT_TYPE_DELETE, EVENT_TYPE_PUT
+from aioetcd3.watch import EVENT_TYPE_CREATE, EVENT_TYPE_DELETE, EVENT_TYPE_MODIFY
 import etcd3
 
 Event = collections.namedtuple('Event', 'key event value')
@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 event_map = {
     EVENT_TYPE_CREATE: 'put',  # for compatibility
     EVENT_TYPE_DELETE: 'delete',
-    EVENT_TYPE_PUT: 'put',
+    EVENT_TYPE_MODIFY: 'put',
 }
 
 
