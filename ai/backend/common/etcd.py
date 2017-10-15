@@ -60,6 +60,16 @@ class AsyncEtcd:
             self.executor,
             self.etcd_sync.put, key, str(val).encode(self.encoding))
 
+    async def put_multi(self, keys, values):
+        return await self.loop.run_in_executor(
+            self.executor,
+            self.etcd_sync.transaction,
+            [],
+            [self.etcd_sync.transactions.put(
+                self._mangle_key(k), str(v).encode(self.encoding))
+             for k, v in zip(keys, values)],
+            [])
+
     async def get(self, key):
         key = self._mangle_key(key)
         # val, metadata = await self.etcd.get(key)
@@ -103,6 +113,15 @@ class AsyncEtcd:
         return await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.delete, key)
+
+    async def delete_multi(self, keys):
+        return await self.loop.run_in_executor(
+            self.executor,
+            self.etcd_sync.transaction,
+            [],
+            [self.etcd_sync.transactions.delete(self._mangle_key(k))
+             for k in keys],
+            [])
 
     async def delete_prefix(self, key_prefix):
         key_prefix = self._mangle_key(key_prefix)

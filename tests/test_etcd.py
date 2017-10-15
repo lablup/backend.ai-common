@@ -35,6 +35,29 @@ async def test_basic_crud():
 
 
 @pytest.mark.asyncio
+async def test_put_multi():
+
+    etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='local')
+    v = await etcd.get('foo')
+    assert v is None
+    v = await etcd.get('bar')
+    assert v is None
+
+    await etcd.put_multi(['foo', 'bar'], ['x', 'y'])
+    v = await etcd.get('foo')
+    assert v == 'x'
+    v = await etcd.get('bar')
+    assert v == 'y'
+
+    await etcd.delete_multi(['foo', 'bar'])
+    v = await etcd.get('foo')
+    assert v is None
+    v = await etcd.get('bar')
+    assert v is None
+
+
+
+@pytest.mark.asyncio
 async def test_watch(event_loop):
 
     etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='local')
