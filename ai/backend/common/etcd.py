@@ -1,38 +1,40 @@
 '''
 An asynchronous client wrapper for etcd v3 API.
 
-It uses the aioetcd3 library for basic CRUD operations. But it also uses the
-synchronous etcd3 library for implementing asynchronouse watchers because
-aioetcd3's watch API is not finalized yet (v1.4) and etcd3's watchers do not
-have blocking issues as they are implemented using threads.
+It uses the etcd3 library using a thread pool executor.
+We plan to migrate to aioetcd3 library but it requires more work to get maturity.
+Fortunately, etcd3's watchers are not blocking because they are implemented
+using callbacks in separate threads.
 '''
 
 import asyncio
 import collections
+from concurrent.futures import ThreadPoolExecutor
 import functools
 import logging
 
-from aioetcd3.client import client
-from aioetcd3.help import range_prefix
-from aioetcd3.transaction import Value
-from aioetcd3.watch import EVENT_TYPE_CREATE, EVENT_TYPE_DELETE, EVENT_TYPE_MODIFY
+# from aioetcd3.client import client
+# from aioetcd3.help import range_prefix
+# from aioetcd3.transaction import Value
+# from aioetcd3.watch import EVENT_TYPE_CREATE, EVENT_TYPE_DELETE, EVENT_TYPE_MODIFY
 import etcd3
 
 Event = collections.namedtuple('Event', 'key event value')
 log = logging.getLogger(__name__)
 
-event_map = {
-    EVENT_TYPE_CREATE: 'put',  # for compatibility
-    EVENT_TYPE_DELETE: 'delete',
-    EVENT_TYPE_MODIFY: 'put',
-}
+# event_map = {
+#     EVENT_TYPE_CREATE: 'put',  # for compatibility
+#     EVENT_TYPE_DELETE: 'delete',
+#     EVENT_TYPE_MODIFY: 'put',
+# }
 
 
 class AsyncEtcd:
 
     def __init__(self, addr, namespace, *, encoding='utf8', loop=None):
         self.loop = loop if loop else asyncio.get_event_loop()
-        self.etcd = client(str(addr))
+        # self.etcd = client(str(addr))
+        self.executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='etcd')
         self.etcd_sync = etcd3.client(host=str(addr.host), port=addr.port)
         self.ns = namespace
         log.info(f'using etcd cluster from {addr} with namespace "{namespace}"')
@@ -53,39 +55,61 @@ class AsyncEtcd:
 
     async def put(self, key, val):
         key = self._mangle_key(key)
-        await self.etcd.put(key, str(val).encode(self.encoding))
+        # await self.etcd.put(key, str(val).encode(self.encoding))
+        return await self.loop.run_in_executor(
+            self.executor,
+            self.etcd_sync.put, key, str(val).encode(self.encoding))
 
     async def get(self, key):
         key = self._mangle_key(key)
-        val, metadata = await self.etcd.get(key)
-        if val is None:
-            return None
-        return val.decode(self.encoding)
+        # val, metadata = await self.etcd.get(key)
+        # if val is None:
+        #     return None
+        # return val.decode(self.encoding)
+        val, _ = await self.loop.run_in_executor(
+            self.executor,
+            self.etcd_sync.get, key)
+        return val.decode(self.encoding) if val is not None else None
 
     async def get_prefix(self, key_prefix):
         key_prefix = self._mangle_key(key_prefix)
-        results = await self.etcd.range(range_prefix(key_prefix))
-        # results is a list of tuples (key, val, kvmeta)
-        return ((self._demangle_key(t[0]),
-                 t[1].decode(self.encoding))
+        # results = await self.etcd.range(range_prefix(key_prefix))
+        # # results is a list of tuples (key, val, kvmeta)
+        # return ((self._demangle_key(t[0]),
+        #          t[1].decode(self.encoding))
+        #         for t in results)
+        results = await self.loop.run_in_executor(
+            self.executor,
+            self.etcd_sync.get_prefix, key_prefix)
+        return ((self._demangle_key(t[1].key),
+                 t[0].decode(self.encoding))
                 for t in results)
 
     async def replace(self, key, initial_val, new_val):
         key = self._mangle_key(key)
-        success, _ = await self.etcd.txn(
-            [Value(key) == initial_val],
-            [self.etcd.put.txn(key, new_val)],
-            [],
-        )
+        # success, _ = await self.etcd.txn(
+        #     [Value(key) == initial_val],
+        #     [self.etcd.put.txn(key, new_val)],
+        #     [],
+        # )
+        success = await self.loop.run_in_executor(
+            self.executor,
+            self.etcd_sync.replace, key, initial_val, new_val)
         return success
 
     async def delete(self, key):
         key = self._mangle_key(key)
-        await self.etcd.delete(key)
+        # await self.etcd.delete(key)
+        return await self.loop.run_in_executor(
+            self.executor,
+            self.etcd_sync.delete, key)
 
     async def delete_prefix(self, key_prefix):
         key_prefix = self._mangle_key(key_prefix)
-        await self.etcd.delete(range_prefix(key_prefix))
+        # await self.etcd.delete(range_prefix(key_prefix))
+        return await self.loop.run_in_executor(
+            self.executor,
+            self.etcd_sync.delete_prefix, key_prefix)
 
 # NOTE: aioetcd3's watch API is not finalized yet as of 2017 October.
 
