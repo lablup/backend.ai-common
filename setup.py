@@ -9,7 +9,6 @@ requires = [
     'aiodns',
     'async_timeout',
     'etcd3~=0.7.0',
-    'aioetcd3~=1.5.0',
     'msgpack-python~=0.4.8',
 ]
 build_requires = [
