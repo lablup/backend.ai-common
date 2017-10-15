@@ -35,7 +35,7 @@ async def test_basic_crud():
 
 
 @pytest.mark.asyncio
-async def test_put_multi():
+async def test_multi():
 
     etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='local')
     v = await etcd.get('foo')
@@ -54,7 +54,6 @@ async def test_put_multi():
     assert v is None
     v = await etcd.get('bar')
     assert v is None
-
 
 
 @pytest.mark.asyncio
