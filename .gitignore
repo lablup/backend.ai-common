@@ -59,6 +59,7 @@ target/
 # virtual envs
 venv*/
 VENV/
+.python-version
 
 # IDE stuffs
 .idea/
