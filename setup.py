@@ -2,7 +2,6 @@ from setuptools import setup
 from pathlib import Path
 
 requires = [
-    'simplejson',
     'pyzmq',
     'aiozmq',
     'aiohttp~=2.2.0',

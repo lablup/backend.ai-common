@@ -1,10 +1,9 @@
+import json
 import logging
 import os
 import socket
 import sys
 from pathlib import Path
-
-import simplejson as json
 
 from .utils import curl
 
