@@ -5,13 +5,12 @@ import logging, logging.config, logging.handlers
 import multiprocessing as mp
 from pathlib import Path
 import signal
-import time
 import urllib.request, urllib.error
 
 from pythonjsonlogger.jsonlogger import JsonFormatter
 import zmq
 
-__all__ = ('Logger', 'log_args',)
+__all__ = ('Logger', )
 
 _logging_ctx = zmq.Context()
 
@@ -91,27 +90,6 @@ class CustomJsonFormatter(JsonFormatter):
             log_record['level'] = record.levelname
 
 
-def log_args(parser):
-    parser.add('--debug', env_var='BACKEND_DEBUG',
-               action='store_true', default=False,
-               help='Set the debug mode and verbose logging. (default: false)')
-    parser.add('-v', '--verbose', env_var='BACKEND_VERBOSE',
-               action='store_true', default=False,
-               help='Set even more verbose logging which includes all SQL '
-                    'statements issued. (default: false)')
-    parser.add('--log-file', env_var='BACKEND_LOG_FILE',
-               type=Path, default=None,
-               help='If set to a file path, line-by-line JSON logs will be '
-                    'recorded there.  It also automatically rotates the logs using '
-                    'dotted number suffixes. (default: None)')
-    parser.add('--log-file-count', env_var='BACKEND_LOG_FILE_COUNT',
-               type=int, default=10,
-               help='The maximum number of rotated log files (default: 10)')
-    parser.add('--log-file-size', env_var='BACKEND_LOG_FILE_SIZE',
-               type=float, default=10.0,
-               help='The maximum size of each log file in MiB (default: 10 MiB)')
-
-
 def log_worker(config, log_queue):
     if config.log_file is not None:
         fmt = '(timestamp) (level) (name) (processName) (message)'
@@ -172,6 +150,28 @@ class Logger():
         }
         self.cli_config = config
 
+    @staticmethod
+    def update_log_args(parser):
+        parser.add('--debug', env_var='BACKEND_DEBUG',
+                   action='store_true', default=False,
+                   help='Set the debug mode and verbose logging. (default: false)')
+        parser.add('-v', '--verbose', env_var='BACKEND_VERBOSE',
+                   action='store_true', default=False,
+                   help='Set even more verbose logging which includes all SQL '
+                        'statements issued. (default: false)')
+        parser.add('--log-file', env_var='BACKEND_LOG_FILE',
+                   type=Path, default=None,
+                   help='If set to a file path, line-by-line JSON logs will be '
+                        'recorded there.  It also automatically rotates the logs '
+                        'using dotted number suffixes. (default: None)')
+        parser.add('--log-file-count', env_var='BACKEND_LOG_FILE_COUNT',
+                   type=int, default=10,
+                   help='The maximum number of rotated log files (default: 10)')
+        parser.add('--log-file-size', env_var='BACKEND_LOG_FILE_SIZE',
+                   type=float, default=10.0,
+                   help='The maximum size of each log file in MiB '
+                        '(default: 10 MiB)')
+
     def add_pkg(self, pkgpath):
         self.log_config['loggers'][pkgpath] = {
             'handlers': ['console'],
@@ -200,7 +200,7 @@ class Logger():
         # reset process counter
         mp.process._process_counter = itertools.count(0)
 
-    def __exit__(self, exc, exc_type, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         self.log_queue.put(None)
         self.log_queue.close()
         self.log_queue.join_thread()
