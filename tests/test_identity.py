@@ -9,9 +9,7 @@ import ai.backend.common.identity
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('provider', ['amazon', 'google', 'unknown'])
-# @pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
-# TODO: fix aioresponses mockup not working when provider is 'azure'
+@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
 async def test_get_instance_id(mocker, provider):
     ai.backend.common.identity.current_provider = provider
     ai.backend.common.identity._defined = False
@@ -26,7 +24,7 @@ async def test_get_instance_id(mocker, provider):
             assert ret == random_id
         elif provider == 'azure':
             m.get(
-                'http://169.254.169.254/metadata/instance',
+                'http://169.254.169.254/metadata/instance?version=2017-03-01',
                 payload={
                     'compute': {
                         'vmId': random_id,
@@ -58,9 +56,7 @@ async def test_get_instance_id_failures(mocker, provider):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('provider', ['amazon', 'google', 'unknown'])
-# @pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
-# TODO: fix aioresponses mockup not working when provider is 'azure'
+@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
 async def test_get_instance_ip(mocker, provider):
     ai.backend.common.identity.current_provider = provider
     ai.backend.common.identity._defined = False
@@ -75,7 +71,7 @@ async def test_get_instance_ip(mocker, provider):
             assert ret == random_ip
         elif provider == 'azure':
             m.get(
-                'http://169.254.169.254/metadata/instance',
+                'http://169.254.169.254/metadata/instance?version=2017-03-01',
                 payload={
                     'network': {
                         'interface': [
@@ -102,9 +98,7 @@ async def test_get_instance_ip(mocker, provider):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('provider', ['amazon', 'google', 'unknown'])
-# @pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
-# TODO: fix aioresponses mockup not working when provider is 'azure'
+@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
 async def test_get_instance_type(mocker, provider):
     ai.backend.common.identity.current_provider = provider
     ai.backend.common.identity._defined = False
@@ -119,7 +113,7 @@ async def test_get_instance_type(mocker, provider):
             assert ret == random_type
         elif provider == 'azure':
             m.get(
-                'http://169.254.169.254/metadata/instance',
+                'http://169.254.169.254/metadata/instance?version=2017-03-01',
                 payload={
                     'compute': {
                         'vmSize': random_type,
