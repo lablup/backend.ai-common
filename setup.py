@@ -9,6 +9,7 @@ requires = [
     'async_timeout',
     'etcd3~=0.7.0',
     'msgpack-python~=0.4.8',
+    'python-json-logger',
 ]
 build_requires = [
     'wheel',
@@ -40,7 +41,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.1.0',
+    version='1.1.1',
     description='Backend.AI commons library',
     long_description=Path('README.rst').read_text(),
     url='https://github.com/lablup/backend.ai-common',
