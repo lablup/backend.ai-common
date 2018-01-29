@@ -1,5 +1,14 @@
 from setuptools import setup
 from pathlib import Path
+import re
+
+
+def read_src_version():
+    p = (Path(__file__).parent / 'ai' / 'backend' / 'common' / '__init__.py')
+    src = p.read_text()
+    m = re.search(r"^__version__\s*=\s*'([^']+)'", src, re.M)
+    return m.group(1)
+
 
 requires = [
     'pyzmq',
@@ -41,7 +50,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.1.2',
+    version=read_src_version(),
     description='Backend.AI commons library',
     long_description=Path('README.rst').read_text(),
     url='https://github.com/lablup/backend.ai-common',
