@@ -1,6 +1,7 @@
 import secrets
 import socket
 import random
+from unittest.mock import patch, MagicMock
 
 import pytest
 from aioresponses import aioresponses
@@ -38,8 +39,9 @@ async def test_get_instance_id(mocker, provider):
             ret = await ai.backend.common.identity.get_instance_id()
             assert ret == random_id
         elif provider == 'unknown':
-            ret = await ai.backend.common.identity.get_instance_id()
-            assert ret == f'i-{socket.gethostname()}'
+            with patch('socket.gethostname', return_value='myname') as mocked_host:
+                ret = await ai.backend.common.identity.get_instance_id()
+                assert ret == f'i-myname'
 
 
 @pytest.mark.asyncio
@@ -93,8 +95,45 @@ async def test_get_instance_ip(mocker, provider):
             ret = await ai.backend.common.identity.get_instance_ip()
             assert ret == random_ip
         elif provider == 'unknown':
-            ret = await ai.backend.common.identity.get_instance_ip()
-            assert ret == '127.0.0.1'
+            mocked_path = MagicMock()
+            mocked_path.read_text.return_value = '\n'.join([
+                '127.0.0.1\tlocalhost',
+                '10.1.2.3\tmyname',  # my name!
+                '',
+                '# The following lines are desirable for IPv6 capable hosts',
+                '::1\t  localhost ip6-localhost ip6-loopback',
+                'fe00::0 ip6-localnet',
+                'ff00::0 ip6-mcastprefix',
+                'ff02::1 ip6-allnodes',
+                'ff02::2 ip6-allrouters',
+            ])
+            with patch('ai.backend.common.identity.Path', return_value=mocked_path), \
+                 patch('socket.gethostname', return_value='myname'):
+                ret = await ai.backend.common.identity.get_instance_ip()
+                assert ret == '10.1.2.3'
+            mocked_path = MagicMock()
+            mocked_path.read_text.return_value = '\n'.join([
+                '127.0.0.1\tlocalhost',
+                '# 10.1.2.3\tmyname',  # commented
+                '10.1.2.3\tnotmyname',  # not my name...
+                '',
+                '# The following lines are desirable for IPv6 capable hosts',
+                '::1\t  localhost ip6-localhost ip6-loopback',
+                'fe00::0 ip6-localnet',
+                'ff00::0 ip6-mcastprefix',
+                'ff02::1 ip6-allnodes',
+                'ff02::2 ip6-allrouters',
+            ])
+            with patch('ai.backend.common.identity.Path', return_value=mocked_path), \
+                 patch('socket.gethostname', return_value='myname'):
+                ret = await ai.backend.common.identity.get_instance_ip()
+                assert ret == '127.0.0.1'
+            mocked_path = MagicMock()
+            mocked_path.side_effect = FileNotFoundError('no such file')
+            with patch('ai.backend.common.identity.Path', return_value=mocked_path), \
+                 patch('socket.gethostname', return_value='myname'):
+                ret = await ai.backend.common.identity.get_instance_ip()
+                assert ret == '127.0.0.1'
 
 
 @pytest.mark.asyncio

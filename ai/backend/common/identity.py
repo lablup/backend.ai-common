@@ -165,7 +165,19 @@ def _define_functions():
             return f'i-{socket.gethostname()}'
 
         async def _get_instance_ip():
-            return '127.0.0.1'
+            try:
+                myself = socket.gethostname()
+                hosts = Path('/etc/hosts').read_text()
+                for entry in hosts.splitlines():
+                    if not entry or entry.startswith('#'):
+                        continue
+                    ipaddr, host = entry.split(maxsplit=1)
+                    if host == myself:
+                        return ipaddr
+                else:
+                    return '127.0.0.1'
+            except IOError:
+                return '127.0.0.1'
 
         async def _get_instance_type():
             return 'unknown'
