@@ -4,6 +4,7 @@ import random
 from unittest.mock import patch, MagicMock
 
 import pytest
+import aiodns
 from aioresponses import aioresponses
 
 import ai.backend.common.identity
@@ -136,42 +137,25 @@ async def test_get_instance_ip(mocker, provider):
             ret = await ai.backend.common.identity.get_instance_ip()
             assert ret == random_ip
         elif provider == 'unknown':
-            mocked_path = MagicMock()
-            mocked_path.read_text.return_value = '\n'.join([
-                '127.0.0.1\tlocalhost',
-                '10.1.2.3\tmyname',  # my name!
-                '',
-                '# The following lines are desirable for IPv6 capable hosts',
-                '::1\t  localhost ip6-localhost ip6-loopback',
-                'fe00::0 ip6-localnet',
-                'ff00::0 ip6-mcastprefix',
-                'ff02::1 ip6-allnodes',
-                'ff02::2 ip6-allrouters',
-            ])
-            with patch('ai.backend.common.identity.Path', return_value=mocked_path), \
+            mocked_ares_host_result = MagicMock()
+            mocked_ares_host_result.addresses = ['10.1.2.3']
+            mocked_resolver = MagicMock()
+
+            async def coro_return_mocked_result(*args):
+                return mocked_ares_host_result
+
+            mocked_resolver.gethostbyname = coro_return_mocked_result
+            with patch('aiodns.DNSResolver', return_value=mocked_resolver), \
                  patch('socket.gethostname', return_value='myname'):
                 ret = await ai.backend.common.identity.get_instance_ip()
                 assert ret == '10.1.2.3'
-            mocked_path = MagicMock()
-            mocked_path.read_text.return_value = '\n'.join([
-                '127.0.0.1\tlocalhost',
-                '# 10.1.2.3\tmyname',  # commented
-                '10.1.2.3\tnotmyname',  # not my name...
-                '',
-                '# The following lines are desirable for IPv6 capable hosts',
-                '::1\t  localhost ip6-localhost ip6-loopback',
-                'fe00::0 ip6-localnet',
-                'ff00::0 ip6-mcastprefix',
-                'ff02::1 ip6-allnodes',
-                'ff02::2 ip6-allrouters',
-            ])
-            with patch('ai.backend.common.identity.Path', return_value=mocked_path), \
-                 patch('socket.gethostname', return_value='myname'):
-                ret = await ai.backend.common.identity.get_instance_ip()
-                assert ret == '127.0.0.1'
-            mocked_path = MagicMock()
-            mocked_path.side_effect = FileNotFoundError('no such file')
-            with patch('ai.backend.common.identity.Path', return_value=mocked_path), \
+
+            async def coro_raise_error(*args):
+                raise aiodns.error.DNSError('domain not found')
+
+            mocked_resolver = MagicMock()
+            mocked_resolver.gethostbyname = coro_raise_error
+            with patch('aiodns.DNSResolver', return_value=mocked_resolver), \
                  patch('socket.gethostname', return_value='myname'):
                 ret = await ai.backend.common.identity.get_instance_ip()
                 assert ret == '127.0.0.1'

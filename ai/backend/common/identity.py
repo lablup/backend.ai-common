@@ -5,6 +5,8 @@ import socket
 import sys
 from pathlib import Path
 
+import aiodns
+
 from .utils import curl
 
 __all__ = (
@@ -182,16 +184,10 @@ def _define_functions():
         async def _get_instance_ip():
             try:
                 myself = socket.gethostname()
-                hosts = Path('/etc/hosts').read_text()
-                for entry in hosts.splitlines():
-                    if not entry or entry.startswith('#'):
-                        continue
-                    ipaddr, host = entry.split(maxsplit=1)
-                    if host == myself:
-                        return ipaddr
-                else:
-                    return '127.0.0.1'
-            except IOError:
+                resolver = aiodns.DNSResolver()
+                result = await resolver.gethostbyname(myself, socket.AF_INET)
+                return result.addresses[0]
+            except aiodns.error.DNSError:
                 return '127.0.0.1'
 
         async def _get_instance_type():
