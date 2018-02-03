@@ -19,7 +19,22 @@ __all__ = (
 log = logging.getLogger(__name__)
 
 
+def is_containerized() -> bool:
+    '''
+    Check if I am running inside a Linux container.
+    '''
+    try:
+        cginfo = Path('/proc/self/cgroup').read_text()
+        if '/docker/' in cginfo or '/lxc/' in cginfo:
+            return True
+    except IOError:
+        return False
+
+
 def detect_cloud() -> str:
+    '''
+    Detect the cloud provider where I am running on.
+    '''
     if sys.platform.startswith('linux'):
         # Google Cloud Platform or Amazon AWS (hvm)
         try:
