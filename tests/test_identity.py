@@ -39,7 +39,7 @@ async def test_get_instance_id(mocker, provider):
             ret = await ai.backend.common.identity.get_instance_id()
             assert ret == random_id
         elif provider == 'unknown':
-            with patch('socket.gethostname', return_value='myname') as mocked_host:
+            with patch('socket.gethostname', return_value='myname'):
                 ret = await ai.backend.common.identity.get_instance_id()
                 assert ret == f'i-myname'
 
