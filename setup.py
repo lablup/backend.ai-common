@@ -13,7 +13,7 @@ def read_src_version():
 requires = [
     'pyzmq',
     'aiozmq',
-    'aiohttp~=2.3.0',
+    'aiohttp~=3.0.0',
     'aiodns',
     'async_timeout',
     'etcd3~=0.7.0',

@@ -9,6 +9,7 @@ import sys
 import uuid
 
 import aiohttp
+from async_timeout import timeout as _timeout
 
 
 def env_info():
@@ -115,7 +116,7 @@ def readable_size_to_bytes(expr):
 async def curl(url, default_value=None, params=None, headers=None, timeout=0.2):
     try:
         async with aiohttp.ClientSession() as sess:
-            with aiohttp.Timeout(timeout):
+            with _timeout(timeout):
                 async with sess.get(url, params=params, headers=headers) as resp:
                     assert resp.status == 200
                     body = await resp.text()
