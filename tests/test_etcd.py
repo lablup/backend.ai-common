@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import pytest
 
@@ -6,10 +7,18 @@ from ai.backend.common.etcd import AsyncEtcd
 from ai.backend.common.argparse import host_port_pair
 
 
-@pytest.mark.asyncio
-async def test_basic_crud():
+@pytest.fixture
+def etcd_addr():
+    env_addr = os.environ.get('BACKEND_ETCD_ADDR')
+    if env_addr is not None:
+        return host_port_pair(env_addr)
+    return host_port_pair('localhost:2379')
 
-    etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='local')
+
+@pytest.mark.asyncio
+async def test_basic_crud(etcd_addr):
+
+    etcd = AsyncEtcd(addr=etcd_addr, namespace='local')
 
     await etcd.put('wow', 'abc')
 
@@ -35,9 +44,9 @@ async def test_basic_crud():
 
 
 @pytest.mark.asyncio
-async def test_multi():
+async def test_multi(etcd_addr):
 
-    etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='local')
+    etcd = AsyncEtcd(addr=etcd_addr, namespace='local')
     v = await etcd.get('foo')
     assert v is None
     v = await etcd.get('bar')
@@ -57,9 +66,9 @@ async def test_multi():
 
 
 @pytest.mark.asyncio
-async def test_watch(event_loop):
+async def test_watch(etcd_addr, event_loop):
 
-    etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='local')
+    etcd = AsyncEtcd(addr=etcd_addr, namespace='local')
 
     records = []
     records_prefix = []
@@ -117,9 +126,9 @@ async def test_watch(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_watch_once(event_loop):
+async def test_watch_once(etcd_addr, event_loop):
 
-    etcd = AsyncEtcd(addr=host_port_pair('localhost:2379'), namespace='test')
+    etcd = AsyncEtcd(addr=etcd_addr, namespace='test')
 
     records = []
     records_prefix = []
