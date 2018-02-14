@@ -25,7 +25,7 @@ build_requires = [
     'twine',
 ]
 test_requires = [
-    'pytest>=3.1',
+    'pytest>=3.4',
     'pytest-cov',
     'pytest-asyncio',
     'pytest-mock',
@@ -35,7 +35,7 @@ test_requires = [
     'aioresponses',
 ]
 dev_requires = build_requires + test_requires + [
-    'pytest-sugar',
+    'pytest-sugar>=0.9.1',
 ]
 ci_requires = []
 monitor_requires = [
