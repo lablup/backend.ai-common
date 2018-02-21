@@ -32,7 +32,7 @@ test_requires = [
     'asynctest',
     'codecov',
     'flake8',
-    'aioresponses',
+    'aioresponses>=0.4',
 ]
 dev_requires = build_requires + test_requires + [
     'pytest-sugar>=0.9.1',
