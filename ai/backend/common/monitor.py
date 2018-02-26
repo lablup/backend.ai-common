@@ -21,5 +21,7 @@ class DummyDatadog:
 class DummySentry:
     def captureException(self, *args, **kwargs): pass  # noqa
     def captureMessage(self, *args, **kwargs): pass    # noqa
+    def capture(self, *args, **kwargs): pass           # noqa
+    def user_context(self, context): pass              # noqa
     def __enter__(self): return self                     # noqa
     def __exit__(self, exc_type, exc_val, exc_tb): pass  # noqa
