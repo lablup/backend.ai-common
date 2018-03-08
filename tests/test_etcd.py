@@ -1,5 +1,6 @@
 import asyncio
 import os
+import secrets
 
 import pytest
 
@@ -15,10 +16,23 @@ def etcd_addr():
     return host_port_pair('localhost:2379')
 
 
-@pytest.mark.asyncio
-async def test_basic_crud(etcd_addr):
+@pytest.fixture
+def test_ns():
+    return f'test-{secrets.token_hex(8)}'
 
-    etcd = AsyncEtcd(addr=etcd_addr, namespace='local')
+
+@pytest.fixture
+async def etcd(etcd_addr, test_ns):
+    etcd = AsyncEtcd(addr=etcd_addr, namespace=test_ns)
+    try:
+        yield etcd
+    finally:
+        await etcd.delete_prefix('')
+        del etcd
+
+
+@pytest.mark.asyncio
+async def test_basic_crud(etcd):
 
     await etcd.put('wow', 'abc')
 
@@ -44,9 +58,8 @@ async def test_basic_crud(etcd_addr):
 
 
 @pytest.mark.asyncio
-async def test_multi(etcd_addr):
+async def test_multi(etcd):
 
-    etcd = AsyncEtcd(addr=etcd_addr, namespace='local')
     v = await etcd.get('foo')
     assert v is None
     v = await etcd.get('bar')
@@ -66,33 +79,35 @@ async def test_multi(etcd_addr):
 
 
 @pytest.mark.asyncio
-async def test_watch(etcd_addr, event_loop):
-
-    etcd = AsyncEtcd(addr=etcd_addr, namespace='local')
+async def test_watch(etcd, event_loop):
 
     records = []
     records_prefix = []
+    r_ready = asyncio.Event()
+    rp_ready = asyncio.Event()
 
     async def _record():
         try:
-            async for ev in etcd.watch('wow'):
+            async for ev in etcd.watch('wow', ready_event=r_ready):
                 records.append(ev)
         except asyncio.CancelledError:
             pass
 
     async def _record_prefix():
         try:
-            async for ev in etcd.watch_prefix('wow'):
+            async for ev in etcd.watch_prefix('wow', ready_event=rp_ready):
                 records_prefix.append(ev)
         except asyncio.CancelledError:
             pass
 
     t1 = event_loop.create_task(_record())
     t2 = event_loop.create_task(_record_prefix())
-    await asyncio.sleep(0)
+
+    await r_ready.wait()
+    await rp_ready.wait()
 
     await etcd.put('wow', '123')
-    await etcd.get('wow')
+    await etcd.delete('wow')
     await etcd.put('wow/child', 'hello')
     await etcd.delete_prefix('wow')
 
@@ -114,42 +129,43 @@ async def test_watch(etcd_addr, event_loop):
     assert records_prefix[0].key == 'wow'
     assert records_prefix[0].event == 'put'
     assert records_prefix[0].value == '123'
-    assert records_prefix[1].key == 'wow/child'
-    assert records_prefix[1].event == 'put'
-    assert records_prefix[1].value == 'hello'
-    assert records_prefix[2].key == 'wow'
-    assert records_prefix[2].event == 'delete'
-    assert records_prefix[2].value == ''
+    assert records_prefix[1].key == 'wow'
+    assert records_prefix[1].event == 'delete'
+    assert records_prefix[1].value == ''
+    assert records_prefix[2].key == 'wow/child'
+    assert records_prefix[2].event == 'put'
+    assert records_prefix[2].value == 'hello'
     assert records_prefix[3].key == 'wow/child'
     assert records_prefix[3].event == 'delete'
     assert records_prefix[3].value == ''
 
 
 @pytest.mark.asyncio
-async def test_watch_once(etcd_addr, event_loop):
-
-    etcd = AsyncEtcd(addr=etcd_addr, namespace='test')
+async def test_watch_once(etcd, event_loop):
 
     records = []
     records_prefix = []
+    r_ready = asyncio.Event()
+    rp_ready = asyncio.Event()
 
     async def _record():
         try:
-            async for ev in etcd.watch('wow', once=True):
+            async for ev in etcd.watch('wow', once=True, ready_event=r_ready):
                 records.append(ev)
         except asyncio.CancelledError:
             pass
 
     async def _record_prefix():
         try:
-            async for ev in etcd.watch_prefix('wow', once=True):
+            async for ev in etcd.watch_prefix('wow/city', once=True, ready_event=rp_ready):
                 records_prefix.append(ev)
         except asyncio.CancelledError:
             pass
 
     t1 = event_loop.create_task(_record())
     t2 = event_loop.create_task(_record_prefix())
-    await asyncio.sleep(0)
+    await r_ready.wait()
+    await rp_ready.wait()
 
     await etcd.put('wow/city1', 'seoul')
     await etcd.put('wow/city2', 'daejeon')
