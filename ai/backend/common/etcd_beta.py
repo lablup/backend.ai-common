@@ -7,7 +7,6 @@ supported by the library yet.
 
 import asyncio
 import collections
-import functools
 import logging
 
 from aioetcd3.client import client
