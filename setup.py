@@ -16,6 +16,7 @@ requires = [
     'aiohttp~=3.1.0',
     'aiodns',
     'async_timeout>=2.0',
+    'coloredlogs>=9.0',
     'etcd3~=0.7.0',
     'msgpack~=0.5',
     'python-json-logger',
