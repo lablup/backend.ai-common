@@ -13,11 +13,12 @@ def read_src_version():
 requires = [
     'pyzmq',
     'aiozmq',
-    'aiohttp~=3.0.0',
+    'aiohttp~=3.2.0',
     'aiodns',
-    'async_timeout',
+    'async_timeout~=3.0',
+    'attrs>=18.0',
     'etcd3~=0.7.0',
-    'msgpack-python~=0.4.8',
+    'msgpack~=0.5.6',
     'python-json-logger',
 ]
 build_requires = [
