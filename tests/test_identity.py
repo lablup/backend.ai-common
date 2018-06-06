@@ -51,6 +51,7 @@ def test_is_containerized():
         assert not ai.backend.common.identity.is_containerized()
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
 async def test_get_instance_id(mocker, provider):
@@ -86,6 +87,7 @@ async def test_get_instance_id(mocker, provider):
                 assert ret == f'i-myname'
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
 async def test_get_instance_id_failures(mocker, provider):
@@ -99,6 +101,7 @@ async def test_get_instance_id_failures(mocker, provider):
         assert ret == f'i-{socket.gethostname()}'
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
 async def test_get_instance_ip(mocker, provider):
@@ -161,6 +164,7 @@ async def test_get_instance_ip(mocker, provider):
                 assert ret == '127.0.0.1'
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
 async def test_get_instance_type(mocker, provider):
