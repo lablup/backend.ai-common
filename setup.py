@@ -17,7 +17,7 @@ requires = [
     'aiodns',
     'async_timeout~=3.0',
     'attrs>=18.0',
-    'etcd3~=0.7.0',
+    'etcd3~=0.8.0',
     'msgpack~=0.5.6',
     'python-json-logger',
 ]
