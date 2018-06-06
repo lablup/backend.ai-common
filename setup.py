@@ -18,6 +18,7 @@ requires = [
     'async_timeout~=3.0',
     'attrs>=18.0',
     'etcd3~=0.8.0',
+    'protobuf==3.5.2.post1',  # remove if kragniz/python-etcd3#432 is released
     'msgpack~=0.5.6',
     'python-json-logger',
 ]
