@@ -12,7 +12,6 @@ def read_src_version():
 
 requires = [
     'pyzmq>=17.0',
-    'aiozmq',
     'aiohttp~=3.3.0',
     'aiodns',
     'async_timeout~=3.0',
@@ -23,11 +22,11 @@ requires = [
     'python-json-logger',
 ]
 build_requires = [
-    'wheel',
-    'twine',
+    'wheel>=0.31.0',
+    'twine>=1.11.0',
 ]
 test_requires = [
-    'pytest>=3.4',
+    'pytest>=3.6.0',
     'pytest-cov',
     'pytest-asyncio',
     'pytest-mock',
