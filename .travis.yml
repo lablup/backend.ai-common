@@ -10,9 +10,6 @@ stages:
     if: tag IS present
 
 # build matrix for test stage
-python:
-  - "3.6"
-  - "3.7"
 os:
   - linux
 env:
@@ -20,8 +17,11 @@ env:
     - BACKEND_ETCD_ADDR=localhost:2379
     - BACKEND_NAMESPACE=local
 matrix:
-  allow_failures:
-    - python: "3.7"
+  include:
+  - python: "3.6"
+  - python: "3.7"
+    dist: xenial
+    sudo: true
 
 install:
   - pip install -U pip setuptools
