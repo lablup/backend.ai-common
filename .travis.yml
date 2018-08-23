@@ -19,6 +19,9 @@ env:
   global:
     - BACKEND_ETCD_ADDR=localhost:2379
     - BACKEND_NAMESPACE=local
+matrix:
+  allow_failures:
+    - python: "3.7"
 
 # stage def.
 jobs:
@@ -53,8 +56,10 @@ jobs:
 
     - stage: deploy
       python: "3.6"
-      install: skip
+      install: pip install -U -r requirements-build.txt
+      before_script: skip
       script: skip
+      after_success: skip
       deploy:
         on:
           tags: true
