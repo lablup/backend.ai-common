@@ -52,8 +52,6 @@ after_success:
 # stage def.
 jobs:
   include:
-
-    - stage: test
     - stage: deploy
       python: "3.6"
       install:
