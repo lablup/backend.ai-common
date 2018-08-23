@@ -23,40 +23,42 @@ matrix:
   allow_failures:
     - python: "3.7"
 
+install:
+  - pip install -U pip setuptools
+  - pip install -U -r requirements-ci.txt
+before_script:
+  - mkdir -p /tmp/etcd
+  - docker run -d -p 2379:2379 -p 2380:2380
+     -v /tmp/etcd:/etcd-data
+     --name backendai-etcd
+     quay.io/coreos/etcd:v3.2.8
+     /usr/local/bin/etcd
+     --name backendai-etcd
+     --data-dir /etcd-data
+     --listen-client-urls http://0.0.0.0:2379
+     --advertise-client-urls http://0.0.0.0:2379
+     --listen-peer-urls http://0.0.0.0:2380
+     --initial-advertise-peer-urls http://0.0.0.0:2380
+     --initial-cluster backendai-etcd=http://0.0.0.0:2380
+     --initial-cluster-token backendai-etcd-token
+     --initial-cluster-state new
+     --auto-compaction-retention 1
+script:
+  - python -m flake8 src tests
+  - python -m pytest --cov=src
+after_success:
+  - codecov
+
 # stage def.
 jobs:
   include:
 
     - stage: test
-      install:
-        - pip install -U pip setuptools
-        - pip install -U --upgrade-strategy=eager -r requirements-ci.txt
-      before_script:
-        - mkdir -p /tmp/etcd
-        - docker run -d -p 2379:2379 -p 2380:2380
-           -v /tmp/etcd:/etcd-data
-           --name backendai-etcd
-           quay.io/coreos/etcd:v3.2.8
-           /usr/local/bin/etcd
-           --name backendai-etcd
-           --data-dir /etcd-data
-           --listen-client-urls http://0.0.0.0:2379
-           --advertise-client-urls http://0.0.0.0:2379
-           --listen-peer-urls http://0.0.0.0:2380
-           --initial-advertise-peer-urls http://0.0.0.0:2380
-           --initial-cluster backendai-etcd=http://0.0.0.0:2380
-           --initial-cluster-token backendai-etcd-token
-           --initial-cluster-state new
-           --auto-compaction-retention 1
-      script:
-        - python -m flake8 src tests
-        - python -m pytest --cov=src
-      after_success:
-        - codecov
-
     - stage: deploy
       python: "3.6"
-      install: pip install -U -r requirements-build.txt
+      install:
+        - pip install -U pip setuptools
+        - pip install -U -r requirements-build.txt
       before_script: skip
       script: skip
       after_success: skip
