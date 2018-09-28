@@ -43,7 +43,7 @@ before_script:
      --auto-compaction-retention 1
 script:
   - python -m flake8 src tests
-  - python -m pytest --cov=src
+  - python -m pytest --cov=src -v
 after_success:
   - codecov
 
