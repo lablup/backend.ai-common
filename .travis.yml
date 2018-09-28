@@ -29,7 +29,7 @@ before_script:
   - docker run -d -p 2379:2379 -p 2380:2380
      -v /tmp/etcd:/etcd-data
      --name backendai-etcd
-     quay.io/coreos/etcd:v3.2.8
+     quay.io/coreos/etcd:v3.3.9
      /usr/local/bin/etcd
      --name backendai-etcd
      --data-dir /etcd-data
@@ -43,7 +43,7 @@ before_script:
      --auto-compaction-retention 1
 script:
   - python -m flake8 src tests
-  - python -m pytest --cov=src
+  - python -m pytest --cov=src -v
 after_success:
   - codecov
 

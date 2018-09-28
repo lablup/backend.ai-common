@@ -10,4 +10,4 @@ def packb(data, **kwargs):
 
 
 def unpackb(packed, **kwargs):
-    return _msgpack.unpackb(packed, encoding='utf8', use_list=False, **kwargs)
+    return _msgpack.unpackb(packed, raw=False, use_list=False, **kwargs)
