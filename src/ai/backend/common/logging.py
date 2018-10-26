@@ -10,7 +10,7 @@ import urllib.request, urllib.error
 from pythonjsonlogger.jsonlogger import JsonFormatter
 import zmq
 
-__all__ = ('Logger', )
+__all__ = ('Logger', 'BraceStyleAdapter')
 
 _logging_ctx = zmq.Context()
 
