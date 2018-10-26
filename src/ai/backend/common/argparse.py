@@ -37,6 +37,16 @@ def positive_int(s):
     return val
 
 
+def non_negative_int(s):
+    try:
+        val = int(s)
+        assert val >= 0
+    except (ValueError, AssertionError):
+        msg = '{!r} is not a non-negative integer.'.format(s)
+        raise argparse.ArgumentTypeError(msg)
+    return val
+
+
 class HostPortPair(namedtuple('_HostPortPair', 'host port')):
 
     def __format__(self, spec):

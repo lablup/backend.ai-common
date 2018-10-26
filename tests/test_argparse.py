@@ -5,7 +5,8 @@ import pytest
 import aiodns
 
 from ai.backend.common.argparse import (
-    port_no, positive_int, HostPortPair, host_port_pair, ipaddr, path,
+    port_no, positive_int, non_negative_int,
+    HostPortPair, host_port_pair, ipaddr, path,
 )
 import ai.backend.common.argparse
 
@@ -38,6 +39,17 @@ def test_positive_int():
         positive_int(-1)
     with pytest.raises(argparse.ArgumentTypeError):
         positive_int(-10)
+
+
+def test_non_positive_int():
+    assert non_negative_int(1)
+    assert non_negative_int(100000)
+    assert non_negative_int(0) == 0
+
+    with pytest.raises(argparse.ArgumentTypeError):
+        non_negative_int(-1)
+    with pytest.raises(argparse.ArgumentTypeError):
+        non_negative_int(-10)
 
 
 def test_host_port_pair_direct_creation():
