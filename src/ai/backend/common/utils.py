@@ -11,6 +11,8 @@ import uuid
 import aiohttp
 from async_timeout import timeout as _timeout
 
+from .types import BinarySize
+
 
 def env_info():
     '''
@@ -91,26 +93,8 @@ def nmget(o, key_path, def_val=None, path_delimiter='.', null_as_default=True):
 
 def readable_size_to_bytes(expr):
     if isinstance(expr, numbers.Real):
-        return int(expr)
-    elif isinstance(expr, str):
-        try:
-            v = float(expr)
-            return int(v)
-        except ValueError:
-            suffix = expr[-1]
-            suffix_map = {
-                'y': 2 ** 80, 'Y': 2 ** 80,  # yotta
-                'z': 2 ** 70, 'Z': 2 ** 70,  # zetta
-                'e': 2 ** 60, 'E': 2 ** 60,  # exa
-                'p': 2 ** 50, 'P': 2 ** 50,  # peta
-                't': 2 ** 40, 'T': 2 ** 40,  # tera
-                'g': 2 ** 30, 'G': 2 ** 30,  # giga
-                'm': 2 ** 20, 'M': 2 ** 20,  # mega
-                'k': 2 ** 10, 'K': 2 ** 10,  # kilo
-            }
-            return int(float(expr[:-1]) * suffix_map[suffix])
-    else:
-        raise ValueError('unconvertible type')
+        return BinarySize(expr)
+    return BinarySize.from_str(expr)
 
 
 async def curl(url, default_value=None, params=None, headers=None, timeout=0.2):

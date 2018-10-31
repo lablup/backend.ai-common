@@ -59,7 +59,7 @@ def test_readable_size_to_bytes():
     assert readable_size_to_bytes('2z') == 2 * (2 ** 70)
     assert readable_size_to_bytes('2Y') == 2 * (2 ** 80)
     assert readable_size_to_bytes('2y') == 2 * (2 ** 80)
-    with pytest.raises(KeyError):
+    with pytest.raises(ValueError):
         readable_size_to_bytes('3A')
     with pytest.raises(ValueError):
         readable_size_to_bytes('TT')
