@@ -1,24 +1,52 @@
+import asyncio
+import inspect
 import logging
 import pkg_resources
 
 from .logging import BraceStyleAdapter
-
+from .monitor import AbstractErrorMonitor, AbstractStatsMonitor
 
 log = BraceStyleAdapter(logging.getLogger('ai.backend.common.plugin'))
 
 
+plugin_base_classes = {
+    'stats_monitor': AbstractStatsMonitor,
+    'error_monitor': AbstractErrorMonitor,
+}
+
+
 class PluginRegistry:
 
-    def __init__(self):
+    def __init__(self, plugin_name):
         self._plugins = []
+        self._base_class = plugin_base_classes[plugin_name]
+        self._methods = {}
+        methods = inspect.getmembers(self._base_class,
+                                     predicate=inspect.ismethod)
+        for name, method in methods:
+            self._methods[name] = method
 
     def register(self, plugin):
+        assert isinstance(plugin, self._base_class), \
+            (f'Wrong type of plugin '
+             f'(plugin: {type(plugin)} / registry: {self._base_class})')
         self._plugins.append(plugin)
 
     def __getattr__(self, name):
-        def _callback_dispatcher(*args, **kwargs):
-            for plugin in self._plugins:
-                getattr(plugin, name)(*args, **kwargs)
+        try:
+            method = self._methods[name]
+        except KeyError:
+            raise AttributeError(f"'{self._base_class.__name__}' object "
+                                 f"has no attribute '{name}'")
+
+        if inspect.iscoroutinefunction(method):
+            async def _callback_dispatcher(*args, **kwargs):
+                await asyncio.gather(*[getattr(plugin, name)(*args, kwargs)
+                                       for plugin in self._plugins])
+        else:
+            def _callback_dispatcher(*args, **kwargs):
+                for plugin in self._plugins:
+                    getattr(plugin, name)(*args, **kwargs)
 
         return _callback_dispatcher
 
@@ -62,7 +90,7 @@ def install_plugins(plugins, app, install_type, config):
         disable_plugins = []
     for plugin_name in plugins:
         plugin_group = f'backendai_{plugin_name}_v10'
-        registry = PluginRegistry()
+        registry = PluginRegistry(plugin_name)
         for entrypoint in pkg_resources.iter_entry_points(plugin_group):
             if entrypoint.name in disable_plugins:
                 continue
