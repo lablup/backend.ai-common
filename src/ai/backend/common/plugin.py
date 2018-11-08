@@ -35,6 +35,25 @@ def discover_entrypoints(plugins, disable_plugins=None):
 
 
 def install_plugins(plugins, app, install_type, config):
+    """
+    Automatically install plugins to the app.
+
+    :param plugins: List of plugin names to discover and install plugins
+    :param app: Any type of app to install plugins
+    :param install_type: The way to install plugins to app
+    :param config: Config object to initialize plugins
+    :return:
+
+    You should note that app can be any type of object. For instance,
+    when used in manager, app param is the instance of aiohttp.web.Application,
+    but it is the instance of subclass of aiozmq.rpc.AttrHandler in agents.
+
+    Therefore, you should specify :install_type: to install plugins into different
+    types of apps correctly. Currently we support two types of :install_type:,
+    which are 'attr' and 'dict'. For 'attr', plugins will be installed to app
+    as its attributes. For 'dict', plugins will be installed as following:
+    app[plugin_name] = plugin.
+    """
     try:
         disable_plugins = config.disable_plugins
         if not disable_plugins:
