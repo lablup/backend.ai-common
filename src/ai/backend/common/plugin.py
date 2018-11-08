@@ -2,6 +2,7 @@ import asyncio
 import inspect
 import logging
 import pkg_resources
+import typing
 
 from .logging import BraceStyleAdapter
 from .monitor import AbstractErrorMonitor, AbstractStatsMonitor
@@ -105,6 +106,9 @@ def install_plugins(plugins, app, install_type, config):
         if install_type == 'attr':
             setattr(app, plugin_name, registry)
         elif install_type == 'dict':
+            assert isinstance(app, typing.MutableMapping), \
+                (f"app must be an instance of MutableMapping "
+                 f"for 'dict' install_type.")
             app[plugin_name] = registry
         else:
             raise ValueError(f'Invalid install type: {install_type}')
