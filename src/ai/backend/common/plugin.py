@@ -41,12 +41,16 @@ class PluginRegistry:
 
         if inspect.iscoroutinefunction(method):
             async def _callback_dispatcher(*args, **kwargs):
-                await asyncio.gather(*[getattr(plugin, name)(*args, kwargs)
-                                       for plugin in self._plugins])
+                return await asyncio.gather(*[getattr(plugin, name)(*args, kwargs)
+                                              for plugin in self._plugins],
+                                            return_exceptions=True)
         else:
             def _callback_dispatcher(*args, **kwargs):
+                results = []
                 for plugin in self._plugins:
-                    getattr(plugin, name)(*args, **kwargs)
+                    result = getattr(plugin, name)(*args, **kwargs)
+                    results.append(result)
+                return results
 
         return _callback_dispatcher
 
