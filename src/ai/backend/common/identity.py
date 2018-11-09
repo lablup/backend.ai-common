@@ -40,6 +40,13 @@ def detect_cloud() -> str:
     if sys.platform.startswith('linux'):
         # Google Cloud Platform or Amazon AWS (hvm)
         try:
+            # AWS Nitro-based instances
+            mb = Path('/sys/devices/virtual/dmi/id/board_vendor').read_text().lower()
+            if 'amazon' in mb:
+                return 'amazon'
+        except IOError:
+            pass
+        try:
             bios = Path('/sys/devices/virtual/dmi/id/bios_version').read_text().lower()
             if 'google' in bios:
                 return 'google'
