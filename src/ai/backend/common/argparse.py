@@ -104,7 +104,7 @@ def host_port_pair(s):
 def ipaddr(s):
     try:
         ip = ipaddress.ip_address(s.strip('[]'))
-    except ValueError as e:
+    except ValueError:
         msg = f'{s!r} is not a valid IP address.'
         raise argparse.ArgumentTypeError(msg)
     return ip

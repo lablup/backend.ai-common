@@ -121,7 +121,7 @@ async def curl(url, default_value=None, params=None, headers=None, timeout=0.2):
                     assert resp.status == 200
                     body = await resp.text()
                     return body.strip()
-    except (asyncio.TimeoutError, aiohttp.ClientError, AssertionError) as e:
+    except (asyncio.TimeoutError, aiohttp.ClientError, AssertionError):
         if callable(default_value):
             return default_value()
         return default_value
