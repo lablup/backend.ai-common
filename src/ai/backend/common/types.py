@@ -1,11 +1,12 @@
 from decimal import Decimal
 import enum
-from typing import Hashable, Mapping, Sequence, Set, TypeVar
+import re
+from typing import Hashable, Mapping, Sequence, Set, NewType, Tuple, Union
 
 import attr
 
 
-DeviceId = TypeVar('DeviceId', int, str, Hashable)
+DeviceId = NewType('DeviceId', Hashable)
 
 
 class BinarySize(int):
@@ -82,13 +83,125 @@ class BinarySize(int):
             return f'{value} {suffix.upper()}iB'
 
 
-@attr.s(auto_attribs=True, slots=True)
-class AcceleratorRequest:
-    '''
-    Represents accelerator demands for a new compute session request.
+class ImageRef:
 
-    **device_share** is a relative value where its realization is responsible to
-    the specific accelerator plugin.  For example, "1.5 CUDA GPU" may be either
+    __slots__ = ('_registry', '_name', '_tag')
+
+    _rx_slug = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-._]*[A-Za-z0-9])?$')
+    _rx_kernel_prefix = re.compile(r'^(?:.+/)?kernel-.+$')
+
+    @staticmethod
+    def _parse_image_tag(s):
+        if s.startswith('kernel-'):
+            s = s[7:]
+        image_tag = s.split(':', maxsplit=1)
+        if len(image_tag) == 1:
+            image = image_tag[0]
+            tag = None
+        else:
+            image = image_tag[0]
+            tag = image_tag[1]
+        return image, tag
+
+    @classmethod
+    def is_kernel(cls, s) -> bool:
+        '''
+        Checks if the given string in "RepoTags" field values from Docker's
+        image listing API follows Backend.AI's kernel image name.
+        '''
+        if not cls._rx_kernel_prefix.search(s):
+            return False
+        try:
+            ref = cls(s)
+        except ValueError:
+            return False
+        if ref.tag is not None and ref.tag == 'latest':
+            return False
+        return True
+
+    def __init__(self, s):
+        rx_slug = type(self)._rx_slug
+        parts = s.rsplit('/', maxsplit=1)
+        if len(parts) == 1:
+            self._registry = 'lablup'
+            self._name, self._tag = ImageRef._parse_image_tag(parts[0])
+            if not rx_slug.search(self._name):
+                raise ValueError('Invalid image name')
+            if self._tag is not None and not rx_slug.search(self._tag):
+                raise ValueError('Invalid iamge tag')
+        else:
+            self._registry = parts[0]
+            if not rx_slug.search(self._registry):
+                raise ValueError('Invalid image registry')
+            self._name, self._tag = ImageRef._parse_image_tag(parts[1])
+            if not rx_slug.search(self._name):
+                raise ValueError('Invalid image name')
+            if self._tag is not None and not rx_slug.search(self._tag):
+                raise ValueError('Invalid image tag')
+
+    async def resolve(self, etcd):
+        '''
+        Resolve the tag using etcd so that the current instance indicates
+        a concrete, latest image.
+        '''
+        raise NotImplementedError
+
+    def resolve_required(self) -> bool:
+        return (self._tag is None or self._tag == 'latest')
+
+    @property
+    def canonical(self) -> str:
+        # e.g., lablup/kernel-python:3.6-ubuntu
+        return f'{self.registry}/kernel-{self.name}:{self.tag}'
+
+    @property
+    def name(self) -> str:
+        # e.g., python
+        return self._name
+
+    @property
+    def tag(self) -> str:
+        # e.g., 3.6-ubuntu
+        return self._tag
+
+    @property
+    def tag_set(self) -> Tuple[str, Set[str]]:
+        # e.g., '3.6', {'ubuntu', 'cuda', ...}
+        tags = self._tag.split('-')
+        return tags[0], set(tags[1:])
+
+    @property
+    def registry(self) -> str:
+        # e.g., lablup
+        return self._registry
+
+    @property
+    def short(self) -> str:
+        # e.g., python:3.6-ubuntu
+        return f'{self.name}:{self.tag}'
+
+    def __str__(self) -> str:
+        return self.canonical
+
+    def __repr__(self) -> str:
+        return f'<ImageRef: "{self.canonical}">'
+
+
+class DeviceTypes(enum.Enum):
+    CPU = 'cpu'
+    MEMORY = 'mem'
+
+
+DeviceType = NewType('DeviceType', Union[str, DeviceTypes])
+
+
+@attr.s(auto_attribs=True, slots=True)
+class ShareRequest:
+    '''
+    Represents resource demands in "share" for a specific type of resource.
+
+    **share** is a relative value where its realization is responsible to
+    the specific resource type.  For example, "1.5 CUDA GPU" may be either
     physically a fraction of one CUDA GPU or fractions spanning across two (or
     more) CUDA GPUs depending on the actual GPU capacity detected/analyzed by
     the CUDA accelerator plugin.
@@ -97,6 +210,7 @@ class AcceleratorRequest:
     meaningful only when specified.  If specified, they indicate the minimum
     compatible versions required to execute the given compute session.
     '''
+    device_type: DeviceType
     device_share: Decimal
     feature_version: str = None
     feature_set: Set[str] = attr.Factory(set)
@@ -130,11 +244,18 @@ class ResourceRequest:
     GiB of the main memory.  Note that this mapping may be changed in the
     future depending the hardware performance changes.
     '''
-    cpu_share: Decimal
-    memory_share: Decimal
-    accelerators: Mapping[str, AcceleratorRequest] = attr.Factory(dict)
+    shares: Mapping[str, ShareRequest] = attr.Factory(dict)
     vfolders: Sequence[VFolderRequest] = attr.Factory(list)
     scratch_disk_size: BinarySize = None
+    ignore_numa: bool = False
+    extra: str = ''
+
+    def to_json(self):
+        pass
+
+    @classmethod
+    def from_json(cls):
+        pass
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -143,5 +264,9 @@ class SessionRequest:
     Represents a new compute session request.
     '''
     scaling_group: str
-    image: str
-    resource_spec: ResourceRequest
+    cluster_size: int = 1
+    master_image: str
+    master_resource_spec: ResourceRequest
+    # for multi-container sessions
+    worker_image: str = None
+    worker_resource_spec: ResourceRequest = None
