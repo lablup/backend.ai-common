@@ -264,7 +264,7 @@ class SessionRequest:
     Represents a new compute session request.
     '''
     scaling_group: str
-    cluster_size: int = 1
+    cluster_size: int
     master_image: str
     master_resource_spec: ResourceRequest
     # for multi-container sessions
