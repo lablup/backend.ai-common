@@ -5,6 +5,8 @@ from typing import Hashable, Mapping, Iterable, Sequence, Set, NewType, Tuple, U
 
 import attr
 
+from . import etcd
+
 
 DeviceId = NewType('DeviceId', Hashable)
 
@@ -181,7 +183,7 @@ class ImageRef:
                 raise ValueError('Invalid image tag')
         self._update_tag_set()
 
-    async def resolve(self, etcd: 'ai.backend.common.etcd.AsyncEtcd'):
+    async def resolve(self, etcd: 'etcd.AsyncEtcd'):
         '''
         Resolve the tag using etcd so that the current instance indicates
         a concrete, latest image.
