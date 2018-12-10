@@ -1,7 +1,8 @@
+from collections import UserDict
 from decimal import Decimal
 import enum
 import re
-from typing import Hashable, Mapping, Sequence, Set, NewType, Tuple, Union
+from typing import Hashable, Mapping, Iterable, Sequence, Set, NewType, Tuple, Union
 
 import attr
 
@@ -83,6 +84,38 @@ class BinarySize(int):
             return f'{value} {suffix.upper()}iB'
 
 
+class PlatformTagSet(UserDict):
+
+    __slots__ = ('_tags', )
+    _rx_ver = re.compile(r'^(?P<tag>[a-zA-Z]+)(?P<version>\d+(?:\.\d+)*[a-z0-9]*)?$')
+
+    def __init__(self, tags: Iterable[str]):
+        super().__init__()
+        rx = type(self)._rx_ver
+        for t in tags:
+            match = rx.search(t)
+            if match is None:
+                raise ValueError('invalid tag-version string', t)
+            key = match.group('tag')
+            value = match.group('version')
+            if key in self.data:
+                raise ValueError('duplicate platform tag with different versions', t)
+            if value is None:
+                value = ''
+            self.data[key] = value
+
+    def has(self, key: str, version: str = None):
+        if version is None:
+            return key in self.data
+        _v = self.data.get(key, None)
+        return _v == version
+
+    def __eq__(self, other):
+        if isinstance(other, (set, frozenset)):
+            return set(self.data.keys()) == other
+        return self.data == other
+
+
 class ImageRef:
 
     __slots__ = ('_registry', '_name', '_tag')
@@ -91,7 +124,7 @@ class ImageRef:
     _rx_kernel_prefix = re.compile(r'^(?:.+/)?kernel-.+$')
 
     @staticmethod
-    def _parse_image_tag(s):
+    def _parse_image_tag(s: str) -> Tuple[str, str]:
         if s.startswith('kernel-'):
             s = s[7:]
         image_tag = s.split(':', maxsplit=1)
@@ -104,7 +137,7 @@ class ImageRef:
         return image, tag
 
     @classmethod
-    def is_kernel(cls, s) -> bool:
+    def is_kernel(cls, s: str) -> bool:
         '''
         Checks if the given string in "RepoTags" field values from Docker's
         image listing API follows Backend.AI's kernel image name.
@@ -119,7 +152,7 @@ class ImageRef:
             return False
         return True
 
-    def __init__(self, s):
+    def __init__(self, s: str):
         rx_slug = type(self)._rx_slug
         parts = s.rsplit('/', maxsplit=1)
         if len(parts) == 1:
@@ -139,12 +172,36 @@ class ImageRef:
             if self._tag is not None and not rx_slug.search(self._tag):
                 raise ValueError('Invalid image tag')
 
-    async def resolve(self, etcd):
+    async def resolve(self, etcd: 'ai.backend.common.etcd.AsyncEtcd'):
         '''
         Resolve the tag using etcd so that the current instance indicates
         a concrete, latest image.
+
+        Note that alias resolving does not take the registry component into
+        account.
         '''
-        raise NotImplementedError
+        async def resolve_alias(alias_key):
+            alias_target = None
+            while True:
+                prev_alias_key = alias_key
+                alias_key = await etcd.get(f'images/_aliases/{alias_key}')
+                if alias_key is None:
+                    alias_target = prev_alias_key
+                    break
+            return alias_target
+
+        name_or_alias = self.short
+        alias_target = await resolve_alias(name_or_alias)
+        if alias_target == name_or_alias and name_or_alias.rfind(':') == -1:
+            alias_target = await resolve_alias(f'{name_or_alias}:latest')
+        assert alias_target is not None
+        name, _, tag = alias_target.partition(':')
+        hash = await etcd.get(f'images/{name}/tags/{tag}')
+        if hash is None:
+            raise RuntimeError(f'{name_or_alias}: Unregistered image '
+                               'or unknown alias.')
+        self._name = name
+        self._tag = tag
 
     def resolve_required(self) -> bool:
         return (self._tag is None or self._tag == 'latest')
@@ -165,10 +222,10 @@ class ImageRef:
         return self._tag
 
     @property
-    def tag_set(self) -> Tuple[str, Set[str]]:
+    def tag_set(self) -> Tuple[str, PlatformTagSet]:
         # e.g., '3.6', {'ubuntu', 'cuda', ...}
         tags = self._tag.split('-')
-        return tags[0], set(tags[1:])
+        return tags[0], PlatformTagSet(tags[1:])
 
     @property
     def registry(self) -> str:
@@ -177,6 +234,9 @@ class ImageRef:
 
     @property
     def short(self) -> str:
+        '''
+        Returns the image reference string without the registry part.
+        '''
         # e.g., python:3.6-ubuntu
         return f'{self.name}:{self.tag}'
 
@@ -185,6 +245,15 @@ class ImageRef:
 
     def __repr__(self) -> str:
         return f'<ImageRef: "{self.canonical}">'
+
+    def __eq__(self, other) -> bool:
+        if self.resolve_required() or other.resolve_required():
+            raise ValueError('You must compare resolved image references.')
+        return (
+            (self._name == other._name) and
+            (self._tag == other._tag) and
+            (self._registry == other._registry)
+        )
 
 
 class DeviceTypes(enum.Enum):

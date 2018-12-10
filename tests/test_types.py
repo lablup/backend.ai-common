@@ -1,4 +1,4 @@
-from ai.backend.common.types import BinarySize, ImageRef
+from ai.backend.common.types import BinarySize, ImageRef, PlatformTagSet
 
 import pytest
 
@@ -50,7 +50,7 @@ def test_image_ref_parsing():
     assert ref.name == 'python-tensorflow'
     assert ref.tag == '1.10-py36-ubuntu'
     assert ref.registry == 'lablup'
-    assert ref.tag_set == ('1.10', {'ubuntu', 'py36'})
+    assert ref.tag_set == ('1.10', {'ubuntu', 'py'})
 
     ref = ImageRef('lablup/kernel-python:3.6-ubuntu')
     assert not ref.resolve_required()
@@ -77,14 +77,14 @@ def test_image_ref_parsing():
     assert ref.name == 'python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == 'myregistry.org'
-    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda9'})
+    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
     ref = ImageRef('myregistry.org/kernel-python:3.6-cuda9-ubuntu')
     assert not ref.resolve_required()
     assert ref.name == 'python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == 'myregistry.org'
-    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda9'})
+    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
     with pytest.raises(ValueError):
         ref = ImageRef(';')
@@ -123,3 +123,27 @@ def test_image_ref_validation():
     assert ImageRef.is_kernel('lablup/kernel-x:5.0-ubuntu')
     assert ImageRef.is_kernel('myregistry.org/kernel-x:5.0-ubuntu')
     assert not ImageRef.is_kernel(';')
+
+
+def test_platform_tag_set():
+    tags = PlatformTagSet(['py36', 'cuda9', 'ubuntu16.04', 'mkl2018.3'])
+    assert 'py' in tags
+    assert 'cuda' in tags
+    assert 'ubuntu' in tags
+    assert 'mkl' in tags
+    assert tags['py'] == '36'
+    assert tags['cuda'] == '9'
+    assert tags['ubuntu'] == '16.04'
+    assert tags['mkl'] == '2018.3'
+
+    with pytest.raises(ValueError):
+        tags = PlatformTagSet(['cuda9', 'cuda8'])
+
+    tags = PlatformTagSet(['myplatform9b1', 'other'])
+    assert 'myplatform' in tags
+    assert tags['myplatform'] == '9b1'
+    assert 'other' in tags
+    assert tags['other'] == ''
+
+    with pytest.raises(ValueError):
+        tags = PlatformTagSet(['1234'])
