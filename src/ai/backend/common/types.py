@@ -1,4 +1,3 @@
-from collections import UserDict
 from decimal import Decimal
 import enum
 import re
@@ -84,13 +83,13 @@ class BinarySize(int):
             return f'{value} {suffix.upper()}iB'
 
 
-class PlatformTagSet(UserDict):
+class PlatformTagSet(Mapping):
 
-    __slots__ = ('_tags', )
+    __slots__ = ('_data', )
     _rx_ver = re.compile(r'^(?P<tag>[a-zA-Z]+)(?P<version>\d+(?:\.\d+)*[a-z0-9]*)?$')
 
     def __init__(self, tags: Iterable[str]):
-        super().__init__()
+        self._data = dict()
         rx = type(self)._rx_ver
         for t in tags:
             match = rx.search(t)
@@ -98,27 +97,36 @@ class PlatformTagSet(UserDict):
                 raise ValueError('invalid tag-version string', t)
             key = match.group('tag')
             value = match.group('version')
-            if key in self.data:
+            if key in self._data:
                 raise ValueError('duplicate platform tag with different versions', t)
             if value is None:
                 value = ''
-            self.data[key] = value
+            self._data[key] = value
 
     def has(self, key: str, version: str = None):
         if version is None:
-            return key in self.data
-        _v = self.data.get(key, None)
+            return key in self._data
+        _v = self._data.get(key, None)
         return _v == version
+
+    def __getitem__(self, key: str):
+        return self._data[key]
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self):
+        return len(self._data)
 
     def __eq__(self, other):
         if isinstance(other, (set, frozenset)):
-            return set(self.data.keys()) == other
-        return self.data == other
+            return set(self._data.keys()) == other
+        return self._data == other
 
 
 class ImageRef:
 
-    __slots__ = ('_registry', '_name', '_tag')
+    __slots__ = ('_registry', '_name', '_tag', '_tag_set')
 
     _rx_slug = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-._]*[A-Za-z0-9])?$')
     _rx_kernel_prefix = re.compile(r'^(?:.+/)?kernel-.+$')
@@ -171,6 +179,7 @@ class ImageRef:
                 raise ValueError('Invalid image name')
             if self._tag is not None and not rx_slug.search(self._tag):
                 raise ValueError('Invalid image tag')
+        self._update_tag_set()
 
     async def resolve(self, etcd: 'ai.backend.common.etcd.AsyncEtcd'):
         '''
@@ -202,6 +211,14 @@ class ImageRef:
                                'or unknown alias.')
         self._name = name
         self._tag = tag
+        self._update_tag_set()
+
+    def _update_tag_set(self):
+        if self._tag is None:
+            self._tag_set = (None, PlatformTagSet([]))
+            return
+        tags = self._tag.split('-')
+        self._tag_set = (tags[0], PlatformTagSet(tags[1:]))
 
     def resolve_required(self) -> bool:
         return (self._tag is None or self._tag == 'latest')
@@ -224,13 +241,17 @@ class ImageRef:
     @property
     def tag_set(self) -> Tuple[str, PlatformTagSet]:
         # e.g., '3.6', {'ubuntu', 'cuda', ...}
-        tags = self._tag.split('-')
-        return tags[0], PlatformTagSet(tags[1:])
+        return self._tag_set
 
     @property
     def registry(self) -> str:
         # e.g., lablup
         return self._registry
+
+    @property
+    def long(self) -> str:
+        # e.g., lablup/python:3.6-ubuntu
+        return f'{self.registry}/{self.name}:{self.tag}'
 
     @property
     def short(self) -> str:
@@ -254,6 +275,9 @@ class ImageRef:
             (self._tag == other._tag) and
             (self._registry == other._registry)
         )
+
+    def __hash__(self) -> int:
+        return hash((self._name, self._tag, self._registry))
 
 
 class DeviceTypes(enum.Enum):

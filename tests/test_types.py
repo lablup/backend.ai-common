@@ -1,3 +1,5 @@
+import collections
+import typing
 from ai.backend.common.types import BinarySize, ImageRef, PlatformTagSet
 
 import pytest
@@ -22,6 +24,11 @@ def test_binary_size():
     assert str(BinarySize(105935)) == '103.45 KiB'
     assert str(BinarySize(127303)) == '124.32 KiB'
     assert str(BinarySize(1048576)) == '1 MiB'
+
+
+def test_image_ref_typing():
+    ref = ImageRef('c')
+    assert isinstance(ref, collections.abc.Hashable)
 
 
 def test_image_ref_parsing():
@@ -123,6 +130,14 @@ def test_image_ref_validation():
     assert ImageRef.is_kernel('lablup/kernel-x:5.0-ubuntu')
     assert ImageRef.is_kernel('myregistry.org/kernel-x:5.0-ubuntu')
     assert not ImageRef.is_kernel(';')
+
+
+def test_platform_tag_set_typing():
+    tags = PlatformTagSet(['py36', 'cuda9'])
+    assert isinstance(tags, collections.abc.Mapping)
+    assert isinstance(tags, typing.Mapping)
+    assert not isinstance(tags, collections.abc.MutableMapping)
+    assert not isinstance(tags, typing.MutableMapping)
 
 
 def test_platform_tag_set():
