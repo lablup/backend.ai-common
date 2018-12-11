@@ -261,7 +261,7 @@ class ImageRef:
         Returns the image reference string without the registry part.
         '''
         # e.g., python:3.6-ubuntu
-        return f'{self.name}:{self.tag}'
+        return f'{self.name}:{self.tag}' if self.tag is not None else self.name
 
     def __str__(self) -> str:
         return self.canonical
