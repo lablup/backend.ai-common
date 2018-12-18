@@ -4,6 +4,7 @@ from collections import namedtuple
 import ipaddress
 import pathlib
 import socket
+from typing import Tuple
 import threading
 
 try:
@@ -16,33 +17,54 @@ except ImportError:
     _aiodns_ctx = None
 
 
-def port_no(s):
+def port_no(s: str) -> int:
     try:
         port = int(s)
         assert port > 0
         assert port < 65536
     except (ValueError, AssertionError):
-        msg = '{!r} is not a valid port number.'.format(s)
+        msg = f'{s!r} is not a valid port number.'
         raise argparse.ArgumentTypeError(msg)
     return port
 
 
-def positive_int(s):
+def port_range(s: str) -> Tuple[int, int]:
+    try:
+        port_range = tuple(map(int, s.split('-')))
+    except (TypeError, ValueError):
+        msg = f'{s!r} should be a hyphen-separated pair of integers.'
+        raise argparse.ArgumentTypeError(msg)
+    if len(port_range) != 2:
+        msg = f'{s!r} should have exactly two integers.'
+        raise argparse.ArgumentTypeError(msg)
+    if not (0 < port_range[0] < 65536):
+        msg = f'{port_range[0]} is not a valid port number.'
+        raise argparse.ArgumentTypeError(msg)
+    if not (0 < port_range[1] < 65536):
+        msg = f'{port_range[1]} is not a valid port number.'
+        raise argparse.ArgumentTypeError(msg)
+    if not (port_range[0] < port_range[1]):
+        msg = f'{port_range[0]} should be less than {port_range[1]}.'
+        raise argparse.ArgumentTypeError(msg)
+    return port_range
+
+
+def positive_int(s: str) -> int:
     try:
         val = int(s)
         assert val > 0
     except (ValueError, AssertionError):
-        msg = '{!r} is not a positive integer.'.format(s)
+        msg = f'{s!r} is not a positive integer.'
         raise argparse.ArgumentTypeError(msg)
     return val
 
 
-def non_negative_int(s):
+def non_negative_int(s: str) -> int:
     try:
         val = int(s)
         assert val >= 0
     except (ValueError, AssertionError):
-        msg = '{!r} is not a non-negative integer.'.format(s)
+        msg = f'{s!r} is not a non-negative integer.'
         raise argparse.ArgumentTypeError(msg)
     return val
 
@@ -88,7 +110,7 @@ class HostPortPair(namedtuple('_HostPortPair', 'host port')):
             return HostPortPair(ip, self.port)
 
 
-def host_port_pair(s):
+def host_port_pair(s: str) -> Tuple[ipaddress._BaseAddress, int]:
     pieces = s.rsplit(':', maxsplit=1)
     if len(pieces) == 1:
         msg = f'{s!r} should contain both IP address and port number.'
@@ -111,7 +133,7 @@ def host_port_pair(s):
     return HostPortPair(host, port)
 
 
-def ipaddr(s):
+def ipaddr(s: str) -> ipaddress._BaseAddress:
     try:
         ip = ipaddress.ip_address(s.strip('[]'))
     except ValueError:
@@ -120,7 +142,7 @@ def ipaddr(s):
     return ip
 
 
-def path(val):
+def path(val: str) -> pathlib.Path:
     if val is None:
         return None
     p = pathlib.Path(val)

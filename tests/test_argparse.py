@@ -5,7 +5,7 @@ import pytest
 import aiodns
 
 from ai.backend.common.argparse import (
-    port_no, positive_int, non_negative_int,
+    port_no, port_range, positive_int, non_negative_int,
     HostPortPair, host_port_pair, ipaddr, path,
 )
 import ai.backend.common.argparse
@@ -27,6 +27,29 @@ def test_port_no():
         port_no(65536)
     with pytest.raises(argparse.ArgumentTypeError):
         port_no(65537)
+
+
+def test_port_range():
+    assert port_range('1-2') == (1, 2)
+    assert port_range('1000-2000') == (1000, 2000)
+    assert port_range('1-65535') == (1, 65535)
+
+    with pytest.raises(argparse.ArgumentTypeError):
+        port_range('0-65535')
+    with pytest.raises(argparse.ArgumentTypeError):
+        port_range('1-65536')
+    with pytest.raises(argparse.ArgumentTypeError):
+        port_range('1-2-3')
+    with pytest.raises(argparse.ArgumentTypeError):
+        port_range('1')
+    with pytest.raises(argparse.ArgumentTypeError):
+        port_range('xxx')
+    with pytest.raises(argparse.ArgumentTypeError):
+        port_range('-')
+    with pytest.raises(argparse.ArgumentTypeError):
+        port_range('')
+    with pytest.raises(argparse.ArgumentTypeError):
+        port_range('10-5')
 
 
 def test_positive_int():
