@@ -3,10 +3,12 @@ from datetime import datetime
 import itertools
 import logging, logging.config, logging.handlers
 import multiprocessing as mp
+import os
 from pathlib import Path
 import signal
 import urllib.request, urllib.error
 
+from setproctitle import setproctitle
 from pythonjsonlogger.jsonlogger import JsonFormatter
 import zmq
 
@@ -90,7 +92,8 @@ class CustomJsonFormatter(JsonFormatter):
             log_record['level'] = record.levelname
 
 
-def log_worker(config, log_queue):
+def log_worker(config, parent_pid, log_queue):
+    setproctitle(f'backend.ai: logger pid({parent_pid})')
     if config.log_file is not None:
         fmt = '(timestamp) (level) (name) (processName) (message)'
         file_handler = logging.handlers.RotatingFileHandler(
@@ -141,10 +144,10 @@ class Logger():
                 'colored': {
                     '()': 'coloredlogs.ColoredFormatter',
                     'format': '%(asctime)s %(levelname)s %(name)s '
-                              '[%(processName)s] %(message)s',
+                              '[%(process)d] %(message)s',
                     'field_styles': {'levelname': {'color': 248, 'bold': True},
                                      'name': {'color': 246, 'bold': False},
-                                     'processName': {'color': 'cyan'},
+                                     'process': {'color': 'cyan'},
                                      'asctime': {'color': 240}},
                     'level_styles': {'debug': {'color': 'green'},
                                      'verbose': {'color': 'green', 'bright': True},
@@ -220,7 +223,7 @@ class Logger():
         stop_signals = {signal.SIGINT, signal.SIGTERM}
         signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
         proc = mp.Process(target=log_worker, name='Logger',
-                          args=(self.cli_config, self.log_queue))
+                          args=(self.cli_config, os.getpid(), self.log_queue))
         proc.start()
         signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
         # reset process counter
