@@ -173,9 +173,8 @@ class ImageRef:
             if self._tag is not None and not rx_slug.search(self._tag):
                 raise ValueError('Invalid iamge tag')
         else:
+            # registry can be anything between hostname, FQDN, and IP (with port) addresses
             self._registry = parts[0]
-            if not rx_slug.search(self._registry):
-                raise ValueError('Invalid image registry')
             self._name, self._tag = ImageRef._parse_image_tag(parts[1])
             if not rx_slug.search(self._name):
                 raise ValueError('Invalid image name')

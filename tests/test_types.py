@@ -93,6 +93,26 @@ def test_image_ref_parsing():
     assert ref.registry == 'myregistry.org'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
+    ref = ImageRef('127.0.0.1:5000/kernel-python:3.6-cuda9-ubuntu')
+    assert not ref.resolve_required()
+    assert ref.name == 'python'
+    assert ref.tag == '3.6-cuda9-ubuntu'
+    assert ref.registry == '127.0.0.1:5000'
+    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
+
+    ref = ImageRef('[::1]:5000/kernel-python:3.6-cuda9-ubuntu')
+    assert not ref.resolve_required()
+    assert ref.name == 'python'
+    assert ref.tag == '3.6-cuda9-ubuntu'
+    assert ref.registry == '[::1]:5000'
+    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
+
+    ref = ImageRef('[212c:9cb9:eada:e57b:84c9:6a9:fbec:bdd2]:1024/python')
+    assert ref.resolve_required()
+    assert ref.name == 'python'
+    assert ref.tag == 'latest'
+    assert ref.registry == '[212c:9cb9:eada:e57b:84c9:6a9:fbec:bdd2]:1024'
+
     with pytest.raises(ValueError):
         ref = ImageRef(';')
 
@@ -104,9 +124,6 @@ def test_image_ref_parsing():
 
     with pytest.raises(ValueError):
         ref = ImageRef('a:b;')
-
-    with pytest.raises(ValueError):
-        ref = ImageRef('!/a:b')
 
 
 def test_image_ref_formats():
