@@ -35,21 +35,21 @@ def test_image_ref_parsing():
     ref = ImageRef('c')
     assert ref.resolve_required()
     assert ref.name == 'c'
-    assert ref.tag is None
-    assert ref.registry == 'lablup'
+    assert ref.tag == 'latest'
+    assert ref.registry == ''
 
     ref = ImageRef('python:3.6-ubuntu')
-    assert not ref.resolve_required()
+    assert ref.resolve_required()
     assert ref.name == 'python'
     assert ref.tag == '3.6-ubuntu'
-    assert ref.registry == 'lablup'
+    assert ref.registry == ''
     assert ref.tag_set == ('3.6', {'ubuntu'})
 
     ref = ImageRef('kernel-python:3.6-ubuntu')
-    assert not ref.resolve_required()
+    assert ref.resolve_required()
     assert ref.name == 'python'
     assert ref.tag == '3.6-ubuntu'
-    assert ref.registry == 'lablup'
+    assert ref.registry == ''
     assert ref.tag_set == ('3.6', {'ubuntu'})
 
     ref = ImageRef('lablup/python-tensorflow:1.10-py36-ubuntu')
@@ -69,7 +69,7 @@ def test_image_ref_parsing():
     ref = ImageRef('myregistry.org/lua')
     assert ref.resolve_required()
     assert ref.name == 'lua'
-    assert ref.tag is None
+    assert ref.tag == 'latest'
     assert ref.registry == 'myregistry.org'
 
     ref = ImageRef('myregistry.org/lua:latest')
@@ -116,20 +116,110 @@ def test_image_ref_formats():
     assert str(ref) == ref.canonical
     assert repr(ref) == f'<ImageRef: "{ref.canonical}">'
 
+    ref = ImageRef('python')
+    assert ref.canonical == '(unknown)/kernel-python:latest'
+    assert ref.short == 'python:latest'
+    assert str(ref) == ref.canonical
+    assert repr(ref) == f'<ImageRef: "{ref.canonical}">'
+
 
 def test_image_ref_validation():
     assert not ImageRef.is_kernel('x'), \
            'Docker images must have "kernel-" prefixes to become a Backend.AI kernel image.'
     assert not ImageRef.is_kernel('lablup/x'), \
            'Docker images must have "kernel-" prefixes to become a Backend.AI kernel image.'
-    assert ImageRef.is_kernel('kernel-x')
+    assert not ImageRef.is_kernel('kernel-x'), \
+           'In Backend.AI, the "latest" tag is only for metadata aliases, not for actual Docker image tags.'
     assert not ImageRef.is_kernel('kernel-x:latest'), \
            'In Backend.AI, the "latest" tag is only for metadata aliases, not for actual Docker image tags.'
     assert ImageRef.is_kernel('kernel-x:5.0-ubuntu')
-    assert ImageRef.is_kernel('lablup/kernel-x')
+    assert not ImageRef.is_kernel('lablup/kernel-x'), \
+           'In Backend.AI, the "latest" tag is only for metadata aliases, not for actual Docker image tags.'
     assert ImageRef.is_kernel('lablup/kernel-x:5.0-ubuntu')
     assert ImageRef.is_kernel('myregistry.org/kernel-x:5.0-ubuntu')
     assert not ImageRef.is_kernel(';')
+
+
+@pytest.mark.asyncio
+async def test_image_ref_resolve_empty(etcd):
+    ref = ImageRef('python')
+    assert ref.resolve_required()
+    with pytest.raises(RuntimeError):
+        # With an empty etcd configs, it should raise an error.
+        await ref.resolve(etcd)
+
+
+@pytest.mark.asyncio
+async def test_image_ref_resolve_default_registry(etcd):
+    await etcd.put('nodes/docker_registry', 'lablup')
+    await etcd.put('images/python/tags/3.6-ubuntu', 'abcd')
+    await etcd.put('images/python/tags/3.5-ubuntu', 'abef')
+    await etcd.put('images/python/tags/latest', ':3.6-ubuntu')
+    await etcd.put('images/_aliases/python', 'python:latest')
+
+    ref = ImageRef('python:latest')
+    assert ref.resolve_required()
+    await ref.resolve(etcd)
+    assert ref.registry == 'lablup'
+    assert ref.tag == '3.6-ubuntu'
+
+    ref = ImageRef('python')
+    assert ref.resolve_required()
+    await ref.resolve(etcd)
+    assert ref.registry == 'lablup'
+    assert ref.tag == '3.6-ubuntu'
+
+    ref = ImageRef('lablup/python')
+    assert ref.resolve_required()
+    await ref.resolve(etcd)
+    assert ref.registry == 'lablup'
+    assert ref.tag == '3.6-ubuntu'
+
+    ref = ImageRef('myregistry.org/python')
+    assert ref.resolve_required()
+    await ref.resolve(etcd)
+    assert ref.registry == 'myregistry.org'
+    assert ref.tag == '3.6-ubuntu'
+
+
+@pytest.mark.asyncio
+async def test_image_ref_resolve_custom_registry(etcd):
+    await etcd.put('nodes/docker_registry', 'myregistry.org')
+    await etcd.put('images/python/tags/3.7-ubuntu', 'abcd')
+    await etcd.put('images/python/tags/3.6-ubuntu', 'abef')
+    await etcd.put('images/python/tags/latest', ':3.7-ubuntu')
+    await etcd.put('images/python/tags/stable', ':3.6-ubuntu')
+    await etcd.put('images/_aliases/python', 'python:latest')
+
+    ref = ImageRef('python:latest')
+    assert ref.resolve_required()
+    await ref.resolve(etcd)
+    assert ref.registry == 'myregistry.org'
+    assert ref.tag == '3.7-ubuntu'
+
+    ref = ImageRef('python:stable')
+    assert ref.resolve_required()
+    await ref.resolve(etcd)
+    assert ref.registry == 'myregistry.org'
+    assert ref.tag == '3.6-ubuntu'
+
+    ref = ImageRef('python')
+    assert ref.resolve_required()
+    await ref.resolve(etcd)
+    assert ref.registry == 'myregistry.org'
+    assert ref.tag == '3.7-ubuntu'
+
+    ref = ImageRef('lablup/python')
+    assert ref.resolve_required()
+    await ref.resolve(etcd)
+    assert ref.registry == 'lablup'
+    assert ref.tag == '3.7-ubuntu'
+
+    ref = ImageRef('myregistry.org/python')
+    assert ref.resolve_required()
+    await ref.resolve(etcd)
+    assert ref.registry == 'myregistry.org'
+    assert ref.tag == '3.7-ubuntu'
 
 
 def test_platform_tag_set_typing():

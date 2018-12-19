@@ -140,7 +140,7 @@ class ImageRef:
         image_tag = s.split(':', maxsplit=1)
         if len(image_tag) == 1:
             image = image_tag[0]
-            tag = None
+            tag = 'latest'
         else:
             image = image_tag[0]
             tag = image_tag[1]
@@ -158,7 +158,7 @@ class ImageRef:
             ref = cls(s)
         except ValueError:
             return False
-        if ref.tag is not None and ref.tag == 'latest':
+        if ref.tag == 'latest':
             return False
         return True
 
@@ -166,7 +166,7 @@ class ImageRef:
         rx_slug = type(self)._rx_slug
         parts = s.rsplit('/', maxsplit=1)
         if len(parts) == 1:
-            self._registry = 'lablup'
+            self._registry = ''
             self._name, self._tag = ImageRef._parse_image_tag(parts[0])
             if not rx_slug.search(self._name):
                 raise ValueError('Invalid image name')
@@ -201,16 +201,28 @@ class ImageRef:
                     break
             return alias_target
 
+        if self._registry == '':
+            registry = await etcd.get('nodes/docker_registry')
+            if registry is None:
+                raise RuntimeError('Docker registry is not configured!')
+        else:
+            registry = self._registry
         name_or_alias = self.short
         alias_target = await resolve_alias(name_or_alias)
         if alias_target == name_or_alias and name_or_alias.rfind(':') == -1:
             alias_target = await resolve_alias(f'{name_or_alias}:latest')
         assert alias_target is not None
         name, _, tag = alias_target.partition(':')
-        hash = await etcd.get(f'images/{name}/tags/{tag}')
-        if hash is None:
-            raise RuntimeError(f'{name_or_alias}: Unregistered image '
-                               'or unknown alias.')
+        while True:
+            hash_ = await etcd.get(f'images/{name}/tags/{tag}')
+            if hash_ is None:
+                raise RuntimeError('Unregistered image or unknown alias.',
+                                   name_or_alias)
+            if hash_.startswith(':'):
+                tag = hash_[1:]
+                continue
+            break
+        self._registry = registry
         self._name = name
         self._tag = tag
         self._update_tag_set()
@@ -223,12 +235,16 @@ class ImageRef:
         self._tag_set = (tags[0], PlatformTagSet(tags[1:]))
 
     def resolve_required(self) -> bool:
-        return (self._tag is None or self._tag == 'latest')
+        return (
+            (self._registry == '') or
+            (self._tag == 'latest')
+        )
 
     @property
     def canonical(self) -> str:
         # e.g., lablup/kernel-python:3.6-ubuntu
-        return f'{self.registry}/kernel-{self.name}:{self.tag}'
+        registry = self.registry if self._registry != '' else '(unknown)'
+        return f'{registry}/kernel-{self.name}:{self.tag}'
 
     @property
     def name(self) -> str:

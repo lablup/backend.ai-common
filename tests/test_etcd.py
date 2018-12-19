@@ -1,34 +1,6 @@
 import asyncio
-import os
-import secrets
 
 import pytest
-
-from ai.backend.common.etcd import AsyncEtcd
-from ai.backend.common.argparse import host_port_pair
-
-
-@pytest.fixture
-def etcd_addr():
-    env_addr = os.environ.get('BACKEND_ETCD_ADDR')
-    if env_addr is not None:
-        return host_port_pair(env_addr)
-    return host_port_pair('localhost:2379')
-
-
-@pytest.fixture
-def test_ns():
-    return f'test-{secrets.token_hex(8)}'
-
-
-@pytest.fixture
-async def etcd(etcd_addr, test_ns):
-    etcd = AsyncEtcd(addr=etcd_addr, namespace=test_ns)
-    try:
-        yield etcd
-    finally:
-        await etcd.delete_prefix('')
-        del etcd
 
 
 @pytest.mark.asyncio
