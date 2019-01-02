@@ -37,6 +37,8 @@ def detect_cloud() -> str:
     '''
     Detect the cloud provider where I am running on.
     '''
+    # NOTE: Contributions are welcome!
+    # Please add other cloud providers such as Rackspace, IBM BlueMix, etc.
     if sys.platform.startswith('linux'):
         # Google Cloud Platform or Amazon AWS (hvm)
         try:
@@ -68,12 +70,17 @@ def detect_cloud() -> str:
             pass
     else:
         log.warning('Cloud detection is implemented for Linux only yet.')
-    return 'unknown'
+    return None
 
 
 # Detect upon module load.
 current_provider = detect_cloud()
-log.info(f'cloud provider detected: {current_provider}')
+if current_provider is None:
+    log.info('Detected environment: on-premise setup')
+    log.info('The agent node ID is set using the hostname.')
+else:
+    log.info(f'Detected environment: {current_provider} cloud')
+    log.info('The agent node ID will follow the instance ID.')
 
 _defined = False
 get_instance_id = None
@@ -198,10 +205,10 @@ def _define_functions():
                 return '127.0.0.1'
 
         async def _get_instance_type():
-            return 'unknown'
+            return 'default'
 
         async def _get_instance_region():
-            return os.environ.get('BACKEND_REGION', 'local/unknown')
+            return os.environ.get('BACKEND_REGION', 'local')
 
     get_instance_id = _get_instance_id
     get_instance_ip = _get_instance_ip

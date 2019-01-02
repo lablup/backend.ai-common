@@ -53,7 +53,7 @@ def test_is_containerized():
 
 @pytest.mark.skip
 @pytest.mark.asyncio
-@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
+@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', None])
 async def test_get_instance_id(mocker, provider):
     ai.backend.common.identity.current_provider = provider
     ai.backend.common.identity._defined = False
@@ -81,7 +81,7 @@ async def test_get_instance_id(mocker, provider):
                   body=random_id)
             ret = await ai.backend.common.identity.get_instance_id()
             assert ret == random_id
-        elif provider == 'unknown':
+        elif provider is None:
             with patch('socket.gethostname', return_value='myname'):
                 ret = await ai.backend.common.identity.get_instance_id()
                 assert ret == f'i-myname'
@@ -89,7 +89,7 @@ async def test_get_instance_id(mocker, provider):
 
 @pytest.mark.skip
 @pytest.mark.asyncio
-@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
+@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', None])
 async def test_get_instance_id_failures(mocker, provider):
     ai.backend.common.identity.current_provider = provider
     ai.backend.common.identity._defined = False
@@ -103,7 +103,7 @@ async def test_get_instance_id_failures(mocker, provider):
 
 @pytest.mark.skip
 @pytest.mark.asyncio
-@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
+@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', None])
 async def test_get_instance_ip(mocker, provider):
     ai.backend.common.identity.current_provider = provider
     ai.backend.common.identity._defined = False
@@ -139,7 +139,7 @@ async def test_get_instance_ip(mocker, provider):
                   body=random_ip)
             ret = await ai.backend.common.identity.get_instance_ip()
             assert ret == random_ip
-        elif provider == 'unknown':
+        elif provider is None:
             mocked_ares_host_result = MagicMock()
             mocked_ares_host_result.addresses = ['10.1.2.3']
             mocked_resolver = MagicMock()
@@ -166,7 +166,7 @@ async def test_get_instance_ip(mocker, provider):
 
 @pytest.mark.skip
 @pytest.mark.asyncio
-@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', 'unknown'])
+@pytest.mark.parametrize('provider', ['amazon', 'google', 'azure', None])
 async def test_get_instance_type(mocker, provider):
     ai.backend.common.identity.current_provider = provider
     ai.backend.common.identity._defined = False
@@ -194,6 +194,6 @@ async def test_get_instance_type(mocker, provider):
                   body=random_type)
             ret = await ai.backend.common.identity.get_instance_type()
             assert ret == random_type
-        elif provider == 'unknown':
+        elif provider is None:
             ret = await ai.backend.common.identity.get_instance_type()
-            assert ret == 'unknown'
+            assert ret == 'default'
