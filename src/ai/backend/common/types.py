@@ -1,7 +1,10 @@
 from decimal import Decimal
 import enum
 import re
-from typing import Hashable, Mapping, Iterable, Sequence, Set, NewType, Tuple, Union
+from typing import (
+    Hashable, Mapping, Optional, Iterable, Sequence,
+    Set, NewType, Tuple, Union
+)
 
 import attr
 
@@ -128,7 +131,7 @@ class PlatformTagSet(Mapping):
 
 class ImageRef:
 
-    __slots__ = ('_registry', '_name', '_tag', '_tag_set')
+    __slots__ = ('_registry', '_name', '_tag', '_tag_set', '_sha')
 
     _rx_slug = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-._]*[A-Za-z0-9])?$')
     _rx_kernel_prefix = re.compile(r'^(?:.+/)?kernel-.+$')
@@ -162,7 +165,7 @@ class ImageRef:
             return False
         return True
 
-    def __init__(self, s: str):
+    def __init__(self, s: str, sha: str = None):
         rx_slug = type(self)._rx_slug
         parts = s.rsplit('/', maxsplit=1)
         if len(parts) == 1:
@@ -181,6 +184,7 @@ class ImageRef:
             if self._tag is not None and not rx_slug.search(self._tag):
                 raise ValueError('Invalid image tag')
         self._update_tag_set()
+        self._sha = sha
 
     async def resolve(self, etcd: 'etcd.AsyncEtcd'):
         '''
@@ -239,6 +243,12 @@ class ImageRef:
             (self._tag == 'latest')
         )
 
+    def generate_aliases(self) -> Mapping[str, str]:
+        pass
+
+    def merge_aliases(cls, set1, set2) -> Sequence[str]:
+        pass
+
     @property
     def canonical(self) -> str:
         # e.g., lablup/kernel-python:3.6-ubuntu
@@ -254,6 +264,11 @@ class ImageRef:
     def tag(self) -> str:
         # e.g., 3.6-ubuntu
         return self._tag
+
+    @property
+    def sha(self) -> Optional[str]:
+        # e.g., 3.6-ubuntu
+        return self._sha
 
     @property
     def tag_set(self) -> Tuple[str, PlatformTagSet]:
@@ -287,11 +302,14 @@ class ImageRef:
     def __eq__(self, other) -> bool:
         if self.resolve_required() or other.resolve_required():
             raise ValueError('You must compare resolved image references.')
-        return (
-            (self._name == other._name) and
-            (self._tag == other._tag) and
-            (self._registry == other._registry)
-        )
+        if self._sha is None or other._sha is None:
+            return (
+                (self._name == other._name) and
+                (self._tag == other._tag) and
+                (self._registry == other._registry)
+            )
+        else:
+            return self._sha == other._sha
 
     def __hash__(self) -> int:
         return hash((self._name, self._tag, self._registry))

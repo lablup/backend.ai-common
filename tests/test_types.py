@@ -1,4 +1,6 @@
 import collections
+import functools
+import itertools
 import typing
 from ai.backend.common.types import BinarySize, ImageRef, PlatformTagSet
 
@@ -269,3 +271,81 @@ def test_platform_tag_set():
 
     with pytest.raises(ValueError):
         tags = PlatformTagSet(['1234'])
+
+
+def test_platform_tag_set_abbreviations():
+    pass
+
+
+def test_image_ref_generate_aliases():
+    ref = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04')
+    aliases = ref.generate_aliases()
+    possible_names = ['python-tensorflow', 'tensorflow']
+    possible_platform_tags = [
+        ['1.5', '1.7'],
+        ['', 'py', 'py3', 'py36'],
+        ['', 'ubuntu', 'ubuntu16', 'ubuntu16.04'],
+    ]
+    # combinations of abbreviated/omitted platforms tags
+    for name, ptags in itertools.product(
+            possible_names,
+            itertools.product(*possible_platform_tags)):
+        assert f"{name}:{'-'.join(t for t in ptags if t)}" in aliases
+
+
+def test_image_ref_generate_aliases_with_accelerator():
+    ref = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0')
+    aliases = ref.generate_aliases()
+    possible_names = ['python-tensorflow', 'tensorflow']
+    possible_platform_tags = [
+        ['1.5', '1.7'],
+        ['', 'py', 'py3', 'py36'],
+        ['', 'ubuntu', 'ubuntu16', 'ubuntu16.04'],
+        ['cuda', 'cuda10', 'cuda10.0'],  # cannot be empty!
+    ]
+    # combinations of abbreviated/omitted platforms tags
+    for name, ptags in itertools.product(
+            possible_names,
+            itertools.product(*possible_platform_tags)):
+        assert f"{name}:{'-'.join(t for t in ptags if t)}" in aliases
+
+
+def test_image_ref_generate_aliases_of_names():
+    # an alias may include only last framework name in the name.
+    ref = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0')
+    aliases = ref.generate_aliases()
+    assert 'python-tensorflow' in aliases
+    assert 'tensorflow' in aliases
+    assert 'python' not in aliases
+
+
+def test_image_ref_generate_aliases_disallowed():
+    # an alias must include the main platform version tag
+    ref = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0')
+    aliases = ref.generate_aliases()
+    assert 'python-tensorflow:py3' not in aliases
+    assert 'python-tensorflow:py36' not in aliases
+    assert 'python-tensorflow:ubuntu' not in aliases
+    assert 'python-tensorflow:ubuntu16.04' not in aliases
+    assert 'python-tensorflow:cuda' not in aliases
+    assert 'python-tensorflow:cuda10.0' not in aliases
+
+
+def test_image_ref_merge_aliases():
+    # After merging, aliases that indicates two or more references should
+    # indicate most recent versions.
+    refs = [
+        ImageRef('lablup/python:3.7-ubuntu18.04'),
+        ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0'),
+        ImageRef('lablup/python-tensorflow:1.7-py36-ubuntu16.04-cuda10.0'),
+        ImageRef('lablup/python-tensorflow:1.7-py37-ubuntu18.04-cuda9.0'),
+    ]
+    aliases = [ref.generate_aliases() for ref in refs]
+    aliases = functools.reduce(ImageRef.merge_aliases, aliases)
+    assert aliases['python-tensorflow'] is refs[3]
+    assert aliases['python-tensorflow:1.7'] is refs[3]
+    assert aliases['python-tensorflow:1.7-py36'] is refs[2]
+    assert aliases['python-tensorflow:1.5'] is refs[1]
+    assert aliases['python-tensorflow:1.7-cuda10'] is refs[2]
+    assert aliases['python-tensorflow:1.7-cuda9'] is refs[3]
+    assert aliases['python'] is refs[0]
