@@ -282,7 +282,7 @@ def test_image_ref_generate_aliases():
     aliases = ref.generate_aliases()
     possible_names = ['python-tensorflow', 'tensorflow']
     possible_platform_tags = [
-        ['1.5', '1.7'],
+        ['1.5'],
         ['', 'py', 'py3', 'py36'],
         ['', 'ubuntu', 'ubuntu16', 'ubuntu16.04'],
     ]
@@ -298,7 +298,7 @@ def test_image_ref_generate_aliases_with_accelerator():
     aliases = ref.generate_aliases()
     possible_names = ['python-tensorflow', 'tensorflow']
     possible_platform_tags = [
-        ['1.5', '1.7'],
+        ['1.5'],
         ['', 'py', 'py3', 'py36'],
         ['', 'ubuntu', 'ubuntu16', 'ubuntu16.04'],
         ['cuda', 'cuda10', 'cuda10.0'],  # cannot be empty!
@@ -323,6 +323,7 @@ def test_image_ref_generate_aliases_disallowed():
     # an alias must include the main platform version tag
     ref = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0')
     aliases = ref.generate_aliases()
+    # always the main version must be included!
     assert 'python-tensorflow:py3' not in aliases
     assert 'python-tensorflow:py36' not in aliases
     assert 'python-tensorflow:ubuntu' not in aliases
@@ -331,21 +332,44 @@ def test_image_ref_generate_aliases_disallowed():
     assert 'python-tensorflow:cuda10.0' not in aliases
 
 
+def test_image_ref_ordering():
+    # ordering is defined as the tuple-ordering of platform tags.
+    # (tag components that come first have higher priority when comparing.)
+    r1 = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0')
+    r2 = ImageRef('lablup/python-tensorflow:1.7-py36-ubuntu16.04-cuda10.0')
+    r3 = ImageRef('lablup/python-tensorflow:1.7-py37-ubuntu18.04-cuda9.0')
+    assert r1 < r2
+    assert r1 < r3
+    assert r2 < r3
+
+    # only the image-refs with same names can be compared.
+    rx = ImageRef('lablup/python:3.6-ubuntu')
+    with pytest.raises(ValueError):
+        rx < r1
+    with pytest.raises(ValueError):
+        r1 < rx
+
+
 def test_image_ref_merge_aliases():
     # After merging, aliases that indicates two or more references should
     # indicate most recent versions.
     refs = [
-        ImageRef('lablup/python:3.7-ubuntu18.04'),
-        ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0'),
-        ImageRef('lablup/python-tensorflow:1.7-py36-ubuntu16.04-cuda10.0'),
-        ImageRef('lablup/python-tensorflow:1.7-py37-ubuntu18.04-cuda9.0'),
+        ImageRef('lablup/python:3.7-ubuntu18.04'),                           # 0
+        ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0'),  # 1
+        ImageRef('lablup/python-tensorflow:1.7-py36-ubuntu16.04-cuda10.0'),  # 2
+        ImageRef('lablup/python-tensorflow:1.7-py37-ubuntu16.04-cuda9.0'),   # 3
+        ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04'),           # 4
+        ImageRef('lablup/python-tensorflow:1.7-py36-ubuntu16.04'),           # 5
+        ImageRef('lablup/python-tensorflow:1.7-py37-ubuntu16.04'),           # 6
     ]
     aliases = [ref.generate_aliases() for ref in refs]
     aliases = functools.reduce(ImageRef.merge_aliases, aliases)
-    assert aliases['python-tensorflow'] is refs[3]
-    assert aliases['python-tensorflow:1.7'] is refs[3]
-    assert aliases['python-tensorflow:1.7-py36'] is refs[2]
-    assert aliases['python-tensorflow:1.5'] is refs[1]
+    assert aliases['python-tensorflow'] is refs[6]
+    assert aliases['python-tensorflow:1.5'] is refs[4]
+    assert aliases['python-tensorflow:1.7'] is refs[6]
+    assert aliases['python-tensorflow:1.7-py36'] is refs[5]
+    assert aliases['python-tensorflow:1.5'] is refs[4]
+    assert aliases['python-tensorflow:1.5-cuda'] is refs[1]
     assert aliases['python-tensorflow:1.7-cuda10'] is refs[2]
     assert aliases['python-tensorflow:1.7-cuda9'] is refs[3]
     assert aliases['python'] is refs[0]
