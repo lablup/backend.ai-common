@@ -1,4 +1,5 @@
 from decimal import Decimal
+from packaging import version
 import enum
 import re
 from typing import (
@@ -260,10 +261,12 @@ class ImageRef:
                 tag_list = ['', tag_key, tag_key + tag_ver]
                 if '.' in tag_ver:
                     tag_list.append(tag_key + tag_ver.rsplit('.')[0])
-                if tag_key == 'py' and tag_ver[0] == '3': #special case for py36, py37, ... -> py3
-                    tag_list.append('py3')
+                elif tag_key == 'py' and len(tag_ver) > 1:
+                    tag_list.append(tag_key + tag_ver[0])
+                
                 if 'cuda' in tag_key:
                     tag_list.append('gpu')
+
                 possible_ptags.append(tag_list)
         
         ret = {}
@@ -362,24 +365,25 @@ class ImageRef:
         if self.name != other.name:
             raise ValueError('only the image-refs with same names can be compared.')
         if self.tag_set[0] != other.tag_set[0]:
-            return Decimal(self.tag_set[0]) < Decimal(other.tag_set[0])
+            return version.parse(self.tag_set[0]) < version.parse(other.tag_set[0])
         else:
-            tags_self, tags_other = self.tag_set[1].items(), other.tag_set[1].items()
-            iter_self, iter_other = iter(tags_self), iter(tags_other)
+            ptagset_self, ptagset_other = self.tag_set[1], other.tag_set[1]
+            it = iter(ptagset_self)
             while True:
-                tag_item_self, tag_item_other = next(iter_self, None), next(iter_other, None)
-                if tag_item_self == None and tag_item_other == None:
-                    return True
-                elif tag_item_self == None:
-                    return False
-                elif tag_item_other == None:
-                    return True
-                if tag_item_self[0] != tag_item_other[0]:
-                    return True 
-                else:
-                    dec_self, dec_other = Decimal(tag_item_self[1]), Decimal(tag_item_other[1])
-                    if dec_self != dec_other:
-                        return dec_self - dec_other
+                key_self = next(it, None)
+                if key_self == None: #comparison complete
+                    return len(ptagset_self) - len(ptagset_other)
+                elif ptagset_other.has(key_self):
+                    version_self, version_other = ptagset_self.get(key_self), ptagset_other.get(key_self)
+                    if version_self and version_other:
+                        parsed_version_self, parsed_version_other = version.parse(version_self), version.parse(version_other)
+                        if parsed_version_self != parsed_version_other:
+                            return parsed_version_self < parsed_version_other
+
+        # ImageRef('...:ubuntu') < ImageRef('...:ubuntu16.04')
+        # ImageRef('...:ubuntu') > ImageRef('...:ubuntu16.04')
+        # both will return False in this implementation, since length same.
+        # -> can this be solved by naming convention of images?
 
 
 class DeviceTypes(enum.Enum):
