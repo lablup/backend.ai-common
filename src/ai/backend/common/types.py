@@ -7,6 +7,7 @@ from typing import (
 )
 
 import attr
+import itertools
 
 from . import etcd
 
@@ -243,11 +244,52 @@ class ImageRef:
             (self._tag == 'latest')
         )
 
-    def generate_aliases(self) -> Mapping[str, str]:
-        pass
+    def generate_aliases(self) -> Mapping[str, 'ImageRef']:
+        possible_names = self.name.rsplit('-')
+        if len(possible_names) > 1:
+            possible_names = [self.name, possible_names[1]]
 
-    def merge_aliases(cls, set1, set2) -> Sequence[str]:
-        pass
+        possible_ptags = []
+        tag_set = self.tag_set
+        if not tag_set[0]:
+            pass
+        else:
+            possible_ptags.append([tag_set[0]])
+            for tag_key in tag_set[1]:
+                tag_ver = tag_set[1][tag_key]
+                tag_list = ['', tag_key, tag_key + tag_ver]
+                if '.' in tag_ver:
+                    tag_list.append(tag_key + tag_ver.rsplit('.')[0])
+                if tag_key == 'py' and tag_ver[0] == '3': #special case for py36, py37, ... -> py3
+                    tag_list.append('py3')
+                if 'cuda' in tag_key:
+                    tag_list.append('gpu')
+                possible_ptags.append(tag_list)
+        
+        ret = {}
+        for name in possible_names:
+            ret[name] = self
+        for name, ptags in itertools.product (
+                possible_names,
+                itertools.product(*possible_ptags)):
+            ret[f"{name}:{'-'.join(t for t in ptags if t)}"] = self
+        return ret
+
+    @staticmethod            
+    def merge_aliases(genned_aliases_1, genned_aliases_2) -> Mapping[str, 'ImageRef']:
+        ret = {}
+        aliases_set_1, aliases_set_2 = set(genned_aliases_1.keys()), set(genned_aliases_2.keys())
+        aliases_dup = aliases_set_1 & aliases_set_2
+
+        for alias in aliases_dup:
+            ret[alias] = max(genned_aliases_1[alias], genned_aliases_2[alias])
+            
+        for alias in aliases_set_1 - aliases_dup:
+            ret[alias] = genned_aliases_1[alias]
+        for alias in aliases_set_2 - aliases_dup:
+            ret[alias] = genned_aliases_2[alias]
+        
+        return ret
 
     @property
     def canonical(self) -> str:
@@ -313,6 +355,31 @@ class ImageRef:
 
     def __hash__(self) -> int:
         return hash((self._name, self._tag, self._registry))
+
+    def __lt__(self, other) -> bool:
+        if self == other: #call __eq__ first for resolved check
+            return False
+        if self.name != other.name:
+            raise ValueError('only the image-refs with same names can be compared.')
+        if self.tag_set[0] != other.tag_set[0]:
+            return Decimal(self.tag_set[0]) < Decimal(other.tag_set[0])
+        else:
+            tags_self, tags_other = self.tag_set[1].items(), other.tag_set[1].items()
+            iter_self, iter_other = iter(tags_self), iter(tags_other)
+            while True:
+                tag_item_self, tag_item_other = next(iter_self, None), next(iter_other, None)
+                if tag_item_self == None and tag_item_other == None:
+                    return True
+                elif tag_item_self == None:
+                    return False
+                elif tag_item_other == None:
+                    return True
+                if tag_item_self[0] != tag_item_other[0]:
+                    return True 
+                else:
+                    dec_self, dec_other = Decimal(tag_item_self[1]), Decimal(tag_item_other[1])
+                    if dec_self != dec_other:
+                        return dec_self - dec_other
 
 
 class DeviceTypes(enum.Enum):
