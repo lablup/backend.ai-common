@@ -192,12 +192,16 @@ class ImageRef:
         '''
         async def resolve_alias(alias_key):
             alias_target = None
-            while True:
+            repeats = 0
+            while repeats < 20:
                 prev_alias_key = alias_key
                 alias_key = await etcd.get(f'images/_aliases/{alias_key}')
                 if alias_key is None:
                     alias_target = prev_alias_key
                     break
+                repeats += 1
+            else:
+                raise RuntimeError('Could not resolve the given image name!')
             return alias_target
 
         if self._registry == '':
