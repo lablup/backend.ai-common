@@ -366,30 +366,21 @@ class ImageRef:
             raise ValueError('only the image-refs with same names can be compared.')
         if self.tag_set[0] != other.tag_set[0]:
             return version.parse(self.tag_set[0]) < version.parse(other.tag_set[0])
-        else:
-            ptagset_self, ptagset_other = self.tag_set[1], other.tag_set[1]
-            it = iter(ptagset_self)
-            while True:
-                key_self = next(it, None)
-                if key_self == None: #comparison complete
-                    return len(ptagset_self) > len(ptagset_other)
-                elif ptagset_other.has(key_self):
-                    version_self, version_other = ptagset_self.get(key_self), ptagset_other.get(key_self)
-                    if version_self and version_other:
-                        parsed_version_self, parsed_version_other = version.parse(version_self), version.parse(version_other)
-                        if parsed_version_self != parsed_version_other:
-                            return parsed_version_self < parsed_version_other
-
-        # ImageRef('...:ubuntu') < ImageRef('...:ubuntu16.04')
-        # ImageRef('...:ubuntu') > ImageRef('...:ubuntu16.04')
-        # both will return False in this implementation, since length same.
-        # -> can this be solved by naming convention of images?
+        ptagset_self, ptagset_other = self.tag_set[1], other.tag_set[1]
+        it = iter(ptagset_self)
+        for key_self in ptagset_self:
+            if ptagset_other.has(key_self):
+                version_self, version_other = ptagset_self.get(key_self), ptagset_other.get(key_self)
+                if version_self and version_other:
+                    parsed_version_self, parsed_version_other = version.parse(version_self), version.parse(version_other)
+                    if parsed_version_self != parsed_version_other:
+                        return parsed_version_self < parsed_version_other
+        return len(ptagset_self) > len(ptagset_other)
 
 
 class DeviceTypes(enum.Enum):
     CPU = 'cpu'
     MEMORY = 'mem'
-
 
 DeviceType = NewType('DeviceType', Union[str, DeviceTypes])
 
