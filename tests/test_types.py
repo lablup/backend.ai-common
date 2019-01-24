@@ -25,6 +25,17 @@ def test_binary_size():
     assert str(BinarySize(127303)) == '124.32 KiB'
     assert str(BinarySize(1048576)) == '1 MiB'
 
+    # short-hand formats
+    assert 2 ** 30 == BinarySize.from_str('1g')
+    assert 1048576 == BinarySize.from_str('1m')
+    assert 524288 == BinarySize.from_str('0.5m')
+    assert 524288 == BinarySize.from_str('512k')
+    assert '{:g}'.format(BinarySize(930)) == '930'
+    assert '{:g}'.format(BinarySize(1024)) == '1k'
+    assert '{:g}'.format(BinarySize(524288)) == '512k'
+    assert '{:g}'.format(BinarySize(1048576)) == '1m'
+    assert '{:g}'.format(BinarySize(2 ** 30)) == '1g'
+
 
 def test_image_ref_typing():
     ref = ImageRef('c')

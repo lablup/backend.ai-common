@@ -48,13 +48,13 @@ class BinarySize(int):
                 if expr.endswith(ending):
                     length = len(ending) + 1
                     suffix = expr[-length]
-                    expr = float(expr[:-length])
+                    expr = Decimal(expr[:-length])
                     break
             else:
                 # when there is no unit ending (e.g., "2K")
                 if not str.isnumeric(expr[-1]):
                     suffix = expr[-1]
-                    expr = float(expr[:-1])
+                    expr = Decimal(expr[:-1])
                 else:
                     suffix = ' '
             try:
@@ -63,12 +63,25 @@ class BinarySize(int):
             except KeyError:
                 raise ValueError('Unconvertible value', orig_expr)
 
-    def __str__(self):
+    def _preformat(self):
         scale = self
         suffix_idx = 0
         while scale >= 1024:
             scale //= 1024
             suffix_idx += 1
+        return suffix_idx
+
+    @staticmethod
+    def _quantize(val, multiplier):
+        d = Decimal(val) / Decimal(multiplier)
+        if d == d.to_integral():
+            value = d.quantize(Decimal(1))
+        else:
+            value = d.quantize(Decimal('.00'))
+        return value
+
+    def __str__(self):
+        suffix_idx = self._preformat()
         if suffix_idx == 0:
             if self == 1:
                 return f'{int(self)} byte'
@@ -77,12 +90,19 @@ class BinarySize(int):
         else:
             suffix = type(self).suffices[suffix_idx]
             multiplier = type(self).suffix_map[suffix]
-            d = Decimal(self) / Decimal(multiplier)
-            if d == d.to_integral():
-                value = d.quantize(Decimal(1))
-            else:
-                value = d.quantize(Decimal('.00'))
+            value = self._quantize(self, multiplier)
             return f'{value} {suffix.upper()}iB'
+
+    def __format__(self, format_spec):
+        if format_spec == 'g':
+            suffix_idx = self._preformat()
+            if suffix_idx == 0:
+                return f'{int(self)}'
+            suffix = type(self).suffices[suffix_idx]
+            multiplier = type(self).suffix_map[suffix]
+            value = self._quantize(self, multiplier)
+            return f'{value}{suffix.lower()}'
+        return super().__format__(format_spec)
 
 
 class PlatformTagSet(Mapping):
