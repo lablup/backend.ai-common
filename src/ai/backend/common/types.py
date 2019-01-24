@@ -263,22 +263,20 @@ class ImageRef:
                     tag_list.append(tag_key + tag_ver.rsplit('.')[0])
                 elif tag_key == 'py' and len(tag_ver) > 1:
                     tag_list.append(tag_key + tag_ver[0])
-                
                 if 'cuda' in tag_key:
                     tag_list.append('gpu')
-
                 possible_ptags.append(tag_list)
-        
+
         ret = {}
         for name in possible_names:
             ret[name] = self
-        for name, ptags in itertools.product (
+        for name, ptags in itertools.product(
                 possible_names,
                 itertools.product(*possible_ptags)):
             ret[f"{name}:{'-'.join(t for t in ptags if t)}"] = self
         return ret
 
-    @staticmethod            
+    @staticmethod
     def merge_aliases(genned_aliases_1, genned_aliases_2) -> Mapping[str, 'ImageRef']:
         ret = {}
         aliases_set_1, aliases_set_2 = set(genned_aliases_1.keys()), set(genned_aliases_2.keys())
@@ -286,12 +284,12 @@ class ImageRef:
 
         for alias in aliases_dup:
             ret[alias] = max(genned_aliases_1[alias], genned_aliases_2[alias])
-            
+
         for alias in aliases_set_1 - aliases_dup:
             ret[alias] = genned_aliases_1[alias]
         for alias in aliases_set_2 - aliases_dup:
             ret[alias] = genned_aliases_2[alias]
-        
+
         return ret
 
     @property
@@ -360,14 +358,13 @@ class ImageRef:
         return hash((self._name, self._tag, self._registry))
 
     def __lt__(self, other) -> bool:
-        if self == other: #call __eq__ first for resolved check
+        if self == other:   # call __eq__ first for resolved check
             return False
         if self.name != other.name:
             raise ValueError('only the image-refs with same names can be compared.')
         if self.tag_set[0] != other.tag_set[0]:
             return version.parse(self.tag_set[0]) < version.parse(other.tag_set[0])
         ptagset_self, ptagset_other = self.tag_set[1], other.tag_set[1]
-        it = iter(ptagset_self)
         for key_self in ptagset_self:
             if ptagset_other.has(key_self):
                 version_self, version_other = ptagset_self.get(key_self), ptagset_other.get(key_self)
@@ -381,6 +378,7 @@ class ImageRef:
 class DeviceTypes(enum.Enum):
     CPU = 'cpu'
     MEMORY = 'mem'
+
 
 DeviceType = NewType('DeviceType', Union[str, DeviceTypes])
 
