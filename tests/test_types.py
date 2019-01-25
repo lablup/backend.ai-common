@@ -97,6 +97,13 @@ def test_image_ref_parsing():
     assert ref.registry == 'myregistry.org'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
+    ref = ImageRef('myregistry.org:999/some/path/python:3.6-cuda9-ubuntu')
+    assert not ref.resolve_required()
+    assert ref.name == 'python'
+    assert ref.tag == '3.6-cuda9-ubuntu'
+    assert ref.registry == 'myregistry.org:999/some/path'
+    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
+
     ref = ImageRef('myregistry.org/kernel-python:3.6-cuda9-ubuntu')
     assert not ref.resolve_required()
     assert ref.name == 'python'
