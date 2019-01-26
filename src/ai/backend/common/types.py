@@ -1,9 +1,11 @@
 from decimal import Decimal
 import enum
+import ipaddress
 import re
 from typing import Hashable, Mapping, Iterable, Sequence, Set, NewType, Tuple, Union
 
 import attr
+import yarl
 
 from . import etcd
 
@@ -150,55 +152,59 @@ class ImageRef:
 
     __slots__ = ('_registry', '_name', '_tag', '_tag_set')
 
+    default_registry = 'registry-1.docker.io'
+    default_repository = 'lablup'
+
     _rx_slug = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-._]*[A-Za-z0-9])?$')
     _rx_kernel_prefix = re.compile(r'^(?:.+/)?kernel-.+$')
 
     @staticmethod
     def _parse_image_tag(s: str) -> Tuple[str, str]:
-        if s.startswith('kernel-'):
-            s = s[7:]
-        image_tag = s.split(':', maxsplit=1)
+        image_tag = s.rsplit(':', maxsplit=1)
         if len(image_tag) == 1:
             image = image_tag[0]
             tag = 'latest'
         else:
             image = image_tag[0]
             tag = image_tag[1]
+        if not image:
+            raise ValueError('Empty image repository/name')
+        if '/' not in image:
+            image = ImageRef.default_repository + '/' + image
         return image, tag
 
-    @classmethod
-    def is_kernel(cls, s: str) -> bool:
-        '''
-        Checks if the given string in "RepoTags" field values from Docker's
-        image listing API follows Backend.AI's kernel image name.
-        '''
-        if not cls._rx_kernel_prefix.search(s):
-            return False
+    @staticmethod
+    def _is_known_registry(val: str, known_registries: Sequence[str]):
+        if val == ImageRef.default_registry:
+            return True
+        if known_registries and val in known_registries:
+            return True
         try:
-            ref = cls(s)
+            url = yarl.URL('//' + val)
+            if url.host and ipaddress.ip_address(url.host):
+                return True
         except ValueError:
-            return False
-        if ref.tag == 'latest':
-            return False
-        return True
+            pass
+        return False
 
-    def __init__(self, s: str):
+    def __init__(self, value: str, known_registries: Sequence[str] = None):
         rx_slug = type(self)._rx_slug
-        parts = s.rsplit('/', maxsplit=1)
+        if '://' in value or value.startswith('//'):
+            raise ValueError('ImageRef should not contain the protocol scheme.')
+        parts = value.split('/', maxsplit=1)
         if len(parts) == 1:
-            self._registry = ''
-            self._name, self._tag = ImageRef._parse_image_tag(parts[0])
-            if not rx_slug.search(self._name):
-                raise ValueError('Invalid image name')
-            if self._tag is not None and not rx_slug.search(self._tag):
-                raise ValueError('Invalid iamge tag')
+            self._registry = ImageRef.default_registry
+            self._name, self._tag = ImageRef._parse_image_tag(value)
+            if not rx_slug.search(self._tag):
+                raise ValueError('Invalid image tag')
         else:
-            # registry can be anything between hostname, FQDN, and IP (with port) addresses
-            self._registry = parts[0]
-            self._name, self._tag = ImageRef._parse_image_tag(parts[1])
-            if not rx_slug.search(self._name):
-                raise ValueError('Invalid image name')
-            if self._tag is not None and not rx_slug.search(self._tag):
+            if ImageRef._is_known_registry(parts[0], known_registries):
+                self._registry = parts[0]
+                self._name, self._tag = ImageRef._parse_image_tag(parts[1])
+            else:
+                self._registry = ImageRef.default_registry
+                self._name, self._tag = ImageRef._parse_image_tag(value)
+            if not rx_slug.search(self._tag):
                 raise ValueError('Invalid image tag')
         self._update_tag_set()
 
@@ -258,16 +264,17 @@ class ImageRef:
         self._tag_set = (tags[0], PlatformTagSet(tags[1:]))
 
     def resolve_required(self) -> bool:
-        return (
-            (self._registry == '') or
-            (self._tag == 'latest')
-        )
+        return self._tag == 'latest'
 
     @property
     def canonical(self) -> str:
-        # e.g., lablup/kernel-python:3.6-ubuntu
-        registry = self.registry if self._registry != '' else '(unknown)'
-        return f'{registry}/kernel-{self.name}:{self.tag}'
+        # e.g., registry.docker.io/lablup/kernel-python:3.6-ubuntu
+        return f'{self.registry}/{self.name}:{self.tag}'
+
+    @property
+    def registry(self) -> str:
+        # e.g., lablup
+        return self._registry
 
     @property
     def name(self) -> str:
@@ -283,16 +290,6 @@ class ImageRef:
     def tag_set(self) -> Tuple[str, PlatformTagSet]:
         # e.g., '3.6', {'ubuntu', 'cuda', ...}
         return self._tag_set
-
-    @property
-    def registry(self) -> str:
-        # e.g., lablup
-        return self._registry
-
-    @property
-    def long(self) -> str:
-        # e.g., lablup/python:3.6-ubuntu
-        return f'{self.registry}/{self.name}:{self.tag}'
 
     @property
     def short(self) -> str:

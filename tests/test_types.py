@@ -45,115 +45,133 @@ def test_image_ref_typing():
 def test_image_ref_parsing():
     ref = ImageRef('c')
     assert ref.resolve_required()
-    assert ref.name == 'c'
+    assert ref.name == f'{ImageRef.default_repository}/c'
     assert ref.tag == 'latest'
-    assert ref.registry == ''
+    assert ref.registry == ImageRef.default_registry
+    assert ref.tag_set == ('latest', set())
 
     ref = ImageRef('python:3.6-ubuntu')
-    assert ref.resolve_required()
-    assert ref.name == 'python'
+    assert not ref.resolve_required()
+    assert ref.name == f'{ImageRef.default_repository}/python'
     assert ref.tag == '3.6-ubuntu'
-    assert ref.registry == ''
+    assert ref.registry == ImageRef.default_registry
     assert ref.tag_set == ('3.6', {'ubuntu'})
 
     ref = ImageRef('kernel-python:3.6-ubuntu')
-    assert ref.resolve_required()
-    assert ref.name == 'python'
+    assert not ref.resolve_required()
+    assert ref.name == f'{ImageRef.default_repository}/kernel-python'
     assert ref.tag == '3.6-ubuntu'
-    assert ref.registry == ''
+    assert ref.registry == ImageRef.default_registry
     assert ref.tag_set == ('3.6', {'ubuntu'})
 
     ref = ImageRef('lablup/python-tensorflow:1.10-py36-ubuntu')
     assert not ref.resolve_required()
-    assert ref.name == 'python-tensorflow'
+    assert ref.name == 'lablup/python-tensorflow'
     assert ref.tag == '1.10-py36-ubuntu'
-    assert ref.registry == 'lablup'
+    assert ref.registry == ImageRef.default_registry
     assert ref.tag_set == ('1.10', {'ubuntu', 'py'})
 
     ref = ImageRef('lablup/kernel-python:3.6-ubuntu')
     assert not ref.resolve_required()
-    assert ref.name == 'python'
+    assert ref.name == 'lablup/kernel-python'
     assert ref.tag == '3.6-ubuntu'
-    assert ref.registry == 'lablup'
+    assert ref.registry == ImageRef.default_registry
     assert ref.tag_set == ('3.6', {'ubuntu'})
 
-    ref = ImageRef('myregistry.org/lua')
+    # To parse registry URLs correctly, we first need to give
+    # the valid registry URLs!
+    ref = ImageRef('myregistry.org/lua', [])
     assert ref.resolve_required()
-    assert ref.name == 'lua'
+    assert ref.name == f'myregistry.org/lua'
     assert ref.tag == 'latest'
-    assert ref.registry == 'myregistry.org'
+    assert ref.registry == ImageRef.default_registry
+    assert ref.tag_set == ('latest', set())
 
-    ref = ImageRef('myregistry.org/lua:latest')
+    ref = ImageRef('myregistry.org/lua', ['myregistry.org'])
     assert ref.resolve_required()
-    assert ref.name == 'lua'
+    assert ref.name == f'lablup/lua'
     assert ref.tag == 'latest'
     assert ref.registry == 'myregistry.org'
     assert ref.tag_set == ('latest', set())
 
-    ref = ImageRef('myregistry.org/python:3.6-cuda9-ubuntu')
+    ref = ImageRef('myregistry.org/lua:5.3-alpine', ['myregistry.org'])
     assert not ref.resolve_required()
-    assert ref.name == 'python'
+    assert ref.name == f'lablup/lua'
+    assert ref.tag == '5.3-alpine'
+    assert ref.registry == 'myregistry.org'
+    assert ref.tag_set == ('5.3', {'alpine'})
+
+    # Non-standard port number should be a part of the known registry value.
+    ref = ImageRef('myregistry.org:999/mybase/python:3.6-cuda9-ubuntu',
+                   ['myregistry.org:999'])
+    assert not ref.resolve_required()
+    assert ref.name == 'mybase/python'
+    assert ref.tag == '3.6-cuda9-ubuntu'
+    assert ref.registry == 'myregistry.org:999'
+    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
+
+    ref = ImageRef('myregistry.org/mybase/moon/python:3.6-cuda9-ubuntu',
+                   ['myregistry.org'])
+    assert not ref.resolve_required()
+    assert ref.name == 'mybase/moon/python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == 'myregistry.org'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
-    ref = ImageRef('myregistry.org:999/some/path/python:3.6-cuda9-ubuntu')
+    # IP addresses are treated as valid registry URLs.
+    ref = ImageRef('127.0.0.1:5000/python:3.6-cuda9-ubuntu')
     assert not ref.resolve_required()
-    assert ref.name == 'python'
-    assert ref.tag == '3.6-cuda9-ubuntu'
-    assert ref.registry == 'myregistry.org:999/some/path'
-    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
-
-    ref = ImageRef('myregistry.org/kernel-python:3.6-cuda9-ubuntu')
-    assert not ref.resolve_required()
-    assert ref.name == 'python'
-    assert ref.tag == '3.6-cuda9-ubuntu'
-    assert ref.registry == 'myregistry.org'
-    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
-
-    ref = ImageRef('127.0.0.1:5000/kernel-python:3.6-cuda9-ubuntu')
-    assert not ref.resolve_required()
-    assert ref.name == 'python'
+    assert ref.name == f'{ImageRef.default_repository}/python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == '127.0.0.1:5000'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
-    ref = ImageRef('[::1]:5000/kernel-python:3.6-cuda9-ubuntu')
+    # IPv6 addresses must be bracketted.
+    ref = ImageRef('::1/python:3.6-cuda9-ubuntu')
     assert not ref.resolve_required()
-    assert ref.name == 'python'
+    assert ref.name == f'::1/python'
+    assert ref.tag == '3.6-cuda9-ubuntu'
+    assert ref.registry == ImageRef.default_registry
+    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
+
+    ref = ImageRef('[::1]/python:3.6-cuda9-ubuntu')
+    assert not ref.resolve_required()
+    assert ref.name == f'{ImageRef.default_repository}/python'
+    assert ref.tag == '3.6-cuda9-ubuntu'
+    assert ref.registry == '[::1]'
+    assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
+
+    ref = ImageRef('[::1]:5000/python:3.6-cuda9-ubuntu')
+    assert not ref.resolve_required()
+    assert ref.name == f'{ImageRef.default_repository}/python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == '[::1]:5000'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
     ref = ImageRef('[212c:9cb9:eada:e57b:84c9:6a9:fbec:bdd2]:1024/python')
     assert ref.resolve_required()
-    assert ref.name == 'python'
+    assert ref.name == f'{ImageRef.default_repository}/python'
     assert ref.tag == 'latest'
     assert ref.registry == '[212c:9cb9:eada:e57b:84c9:6a9:fbec:bdd2]:1024'
+    assert ref.tag_set == ('latest', set())
 
     with pytest.raises(ValueError):
-        ref = ImageRef(';')
+        ref = ImageRef('a:!')
 
     with pytest.raises(ValueError):
-        ref = ImageRef('a-')
+        ref = ImageRef('127.0.0.1:5000/a:-x-')
 
     with pytest.raises(ValueError):
-        ref = ImageRef('-a')
+        ref = ImageRef('http://127.0.0.1:5000/xyz')
 
     with pytest.raises(ValueError):
-        ref = ImageRef('a:b;')
+        ref = ImageRef('//127.0.0.1:5000/xyz')
 
 
 def test_image_ref_formats():
     ref = ImageRef('myregistry.org/kernel-python:3.6-cuda9-ubuntu')
     assert ref.canonical == 'myregistry.org/kernel-python:3.6-cuda9-ubuntu'
-    assert ref.short == 'python:3.6-cuda9-ubuntu'
-    assert str(ref) == ref.canonical
-    assert repr(ref) == f'<ImageRef: "{ref.canonical}">'
-
-    ref = ImageRef('python')
-    assert ref.canonical == '(unknown)/kernel-python:latest'
-    assert ref.short == 'python:latest'
+    assert ref.short == 'kernel-python:3.6-cuda9-ubuntu'
     assert str(ref) == ref.canonical
     assert repr(ref) == f'<ImageRef: "{ref.canonical}">'
 
