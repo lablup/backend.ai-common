@@ -1,13 +1,31 @@
 from decimal import Decimal
 import enum
-import ipaddress
 import re
-from typing import Hashable, Mapping, Iterable, Sequence, Set, NewType, Tuple, Union
+from typing import (
+    Any, Hashable, Mapping,
+    Iterable, Sequence, Set,
+    NewType, Tuple, Union
+)
 
 import attr
-import yarl
 
 from . import etcd
+from .docker import (
+    default_registry, default_repository,
+    is_known_registry, get_known_registries,
+)
+from .exception import AliasResolutionFailed
+
+__all__ = (
+    'BinarySize',
+    'ImageRef',
+    'PlatformTagSet',
+    'DeviceId',
+    'DeviceType',
+    'DeviceTypes',
+    'ShareRequest',
+    'SessionRequest',
+)
 
 
 DeviceId = NewType('DeviceId', Hashable)
@@ -152,11 +170,53 @@ class ImageRef:
 
     __slots__ = ('_registry', '_name', '_tag', '_tag_set')
 
-    default_registry = 'registry-1.docker.io'
-    default_repository = 'lablup'
-
     _rx_slug = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-._]*[A-Za-z0-9])?$')
-    _rx_kernel_prefix = re.compile(r'^(?:.+/)?kernel-.+$')
+
+    @classmethod
+    async def resolve_alias(cls, alias_key: str, etcd: etcd.AsyncEtcd):
+        '''
+        Resolve the tag using etcd so that the current instance indicates
+        a concrete, latest image.
+
+        Note that alias resolving does not take the registry component into
+        account.
+        '''
+        alias_target = None
+        repeats = 0
+        while repeats < 8:
+            prev_alias_key = alias_key
+            alias_key = await etcd.get(f'images/_aliases/{alias_key}')
+            if alias_key is None:
+                alias_target = prev_alias_key
+                break
+            repeats += 1
+        else:
+            raise AliasResolutionFailed('Could not resolve the given image name!')
+        known_registries = await get_known_registries(etcd)
+        print(known_registries)
+        return cls(alias_target, known_registries)
+
+    def __init__(self, value: str,
+                 known_registries: Union[Mapping[str, Any], Sequence[str]] = None):
+        rx_slug = type(self)._rx_slug
+        if '://' in value or value.startswith('//'):
+            raise ValueError('ImageRef should not contain the protocol scheme.')
+        parts = value.split('/', maxsplit=1)
+        if len(parts) == 1:
+            self._registry = default_registry
+            self._name, self._tag = ImageRef._parse_image_tag(value)
+            if not rx_slug.search(self._tag):
+                raise ValueError('Invalid image tag')
+        else:
+            if is_known_registry(parts[0], known_registries):
+                self._registry = parts[0]
+                self._name, self._tag = ImageRef._parse_image_tag(parts[1])
+            else:
+                self._registry = default_registry
+                self._name, self._tag = ImageRef._parse_image_tag(value)
+            if not rx_slug.search(self._tag):
+                raise ValueError('Invalid image tag')
+        self._update_tag_set()
 
     @staticmethod
     def _parse_image_tag(s: str) -> Tuple[str, str]:
@@ -170,91 +230,8 @@ class ImageRef:
         if not image:
             raise ValueError('Empty image repository/name')
         if '/' not in image:
-            image = ImageRef.default_repository + '/' + image
+            image = default_repository + '/' + image
         return image, tag
-
-    @staticmethod
-    def _is_known_registry(val: str, known_registries: Sequence[str]):
-        if val == ImageRef.default_registry:
-            return True
-        if known_registries and val in known_registries:
-            return True
-        try:
-            url = yarl.URL('//' + val)
-            if url.host and ipaddress.ip_address(url.host):
-                return True
-        except ValueError:
-            pass
-        return False
-
-    def __init__(self, value: str, known_registries: Sequence[str] = None):
-        rx_slug = type(self)._rx_slug
-        if '://' in value or value.startswith('//'):
-            raise ValueError('ImageRef should not contain the protocol scheme.')
-        parts = value.split('/', maxsplit=1)
-        if len(parts) == 1:
-            self._registry = ImageRef.default_registry
-            self._name, self._tag = ImageRef._parse_image_tag(value)
-            if not rx_slug.search(self._tag):
-                raise ValueError('Invalid image tag')
-        else:
-            if ImageRef._is_known_registry(parts[0], known_registries):
-                self._registry = parts[0]
-                self._name, self._tag = ImageRef._parse_image_tag(parts[1])
-            else:
-                self._registry = ImageRef.default_registry
-                self._name, self._tag = ImageRef._parse_image_tag(value)
-            if not rx_slug.search(self._tag):
-                raise ValueError('Invalid image tag')
-        self._update_tag_set()
-
-    async def resolve(self, etcd: 'etcd.AsyncEtcd'):
-        '''
-        Resolve the tag using etcd so that the current instance indicates
-        a concrete, latest image.
-
-        Note that alias resolving does not take the registry component into
-        account.
-        '''
-        async def resolve_alias(alias_key):
-            alias_target = None
-            repeats = 0
-            while repeats < 20:
-                prev_alias_key = alias_key
-                alias_key = await etcd.get(f'images/_aliases/{alias_key}')
-                if alias_key is None:
-                    alias_target = prev_alias_key
-                    break
-                repeats += 1
-            else:
-                raise RuntimeError('Could not resolve the given image name!')
-            return alias_target
-
-        if self._registry == '':
-            registry = await etcd.get('nodes/docker_registry')
-            if registry is None:
-                raise RuntimeError('Docker registry is not configured!')
-        else:
-            registry = self._registry
-        name_or_alias = self.short
-        alias_target = await resolve_alias(name_or_alias)
-        if alias_target == name_or_alias and name_or_alias.rfind(':') == -1:
-            alias_target = await resolve_alias(f'{name_or_alias}:latest')
-        assert alias_target is not None
-        name, _, tag = alias_target.partition(':')
-        while True:
-            hash_ = await etcd.get(f'images/{name}/tags/{tag}')
-            if hash_ is None:
-                raise RuntimeError('Unregistered image or unknown alias.',
-                                   name_or_alias)
-            if hash_.startswith(':'):
-                tag = hash_[1:]
-                continue
-            break
-        self._registry = registry
-        self._name = name
-        self._tag = tag
-        self._update_tag_set()
 
     def _update_tag_set(self):
         if self._tag is None:
@@ -262,9 +239,6 @@ class ImageRef:
             return
         tags = self._tag.split('-')
         self._tag_set = (tags[0], PlatformTagSet(tags[1:]))
-
-    def resolve_required(self) -> bool:
-        return self._tag == 'latest'
 
     @property
     def canonical(self) -> str:

@@ -12,11 +12,19 @@ import collections
 from concurrent.futures import ThreadPoolExecutor
 import functools
 import logging
+from urllib.parse import quote as _quote, unquote
 
 import etcd3
 
+__all__ = (
+    'quote', 'unquote',
+    'AsyncEtcd',
+)
+
 Event = collections.namedtuple('Event', 'key event value')
 log = logging.getLogger(__name__)
+
+quote = functools.partial(_quote, safe='')
 
 
 class AsyncEtcd:

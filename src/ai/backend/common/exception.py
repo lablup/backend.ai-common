@@ -1,0 +1,3 @@
+
+class AliasResolutionFailed(ValueError):
+    pass
