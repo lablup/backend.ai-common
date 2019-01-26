@@ -110,11 +110,11 @@ def is_known_registry(val: str,
     return False
 
 
-async def get_registry_info(etcd: AsyncEtcd, registry: str) -> Tuple[yarl.URL, dict]:
-    reg_path = f'config/docker/registry/{etcd_quote(registry)}'
+async def get_registry_info(etcd: AsyncEtcd, name: str) -> Tuple[yarl.URL, dict]:
+    reg_path = f'config/docker/registry/{etcd_quote(name)}'
     registry_addr = await etcd.get(reg_path)
     if registry_addr is None:
-        raise RuntimeError(f'Unknown registry: {registry}')
+        raise ValueError(f'Unknown registry: {name}')
     username = await etcd.get(f'{reg_path}/username')
     if username is not None:
         password = await etcd.get(f'{reg_path}/password')
