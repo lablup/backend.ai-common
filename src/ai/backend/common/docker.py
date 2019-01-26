@@ -13,6 +13,7 @@ from .etcd import (
     quote as etcd_quote,
     unquote as etcd_unquote,
 )
+from .exception import UnknownImageRegistry
 
 __all__ = (
     'default_registry',
@@ -114,7 +115,7 @@ async def get_registry_info(etcd: AsyncEtcd, name: str) -> Tuple[yarl.URL, dict]
     reg_path = f'config/docker/registry/{etcd_quote(name)}'
     registry_addr = await etcd.get(reg_path)
     if registry_addr is None:
-        raise ValueError(f'Unknown registry: {name}')
+        raise UnknownImageRegistry(name)
     username = await etcd.get(f'{reg_path}/username')
     if username is not None:
         password = await etcd.get(f'{reg_path}/password')

@@ -246,6 +246,14 @@ class ImageRef:
         return f'{self.registry}/{self.name}:{self.tag}'
 
     @property
+    def tag_path(self) -> str:
+        '''
+        Return the string key that can be used to fetch image metadata from etcd.
+        '''
+        return f'images/{etcd.quote(self.registry)}/' \
+               f'{etcd.quote(self.name)}/{self.tag}'
+
+    @property
     def registry(self) -> str:
         # e.g., lablup
         return self._registry
