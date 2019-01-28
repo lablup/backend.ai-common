@@ -1,10 +1,13 @@
 import collections
+from decimal import Decimal
 import functools
 import itertools
 import typing
 from ai.backend.common.exception import AliasResolutionFailed
 from ai.backend.common.docker import default_registry, default_repository
-from ai.backend.common.types import BinarySize, ImageRef, PlatformTagSet
+from ai.backend.common.types import (
+    BinarySize, ImageRef, PlatformTagSet, ResourceSlot
+)
 
 import pytest
 
@@ -359,3 +362,81 @@ def test_image_ref_merge_aliases():
     assert aliases['python-tensorflow:1.7-cuda10'] is refs[2]
     assert aliases['python-tensorflow:1.7-cuda9'] is refs[3]
     assert aliases['python'] is refs[0]
+
+
+def test_resource_slot():
+
+    r1 = ResourceSlot({'a': '2', 'b': '2g'})
+    r2 = ResourceSlot({'a': '2', 'b': '1g'})
+    r3 = ResourceSlot({'a': '2'})
+    r4 = ResourceSlot({'a': '1'})
+    assert not r1.numeric
+    assert not r2.numeric
+    assert not r3.numeric
+    assert not r4.numeric
+
+    with pytest.raises(TypeError):
+        r1 + r2
+
+    with pytest.raises(TypeError):
+        r1 < r2
+
+    with pytest.raises(TypeError):
+        r1 == r2
+
+    st = {'a': 'count', 'b': 'bytes'}
+    r1n = r1.as_numeric(st)
+    r2n = r2.as_numeric(st)
+    r3n = r3.as_numeric(st)
+    r4n = r4.as_numeric(st)
+
+    assert r1n.numeric
+    assert r2n.numeric
+    assert r3n.numeric
+    assert r4n.numeric
+
+    assert r1n['a'] == Decimal(2)
+    assert r4n['a'] == Decimal(1)
+    assert r1n['b'] == 2 * (2**30)
+    assert r2n['b'] == 1 * (2**30)
+
+    x = r1n - r2n
+    assert x['a'] == Decimal(0)
+    assert x['b'] == 1 * (2**30)
+
+    assert not r1n < r2n
+    assert r1n > r2n
+    assert not r1n == r2n
+    assert r1n != r2n
+
+    assert r1n - r3n == ResourceSlot({'a': Decimal(0), 'b': 2 * (2**30)},
+                                     numeric=True)
+    assert r1n + r3n == ResourceSlot({'a': Decimal(4), 'b': 2 * (2**30)},
+                                     numeric=True)
+    with pytest.raises(ValueError):
+        r3n - r1n
+
+    # r3n has less keys than r1n
+    assert r4n < r1n
+    assert r4n <= r1n
+    assert not r3n < r1n
+    assert r3n <= r1n
+    assert r3n.eq_contained(r1n)
+    with pytest.raises(ValueError):
+        r3n.eq_contains(r1n)
+    with pytest.raises(ValueError):
+        r3n > r1n
+    with pytest.raises(ValueError):
+        r3n >= r1n
+
+    with pytest.raises(ValueError):
+        r1n.eq_contained(r3n)
+    assert r1n.eq_contains(r3n)
+    with pytest.raises(ValueError):
+        r1n < r3n
+    with pytest.raises(ValueError):
+        r1n <= r3n
+    assert not r1n > r3n
+    assert r1n >= r3n
+    assert r1n > r4n
+    assert r1n >= r4n
