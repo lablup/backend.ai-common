@@ -8,6 +8,7 @@ supported by the library yet.
 import asyncio
 import collections
 import logging
+from typing import Any, Mapping
 
 from aioetcd3.client import client
 from aioetcd3.help import range_prefix
@@ -60,6 +61,15 @@ class AsyncEtcd:
             fail=[])
         return success
 
+    async def put_dict(self, dict_obj: Mapping[str, Any]):
+        success, responses = await self.etcd.txn(
+            compare=[],
+            success=[KV.put.txn(self._mangle_key(k),
+                                str(v).encode(self.encoding))
+                     for k, v in dict_obj.items()],
+            fail=[])
+        return success
+
     async def get(self, key):
         key = self._mangle_key(key)
         val, metadata = await self.etcd.get(key)
@@ -74,6 +84,9 @@ class AsyncEtcd:
         return ((self._demangle_key(t[0]),
                  t[1].decode(self.encoding))
                 for t in results)
+
+    async def get_prefix_dict(self, key_prefix, path_sep='/'):
+        raise NotImplementedError
 
     async def replace(self, key, initial_val, new_val):
         key = self._mangle_key(key)

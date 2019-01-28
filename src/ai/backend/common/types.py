@@ -3,14 +3,31 @@ from packaging import version
 import enum
 import re
 from typing import (
-    Hashable, Mapping, Optional, Iterable, Sequence,
-    Set, NewType, Tuple, Union
+    Any, Hashable, Mapping,
+    Iterable, Sequence, Set,
+    NewType, Tuple, Union
 )
 
 import attr
 import itertools
 
 from . import etcd
+from .docker import (
+    default_registry, default_repository,
+    is_known_registry, get_known_registries,
+)
+from .exception import AliasResolutionFailed
+
+__all__ = (
+    'BinarySize',
+    'ImageRef',
+    'PlatformTagSet',
+    'DeviceId',
+    'DeviceType',
+    'DeviceTypes',
+    'ShareRequest',
+    'SessionRequest',
+)
 
 
 DeviceId = NewType('DeviceId', Hashable)
@@ -53,13 +70,13 @@ class BinarySize(int):
                 if expr.endswith(ending):
                     length = len(ending) + 1
                     suffix = expr[-length]
-                    expr = float(expr[:-length])
+                    expr = Decimal(expr[:-length])
                     break
             else:
                 # when there is no unit ending (e.g., "2K")
                 if not str.isnumeric(expr[-1]):
                     suffix = expr[-1]
-                    expr = float(expr[:-1])
+                    expr = Decimal(expr[:-1])
                 else:
                     suffix = ' '
             try:
@@ -68,12 +85,25 @@ class BinarySize(int):
             except KeyError:
                 raise ValueError('Unconvertible value', orig_expr)
 
-    def __str__(self):
+    def _preformat(self):
         scale = self
         suffix_idx = 0
         while scale >= 1024:
             scale //= 1024
             suffix_idx += 1
+        return suffix_idx
+
+    @staticmethod
+    def _quantize(val, multiplier):
+        d = Decimal(val) / Decimal(multiplier)
+        if d == d.to_integral():
+            value = d.quantize(Decimal(1))
+        else:
+            value = d.quantize(Decimal('.00'))
+        return value
+
+    def __str__(self):
+        suffix_idx = self._preformat()
         if suffix_idx == 0:
             if self == 1:
                 return f'{int(self)} byte'
@@ -82,12 +112,19 @@ class BinarySize(int):
         else:
             suffix = type(self).suffices[suffix_idx]
             multiplier = type(self).suffix_map[suffix]
-            d = Decimal(self) / Decimal(multiplier)
-            if d == d.to_integral():
-                value = d.quantize(Decimal(1))
-            else:
-                value = d.quantize(Decimal('.00'))
+            value = self._quantize(self, multiplier)
             return f'{value} {suffix.upper()}iB'
+
+    def __format__(self, format_spec):
+        if format_spec == 'g':
+            suffix_idx = self._preformat()
+            if suffix_idx == 0:
+                return f'{int(self)}'
+            suffix = type(self).suffices[suffix_idx]
+            multiplier = type(self).suffix_map[suffix]
+            value = self._quantize(self, multiplier)
+            return f'{value}{suffix.lower()}'
+        return super().__format__(format_spec)
 
 
 class PlatformTagSet(Mapping):
@@ -136,59 +173,9 @@ class ImageRef:
     __slots__ = ('_registry', '_name', '_tag', '_tag_set', '_sha')
 
     _rx_slug = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-._]*[A-Za-z0-9])?$')
-    _rx_kernel_prefix = re.compile(r'^(?:.+/)?kernel-.+$')
-
-    @staticmethod
-    def _parse_image_tag(s: str) -> Tuple[str, str]:
-        if s.startswith('kernel-'):
-            s = s[7:]
-        image_tag = s.split(':', maxsplit=1)
-        if len(image_tag) == 1:
-            image = image_tag[0]
-            tag = 'latest'
-        else:
-            image = image_tag[0]
-            tag = image_tag[1]
-        return image, tag
 
     @classmethod
-    def is_kernel(cls, s: str) -> bool:
-        '''
-        Checks if the given string in "RepoTags" field values from Docker's
-        image listing API follows Backend.AI's kernel image name.
-        '''
-        if not cls._rx_kernel_prefix.search(s):
-            return False
-        try:
-            ref = cls(s)
-        except ValueError:
-            return False
-        if ref.tag == 'latest':
-            return False
-        return True
-
-    def __init__(self, s: str, sha: str = None):
-        rx_slug = type(self)._rx_slug
-        parts = s.rsplit('/', maxsplit=1)
-        if len(parts) == 1:
-            self._registry = ''
-            self._name, self._tag = ImageRef._parse_image_tag(parts[0])
-            if not rx_slug.search(self._name):
-                raise ValueError('Invalid image name')
-            if self._tag is not None and not rx_slug.search(self._tag):
-                raise ValueError('Invalid iamge tag')
-        else:
-            # registry can be anything between hostname, FQDN, and IP (with port) addresses
-            self._registry = parts[0]
-            self._name, self._tag = ImageRef._parse_image_tag(parts[1])
-            if not rx_slug.search(self._name):
-                raise ValueError('Invalid image name')
-            if self._tag is not None and not rx_slug.search(self._tag):
-                raise ValueError('Invalid image tag')
-        self._update_tag_set()
-        self._sha = sha
-
-    async def resolve(self, etcd: 'etcd.AsyncEtcd'):
+    async def resolve_alias(cls, alias_key: str, etcd: etcd.AsyncEtcd):
         '''
         Resolve the tag using etcd so that the current instance indicates
         a concrete, latest image.
@@ -196,41 +183,57 @@ class ImageRef:
         Note that alias resolving does not take the registry component into
         account.
         '''
-        async def resolve_alias(alias_key):
-            alias_target = None
-            while True:
-                prev_alias_key = alias_key
-                alias_key = await etcd.get(f'images/_aliases/{alias_key}')
-                if alias_key is None:
-                    alias_target = prev_alias_key
-                    break
-            return alias_target
-
-        if self._registry == '':
-            registry = await etcd.get('nodes/docker_registry')
-            if registry is None:
-                raise RuntimeError('Docker registry is not configured!')
+        alias_target = None
+        repeats = 0
+        while repeats < 8:
+            prev_alias_key = alias_key
+            alias_key = await etcd.get(f'images/_aliases/{alias_key}')
+            if alias_key is None:
+                alias_target = prev_alias_key
+                break
+            repeats += 1
         else:
-            registry = self._registry
-        name_or_alias = self.short
-        alias_target = await resolve_alias(name_or_alias)
-        if alias_target == name_or_alias and name_or_alias.rfind(':') == -1:
-            alias_target = await resolve_alias(f'{name_or_alias}:latest')
-        assert alias_target is not None
-        name, _, tag = alias_target.partition(':')
-        while True:
-            hash_ = await etcd.get(f'images/{name}/tags/{tag}')
-            if hash_ is None:
-                raise RuntimeError('Unregistered image or unknown alias.',
-                                   name_or_alias)
-            if hash_.startswith(':'):
-                tag = hash_[1:]
-                continue
-            break
-        self._registry = registry
-        self._name = name
-        self._tag = tag
+            raise AliasResolutionFailed('Could not resolve the given image name!')
+        known_registries = await get_known_registries(etcd)
+        print(known_registries)
+        return cls(alias_target, known_registries)
+
+    def __init__(self, value: str,
+                 known_registries: Union[Mapping[str, Any], Sequence[str]] = None):
+        rx_slug = type(self)._rx_slug
+        if '://' in value or value.startswith('//'):
+            raise ValueError('ImageRef should not contain the protocol scheme.')
+        parts = value.split('/', maxsplit=1)
+        if len(parts) == 1:
+            self._registry = default_registry
+            self._name, self._tag = ImageRef._parse_image_tag(value)
+            if not rx_slug.search(self._tag):
+                raise ValueError('Invalid image tag')
+        else:
+            if is_known_registry(parts[0], known_registries):
+                self._registry = parts[0]
+                self._name, self._tag = ImageRef._parse_image_tag(parts[1])
+            else:
+                self._registry = default_registry
+                self._name, self._tag = ImageRef._parse_image_tag(value)
+            if not rx_slug.search(self._tag):
+                raise ValueError('Invalid image tag')
         self._update_tag_set()
+
+    @staticmethod
+    def _parse_image_tag(s: str) -> Tuple[str, str]:
+        image_tag = s.rsplit(':', maxsplit=1)
+        if len(image_tag) == 1:
+            image = image_tag[0]
+            tag = 'latest'
+        else:
+            image = image_tag[0]
+            tag = image_tag[1]
+        if not image:
+            raise ValueError('Empty image repository/name')
+        if '/' not in image:
+            image = default_repository + '/' + image
+        return image, tag
 
     def _update_tag_set(self):
         if self._tag is None:
@@ -239,16 +242,11 @@ class ImageRef:
         tags = self._tag.split('-')
         self._tag_set = (tags[0], PlatformTagSet(tags[1:]))
 
-    def resolve_required(self) -> bool:
-        return (
-            (self._registry == '') or
-            (self._tag == 'latest')
-        )
-
     def generate_aliases(self) -> Mapping[str, 'ImageRef']:
-        possible_names = self.name.rsplit('-')
+        basename = self.name.split('/')[-1]
+        possible_names = basename.rsplit('-')
         if len(possible_names) > 1:
-            possible_names = [self.name, possible_names[1]]
+            possible_names = [basename, possible_names[1]]
 
         possible_ptags = []
         tag_set = self.tag_set
@@ -294,9 +292,21 @@ class ImageRef:
 
     @property
     def canonical(self) -> str:
-        # e.g., lablup/kernel-python:3.6-ubuntu
-        registry = self.registry if self._registry != '' else '(unknown)'
-        return f'{registry}/kernel-{self.name}:{self.tag}'
+        # e.g., registry.docker.io/lablup/kernel-python:3.6-ubuntu
+        return f'{self.registry}/{self.name}:{self.tag}'
+
+    @property
+    def tag_path(self) -> str:
+        '''
+        Return the string key that can be used to fetch image metadata from etcd.
+        '''
+        return f'images/{etcd.quote(self.registry)}/' \
+               f'{etcd.quote(self.name)}/{self.tag}'
+
+    @property
+    def registry(self) -> str:
+        # e.g., lablup
+        return self._registry
 
     @property
     def name(self) -> str:
@@ -309,24 +319,9 @@ class ImageRef:
         return self._tag
 
     @property
-    def sha(self) -> Optional[str]:
-        # e.g., 3.6-ubuntu
-        return self._sha
-
-    @property
     def tag_set(self) -> Tuple[str, PlatformTagSet]:
         # e.g., '3.6', {'ubuntu', 'cuda', ...}
         return self._tag_set
-
-    @property
-    def registry(self) -> str:
-        # e.g., lablup
-        return self._registry
-
-    @property
-    def long(self) -> str:
-        # e.g., lablup/python:3.6-ubuntu
-        return f'{self.registry}/{self.name}:{self.tag}'
 
     @property
     def short(self) -> str:
@@ -341,18 +336,6 @@ class ImageRef:
 
     def __repr__(self) -> str:
         return f'<ImageRef: "{self.canonical}">'
-
-    def __eq__(self, other) -> bool:
-        if self.resolve_required() or other.resolve_required():
-            raise ValueError('You must compare resolved image references.')
-        if self._sha is None or other._sha is None:
-            return (
-                (self._name == other._name) and
-                (self._tag == other._tag) and
-                (self._registry == other._registry)
-            )
-        else:
-            return self._sha == other._sha
 
     def __hash__(self) -> int:
         return hash((self._name, self._tag, self._registry))
