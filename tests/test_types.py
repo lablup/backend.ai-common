@@ -349,6 +349,15 @@ def test_image_ref_ordering():
     with pytest.raises(ValueError):
         r1 < rx
 
+    # test case added for explicit behavior documentation
+    # ImageRef(...:ubuntu16.04) > ImageRef(...:ubuntu) == False
+    # ImageRef(...:ubuntu16.04) > ImageRef(...:ubuntu) == False
+    # by keeping naming convetion, no need to handle these cases
+    r4 = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda9.0')
+    r5 = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu-cuda9.0')
+    assert not r4 > r5
+    assert not r5 > r4
+
 
 def test_image_ref_merge_aliases():
     # After merging, aliases that indicates two or more references should
