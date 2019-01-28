@@ -12,6 +12,7 @@ import collections
 from concurrent.futures import ThreadPoolExecutor
 import functools
 import logging
+from typing import Any, Mapping
 from urllib.parse import quote as _quote, unquote
 
 import etcd3
@@ -25,6 +26,28 @@ Event = collections.namedtuple('Event', 'key event value')
 log = logging.getLogger(__name__)
 
 quote = functools.partial(_quote, safe='')
+
+
+def make_dict_from_pairs(key_prefix, pairs, path_sep='/'):
+    result = {}
+    len_prefix = len(key_prefix)
+    for k, v in pairs:
+        if not k.startswith(key_prefix):
+            continue
+        subkey = k[len_prefix:]
+        if subkey.startswith(path_sep):
+            subkey = subkey[1:]
+        path_components = subkey.split('/')
+        parent = result
+        for p in path_components[:-1]:
+            if p not in parent:
+                parent[p] = {}
+            if p in parent and not isinstance(parent[p], dict):
+                root = parent[p]
+                parent[p] = {'': root}
+            parent = parent[p]
+        parent[path_components[-1]] = v
+    return result
 
 
 class AsyncEtcd:
@@ -66,6 +89,16 @@ class AsyncEtcd:
              for k, v in zip(keys, values)],
             [])
 
+    async def put_dict(self, dict_obj: Mapping[str, Any]):
+        return await self.loop.run_in_executor(
+            self.executor,
+            self.etcd_sync.transaction,
+            [],
+            [self.etcd_sync.transactions.put(
+                self._mangle_key(k), str(v).encode(self.encoding))
+             for k, v in dict_obj.items()],
+            [])
+
     async def get(self, key):
         key = self._mangle_key(key)
         val, _ = await self.loop.run_in_executor(
@@ -81,6 +114,10 @@ class AsyncEtcd:
         return ((self._demangle_key(t[1].key),
                  t[0].decode(self.encoding))
                 for t in results)
+
+    async def get_prefix_dict(self, key_prefix, path_sep='/'):
+        pairs = await self.get_prefix(key_prefix)
+        return make_dict_from_pairs(key_prefix, pairs, path_sep)
 
     async def replace(self, key, initial_val, new_val):
         key = self._mangle_key(key)
