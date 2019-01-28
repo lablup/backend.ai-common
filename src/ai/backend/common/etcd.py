@@ -31,7 +31,11 @@ quote = functools.partial(_quote, safe='')
 def make_dict_from_pairs(key_prefix, pairs, path_sep='/'):
     result = {}
     len_prefix = len(key_prefix)
-    for k, v in pairs:
+    if isinstance(pairs, dict):
+        iterator = pairs.items()
+    else:
+        iterator = pairs
+    for k, v in iterator:
         if not k.startswith(key_prefix):
             continue
         subkey = k[len_prefix:]
