@@ -1,5 +1,8 @@
+from collections import UserDict
 from decimal import Decimal
 import enum
+import numbers
+from packaging import version
 import re
 from typing import (
     Any, Hashable, Mapping,
@@ -8,6 +11,7 @@ from typing import (
 )
 
 import attr
+import itertools
 
 from . import etcd
 from .docker import (
@@ -21,14 +25,30 @@ __all__ = (
     'ImageRef',
     'PlatformTagSet',
     'DeviceId',
-    'DeviceType',
-    'DeviceTypes',
+    'SlotType',
+    'IntrinsicSlotTypes',
+    'Allocation',
+    'ResourceAllocations',
+    'MountPermission',
+
+    # TODO: to be updated
     'ShareRequest',
     'SessionRequest',
 )
 
 
+class IntrinsicSlotTypes(str, enum.Enum):
+    CPU = 'cpu'
+    MEMORY = 'mem'
+
+
 DeviceId = NewType('DeviceId', Hashable)
+SlotType = NewType('DeviceType', Union[str, IntrinsicSlotTypes])
+
+
+class MountPermission(str, enum.Enum):
+    READ_ONLY = 'ro'
+    READ_WRITE = 'rw'
 
 
 class BinarySize(int):
@@ -97,7 +117,7 @@ class BinarySize(int):
         if d == d.to_integral():
             value = d.quantize(Decimal(1))
         else:
-            value = d.quantize(Decimal('.00'))
+            value = d.quantize(Decimal('.00')).normalize()
         return value
 
     def __str__(self):
@@ -114,7 +134,10 @@ class BinarySize(int):
             return f'{value} {suffix.upper()}iB'
 
     def __format__(self, format_spec):
-        if format_spec == 'g':
+        if len(format_spec) != 1:
+            raise ValueError('format-string for BinarySize can be only one character.')
+        if format_spec == 's':
+            # automatically scaled
             suffix_idx = self._preformat()
             if suffix_idx == 0:
                 return f'{int(self)}'
@@ -122,7 +145,40 @@ class BinarySize(int):
             multiplier = type(self).suffix_map[suffix]
             value = self._quantize(self, multiplier)
             return f'{value}{suffix.lower()}'
+        else:
+            # use the given scale
+            suffix = format_spec.lower()
+            multiplier = type(self).suffix_map.get(suffix)
+            if multiplier is None:
+                raise ValueError('Unsupported scale unit.', suffix)
+            value = self._quantize(self, multiplier)
+            return f'{value}{suffix.lower()}'.strip()
         return super().__format__(format_spec)
+
+
+Allocation = NewType('Allocation', Union[Decimal, BinarySize])
+
+ResourceAllocations = NewType('ResourceAllocations',
+    Mapping[SlotType, Mapping[DeviceId, Allocation]])
+'''
+Represents the mappings of resource slot types and
+their device-allocation pairs.
+
+Example:
+
+ + "cpu"
+   - "0": 1.0
+   - "1": 1.0
+ + "mem"
+   - "node0": "4g"
+   - "node1": "4g"
+ + "cuda.smp"
+   - "0": 20
+   - "1": 10
+ + "cuda.mem"
+   - "0": "8g"
+   - "1": "2g"
+'''
 
 
 class PlatformTagSet(Mapping):
@@ -168,7 +224,7 @@ class PlatformTagSet(Mapping):
 
 class ImageRef:
 
-    __slots__ = ('_registry', '_name', '_tag', '_tag_set')
+    __slots__ = ('_registry', '_name', '_tag', '_tag_set', '_sha')
 
     _rx_slug = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-._]*[A-Za-z0-9])?$')
 
@@ -240,6 +296,54 @@ class ImageRef:
         tags = self._tag.split('-')
         self._tag_set = (tags[0], PlatformTagSet(tags[1:]))
 
+    def generate_aliases(self) -> Mapping[str, 'ImageRef']:
+        basename = self.name.split('/')[-1]
+        possible_names = basename.rsplit('-')
+        if len(possible_names) > 1:
+            possible_names = [basename, possible_names[1]]
+
+        possible_ptags = []
+        tag_set = self.tag_set
+        if not tag_set[0]:
+            pass
+        else:
+            possible_ptags.append([tag_set[0]])
+            for tag_key in tag_set[1]:
+                tag_ver = tag_set[1][tag_key]
+                tag_list = ['', tag_key, tag_key + tag_ver]
+                if '.' in tag_ver:
+                    tag_list.append(tag_key + tag_ver.rsplit('.')[0])
+                elif tag_key == 'py' and len(tag_ver) > 1:
+                    tag_list.append(tag_key + tag_ver[0])
+                if 'cuda' in tag_key:
+                    tag_list.append('gpu')
+                possible_ptags.append(tag_list)
+
+        ret = {}
+        for name in possible_names:
+            ret[name] = self
+        for name, ptags in itertools.product(
+                possible_names,
+                itertools.product(*possible_ptags)):
+            ret[f"{name}:{'-'.join(t for t in ptags if t)}"] = self
+        return ret
+
+    @staticmethod
+    def merge_aliases(genned_aliases_1, genned_aliases_2) -> Mapping[str, 'ImageRef']:
+        ret = {}
+        aliases_set_1, aliases_set_2 = set(genned_aliases_1.keys()), set(genned_aliases_2.keys())
+        aliases_dup = aliases_set_1 & aliases_set_2
+
+        for alias in aliases_dup:
+            ret[alias] = max(genned_aliases_1[alias], genned_aliases_2[alias])
+
+        for alias in aliases_set_1 - aliases_dup:
+            ret[alias] = genned_aliases_1[alias]
+        for alias in aliases_set_2 - aliases_dup:
+            ret[alias] = genned_aliases_2[alias]
+
+        return ret
+
     @property
     def canonical(self) -> str:
         # e.g., registry.docker.io/lablup/kernel-python:3.6-ubuntu
@@ -287,25 +391,181 @@ class ImageRef:
     def __repr__(self) -> str:
         return f'<ImageRef: "{self.canonical}">'
 
-    def __eq__(self, other) -> bool:
-        if self.resolve_required() or other.resolve_required():
-            raise ValueError('You must compare resolved image references.')
-        return (
-            (self._name == other._name) and
-            (self._tag == other._tag) and
-            (self._registry == other._registry)
-        )
-
     def __hash__(self) -> int:
         return hash((self._name, self._tag, self._registry))
 
+    def __lt__(self, other) -> bool:
+        if self == other:   # call __eq__ first for resolved check
+            return False
+        if self.name != other.name:
+            raise ValueError('only the image-refs with same names can be compared.')
+        if self.tag_set[0] != other.tag_set[0]:
+            return version.parse(self.tag_set[0]) < version.parse(other.tag_set[0])
+        ptagset_self, ptagset_other = self.tag_set[1], other.tag_set[1]
+        for key_self in ptagset_self:
+            if ptagset_other.has(key_self):
+                version_self, version_other = ptagset_self.get(key_self), ptagset_other.get(key_self)
+                if version_self and version_other:
+                    parsed_version_self, parsed_version_other = version.parse(version_self), version.parse(version_other)
+                    if parsed_version_self != parsed_version_other:
+                        return parsed_version_self < parsed_version_other
+        return len(ptagset_self) > len(ptagset_other)
 
-class DeviceTypes(enum.Enum):
-    CPU = 'cpu'
-    MEMORY = 'mem'
 
+class ResourceSlot(UserDict):
 
-DeviceType = NewType('DeviceType', Union[str, DeviceTypes])
+    __slots__ = ('data', 'numeric')
+
+    def __init__(self, *args, numeric=False):
+        super().__init__(*args)
+        self.numeric = numeric
+
+    def __add__(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be added together.')
+        return type(self)({
+            k: self.get(k, 0) + other.get(k, 0)
+            for k in (self.keys() | other.keys())
+        }, numeric=True)
+
+    def __sub__(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be operands of subtraction.')
+        if other.keys() - self.keys():
+            raise ValueError('Cannot subtract resource slot with more keys!')
+        return type(self)({
+            k: self.data[k] - other.get(k, 0)
+            for k in self.keys()
+        }, numeric=True)
+
+    def __eq__(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be compared.')
+        if self.keys() != other.keys():
+            raise TypeError('Only slots with same keys can be compared.')
+        self_values = [self.data[k] for k in sorted(self.data.keys())]
+        other_values = [other.data[k] for k in sorted(other.data.keys())]
+        return self_values == other_values
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def eq_contains(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be compared.')
+        if self.keys() < other.keys():
+            raise ValueError('Slots with less keys cannot contain other.')
+        common_keys = sorted(other.keys() & self.keys())
+        self_values = [self.data[k] for k in common_keys]
+        other_values = [other.data[k] for k in common_keys]
+        return self_values == other_values
+
+    def eq_contained(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be compared.')
+        if self.keys() > other.keys():
+            raise ValueError('Slots with more keys cannot be contained in other.')
+        common_keys = sorted(other.keys() & self.keys())
+        self_values = [self.data[k] for k in common_keys]
+        other_values = [other.data[k] for k in common_keys]
+        return self_values == other_values
+
+    def __le__(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be compared.')
+        if self.keys() > other.keys():
+            raise ValueError('Slots with more keys cannot be smaller than other.')
+        self_values = [self.data[k] for k in self.keys()]
+        other_values = [other.data[k] for k in self.keys()]
+        return not any(s > o for s, o in zip(self_values, other_values))
+
+    def __lt__(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be compared.')
+        if self.keys() > other.keys():
+            raise ValueError('Slots with more keys cannot be smaller than other.')
+        self_values = [self.data[k] for k in self.keys()]
+        other_values = [other.data[k] for k in self.keys()]
+        return (not any(s > o for s, o in zip(self_values, other_values)) and
+                not (self_values == other_values))
+
+    def __ge__(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be compared.')
+        if self.keys() < other.keys():
+            raise ValueError('Slots with less keys cannot be larger than other.')
+        self_values = [self.data[k] for k in other.keys()]
+        other_values = [other.data[k] for k in other.keys()]
+        return not any(s < o for s, o in zip(self_values, other_values))
+
+    def __gt__(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be compared.')
+        if self.keys() < other.keys():
+            raise ValueError('Slots with less keys cannot be larger than other.')
+        self_values = [self.data[k] for k in other.keys()]
+        other_values = [other.data[k] for k in other.keys()]
+        return (not any(s < o for s, o in zip(self_values, other_values)) and
+                not (self_values == other_values))
+
+    # as_numeric series methods are to preserve accuracy of values.
+    # as_humanized series methods are to pretty-print values.
+
+    def as_numeric(self, slot_types, default_slot_type=None):
+        data = {}
+        for k, v in self.data.items():
+            unit = slot_types.get(k, default_slot_type)
+            if unit is None:
+                raise ValueError('unit unknown for slot', k)
+            data[k] = ResourceSlot.value_as_numeric(v, unit)
+        return type(self)(data, numeric=True)
+
+    @staticmethod
+    def value_as_numeric(value, unit):
+        if unit == 'bytes':
+            if isinstance(value, (Decimal, int)):
+                return value
+            value = int(BinarySize.from_str(value))
+        else:
+            value = Decimal(value)
+        return value
+
+    @staticmethod
+    def _humanize(src_data, slot_types):
+        data = {}
+        for k, v in src_data.items():
+            unit = slot_types.get(k, 'count')
+            if unit == 'bytes':
+                try:
+                    v = '{:s}'.format(BinarySize(v))
+                except ValueError:
+                    v = str(v)
+            else:
+                v = str(v)
+            data[k] = v
+        return data
+
+    def as_humanized(self, slot_types):
+        data = self._humanize(self.data, slot_types)
+        return type(self)(data, numeric=False)
+
+    def as_json_humanized(self, slot_types):
+        data = self._humanize(self.data, slot_types)
+        return data
+
+    def as_json_numeric(self, slot_types, default_slot_type=None):
+        data = {}
+        for k, v in self.data.items():
+            unit = slot_types.get(k, default_slot_type)
+            if unit is None:
+                raise ValueError('unit unknown for slot', k)
+            data[k] = str(ResourceSlot.value_as_numeric(v, unit))
+        return data
+
+    # legacy:
+    # mem: Decimal = Decimal(0)  # multiple of GiBytes
+    # cpu: Decimal = Decimal(0)  # multiple of CPU cores
+    # accel_slots: Optional[Mapping[str, Decimal]] = None
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -323,7 +583,7 @@ class ShareRequest:
     meaningful only when specified.  If specified, they indicate the minimum
     compatible versions required to execute the given compute session.
     '''
-    device_type: DeviceType
+    slot_type: SlotType
     device_share: Decimal
     feature_version: str = None
     feature_set: Set[str] = attr.Factory(set)

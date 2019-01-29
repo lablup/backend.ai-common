@@ -1,8 +1,13 @@
 import collections
+from decimal import Decimal
+import functools
+import itertools
 import typing
 from ai.backend.common.exception import AliasResolutionFailed
 from ai.backend.common.docker import default_registry, default_repository
-from ai.backend.common.types import BinarySize, ImageRef, PlatformTagSet
+from ai.backend.common.types import (
+    BinarySize, ImageRef, PlatformTagSet, ResourceSlot
+)
 
 import pytest
 
@@ -32,11 +37,24 @@ def test_binary_size():
     assert 1048576 == BinarySize.from_str('1m')
     assert 524288 == BinarySize.from_str('0.5m')
     assert 524288 == BinarySize.from_str('512k')
-    assert '{:g}'.format(BinarySize(930)) == '930'
-    assert '{:g}'.format(BinarySize(1024)) == '1k'
-    assert '{:g}'.format(BinarySize(524288)) == '512k'
-    assert '{:g}'.format(BinarySize(1048576)) == '1m'
+    assert '{: }'.format(BinarySize(930)) == '930'
+    assert '{:k}'.format(BinarySize(1024)) == '1k'
+    assert '{:k}'.format(BinarySize(524288)) == '512k'
+    assert '{:k}'.format(BinarySize(1048576)) == '1024k'
+    assert '{:m}'.format(BinarySize(524288)) == '0.5m'
+    assert '{:m}'.format(BinarySize(1048576)) == '1m'
     assert '{:g}'.format(BinarySize(2 ** 30)) == '1g'
+    with pytest.raises(ValueError):
+        '{:x}'.format(BinarySize(1))
+    with pytest.raises(ValueError):
+        '{:qqqq}'.format(BinarySize(1))
+    with pytest.raises(ValueError):
+        '{:}'.format(BinarySize(1))
+    assert '{:s}'.format(BinarySize(930)) == '930'
+    assert '{:s}'.format(BinarySize(1024)) == '1k'
+    assert '{:s}'.format(BinarySize(524288)) == '512k'
+    assert '{:s}'.format(BinarySize(1048576)) == '1m'
+    assert '{:s}'.format(BinarySize(2 ** 30)) == '1g'
 
 
 def test_image_ref_typing():
@@ -246,3 +264,192 @@ def test_platform_tag_set():
 
     with pytest.raises(ValueError):
         tags = PlatformTagSet(['1234'])
+
+
+def test_platform_tag_set_abbreviations():
+    pass
+
+
+def test_image_ref_generate_aliases():
+    ref = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04')
+    aliases = ref.generate_aliases()
+    possible_names = ['python-tensorflow', 'tensorflow']
+    possible_platform_tags = [
+        ['1.5'],
+        ['', 'py', 'py3', 'py36'],
+        ['', 'ubuntu', 'ubuntu16', 'ubuntu16.04'],
+    ]
+    # combinations of abbreviated/omitted platforms tags
+    for name, ptags in itertools.product(
+            possible_names,
+            itertools.product(*possible_platform_tags)):
+        assert f"{name}:{'-'.join(t for t in ptags if t)}" in aliases
+
+
+def test_image_ref_generate_aliases_with_accelerator():
+    ref = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0')
+    aliases = ref.generate_aliases()
+    possible_names = ['python-tensorflow', 'tensorflow']
+    possible_platform_tags = [
+        ['1.5'],
+        ['', 'py', 'py3', 'py36'],
+        ['', 'ubuntu', 'ubuntu16', 'ubuntu16.04'],
+        ['cuda', 'cuda10', 'cuda10.0'],  # cannot be empty!
+    ]
+    # combinations of abbreviated/omitted platforms tags
+    for name, ptags in itertools.product(
+            possible_names,
+            itertools.product(*possible_platform_tags)):
+        assert f"{name}:{'-'.join(t for t in ptags if t)}" in aliases
+
+
+def test_image_ref_generate_aliases_of_names():
+    # an alias may include only last framework name in the name.
+    ref = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0')
+    aliases = ref.generate_aliases()
+    assert 'python-tensorflow' in aliases
+    assert 'tensorflow' in aliases
+    assert 'python' not in aliases
+
+
+def test_image_ref_generate_aliases_disallowed():
+    # an alias must include the main platform version tag
+    ref = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0')
+    aliases = ref.generate_aliases()
+    # always the main version must be included!
+    assert 'python-tensorflow:py3' not in aliases
+    assert 'python-tensorflow:py36' not in aliases
+    assert 'python-tensorflow:ubuntu' not in aliases
+    assert 'python-tensorflow:ubuntu16.04' not in aliases
+    assert 'python-tensorflow:cuda' not in aliases
+    assert 'python-tensorflow:cuda10.0' not in aliases
+
+
+def test_image_ref_ordering():
+    # ordering is defined as the tuple-ordering of platform tags.
+    # (tag components that come first have higher priority when comparing.)
+    r1 = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0')
+    r2 = ImageRef('lablup/python-tensorflow:1.7-py36-ubuntu16.04-cuda10.0')
+    r3 = ImageRef('lablup/python-tensorflow:1.7-py37-ubuntu18.04-cuda9.0')
+    assert r1 < r2
+    assert r1 < r3
+    assert r2 < r3
+
+    # only the image-refs with same names can be compared.
+    rx = ImageRef('lablup/python:3.6-ubuntu')
+    with pytest.raises(ValueError):
+        rx < r1
+    with pytest.raises(ValueError):
+        r1 < rx
+
+    # test case added for explicit behavior documentation
+    # ImageRef(...:ubuntu16.04) > ImageRef(...:ubuntu) == False
+    # ImageRef(...:ubuntu16.04) > ImageRef(...:ubuntu) == False
+    # by keeping naming convetion, no need to handle these cases
+    r4 = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda9.0')
+    r5 = ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu-cuda9.0')
+    assert not r4 > r5
+    assert not r5 > r4
+
+
+def test_image_ref_merge_aliases():
+    # After merging, aliases that indicates two or more references should
+    # indicate most recent versions.
+    refs = [
+        ImageRef('lablup/python:3.7-ubuntu18.04'),                           # 0
+        ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04-cuda10.0'),  # 1
+        ImageRef('lablup/python-tensorflow:1.7-py36-ubuntu16.04-cuda10.0'),  # 2
+        ImageRef('lablup/python-tensorflow:1.7-py37-ubuntu16.04-cuda9.0'),   # 3
+        ImageRef('lablup/python-tensorflow:1.5-py36-ubuntu16.04'),           # 4
+        ImageRef('lablup/python-tensorflow:1.7-py36-ubuntu16.04'),           # 5
+        ImageRef('lablup/python-tensorflow:1.7-py37-ubuntu16.04'),           # 6
+    ]
+    aliases = [ref.generate_aliases() for ref in refs]
+    aliases = functools.reduce(ImageRef.merge_aliases, aliases)
+    assert aliases['python-tensorflow'] is refs[6]
+    assert aliases['python-tensorflow:1.5'] is refs[4]
+    assert aliases['python-tensorflow:1.7'] is refs[6]
+    assert aliases['python-tensorflow:1.7-py36'] is refs[5]
+    assert aliases['python-tensorflow:1.5'] is refs[4]
+    assert aliases['python-tensorflow:1.5-cuda'] is refs[1]
+    assert aliases['python-tensorflow:1.7-cuda10'] is refs[2]
+    assert aliases['python-tensorflow:1.7-cuda9'] is refs[3]
+    assert aliases['python'] is refs[0]
+
+
+def test_resource_slot():
+
+    r1 = ResourceSlot({'a': '2', 'b': '2g'})
+    r2 = ResourceSlot({'a': '2', 'b': '1g'})
+    r3 = ResourceSlot({'a': '2'})
+    r4 = ResourceSlot({'a': '1'})
+    assert not r1.numeric
+    assert not r2.numeric
+    assert not r3.numeric
+    assert not r4.numeric
+
+    with pytest.raises(TypeError):
+        r1 + r2
+
+    with pytest.raises(TypeError):
+        r1 < r2
+
+    with pytest.raises(TypeError):
+        r1 == r2
+
+    st = {'a': 'count', 'b': 'bytes'}
+    r1n = r1.as_numeric(st)
+    r2n = r2.as_numeric(st)
+    r3n = r3.as_numeric(st)
+    r4n = r4.as_numeric(st)
+
+    assert r1n.numeric
+    assert r2n.numeric
+    assert r3n.numeric
+    assert r4n.numeric
+
+    assert r1n['a'] == Decimal(2)
+    assert r4n['a'] == Decimal(1)
+    assert r1n['b'] == 2 * (2**30)
+    assert r2n['b'] == 1 * (2**30)
+
+    x = r1n - r2n
+    assert x['a'] == Decimal(0)
+    assert x['b'] == 1 * (2**30)
+
+    assert not r1n < r2n
+    assert r1n > r2n
+    assert not r1n == r2n
+    assert r1n != r2n
+
+    assert r1n - r3n == ResourceSlot({'a': Decimal(0), 'b': 2 * (2**30)},
+                                     numeric=True)
+    assert r1n + r3n == ResourceSlot({'a': Decimal(4), 'b': 2 * (2**30)},
+                                     numeric=True)
+    with pytest.raises(ValueError):
+        r3n - r1n
+
+    # r3n has less keys than r1n
+    assert r4n < r1n
+    assert r4n <= r1n
+    assert not r3n < r1n
+    assert r3n <= r1n
+    assert r3n.eq_contained(r1n)
+    with pytest.raises(ValueError):
+        r3n.eq_contains(r1n)
+    with pytest.raises(ValueError):
+        r3n > r1n
+    with pytest.raises(ValueError):
+        r3n >= r1n
+
+    with pytest.raises(ValueError):
+        r1n.eq_contained(r3n)
+    assert r1n.eq_contains(r3n)
+    with pytest.raises(ValueError):
+        r1n < r3n
+    with pytest.raises(ValueError):
+        r1n <= r3n
+    assert not r1n > r3n
+    assert r1n >= r3n
+    assert r1n > r4n
+    assert r1n >= r4n

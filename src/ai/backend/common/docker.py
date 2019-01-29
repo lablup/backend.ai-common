@@ -113,13 +113,15 @@ def is_known_registry(val: str,
 
 async def get_registry_info(etcd: AsyncEtcd, name: str) -> Tuple[yarl.URL, dict]:
     reg_path = f'config/docker/registry/{etcd_quote(name)}'
-    registry_addr = await etcd.get(reg_path)
-    if registry_addr is None:
+    item = await etcd.get_prefix_dict(reg_path)
+    if not item:
         raise UnknownImageRegistry(name)
-    username = await etcd.get(f'{reg_path}/username')
+    registry_addr = item['']
+    creds = {}
+    username = item.get('username')
     if username is not None:
-        password = await etcd.get(f'{reg_path}/password')
-        creds = {'username': username, 'password': password}
-    else:
-        creds = {}
+        creds['username'] = username
+    password = item.get('password')
+    if password is not None:
+        creds['password'] = password
     return yarl.URL(registry_addr), creds
