@@ -1,7 +1,8 @@
 from collections import UserDict
 from decimal import Decimal
-from packaging import version
 import enum
+import numbers
+from packaging import version
 import re
 from typing import (
     Any, Hashable, Mapping,
@@ -24,14 +25,30 @@ __all__ = (
     'ImageRef',
     'PlatformTagSet',
     'DeviceId',
-    'DeviceType',
-    'DeviceTypes',
+    'SlotType',
+    'IntrinsicSlotTypes',
+    'Allocation',
+    'ResourceAllocations',
+    'MountPermission',
+
+    # TODO: to be updated
     'ShareRequest',
     'SessionRequest',
 )
 
 
+class IntrinsicSlotTypes(str, enum.Enum):
+    CPU = 'cpu'
+    MEMORY = 'mem'
+
+
 DeviceId = NewType('DeviceId', Hashable)
+SlotType = NewType('DeviceType', Union[str, IntrinsicSlotTypes])
+
+
+class MountPermission(str, enum.Enum):
+    READ_ONLY = 'ro'
+    READ_WRITE = 'rw'
 
 
 class BinarySize(int):
@@ -100,7 +117,7 @@ class BinarySize(int):
         if d == d.to_integral():
             value = d.quantize(Decimal(1))
         else:
-            value = d.quantize(Decimal('.00'))
+            value = d.quantize(Decimal('.00')).normalize()
         return value
 
     def __str__(self):
@@ -117,7 +134,10 @@ class BinarySize(int):
             return f'{value} {suffix.upper()}iB'
 
     def __format__(self, format_spec):
-        if format_spec == 'g':
+        if len(format_spec) != 1:
+            raise ValueError('format-string for BinarySize can be only one character.')
+        if format_spec == 's':
+            # automatically scaled
             suffix_idx = self._preformat()
             if suffix_idx == 0:
                 return f'{int(self)}'
@@ -125,7 +145,40 @@ class BinarySize(int):
             multiplier = type(self).suffix_map[suffix]
             value = self._quantize(self, multiplier)
             return f'{value}{suffix.lower()}'
+        else:
+            # use the given scale
+            suffix = format_spec.lower()
+            multiplier = type(self).suffix_map.get(suffix)
+            if multiplier is None:
+                raise ValueError('Unsupported scale unit.', suffix)
+            value = self._quantize(self, multiplier)
+            return f'{value}{suffix.lower()}'.strip()
         return super().__format__(format_spec)
+
+
+Allocation = NewType('Allocation', Union[Decimal, BinarySize])
+
+ResourceAllocations = NewType('ResourceAllocations',
+    Mapping[SlotType, Mapping[DeviceId, Allocation]])
+'''
+Represents the mappings of resource slot types and
+their device-allocation pairs.
+
+Example:
+
+ + "cpu"
+   - "0": 1.0
+   - "1": 1.0
+ + "mem"
+   - "node0": "4g"
+   - "node1": "4g"
+ + "cuda.smp"
+   - "0": 20
+   - "1": 10
+ + "cuda.mem"
+   - "0": "8g"
+   - "1": "2g"
+'''
 
 
 class PlatformTagSet(Mapping):
@@ -455,42 +508,64 @@ class ResourceSlot(UserDict):
         return (not any(s < o for s, o in zip(self_values, other_values)) and
                 not (self_values == other_values))
 
+    # as_numeric series methods are to preserve accuracy of values.
+    # as_humanized series methods are to pretty-print values.
+
     def as_numeric(self, slot_types, default_slot_type=None):
         data = {}
         for k, v in self.data.items():
             unit = slot_types.get(k, default_slot_type)
             if unit is None:
-                raise ValueError('uknown slot type', k)
-            elif unit == 'bytes':
-                v = BinarySize.from_str(v)
-            else:
-                v = Decimal(v)
-            data[k] = v
+                raise ValueError('unit unknown for slot', k)
+            data[k] = ResourceSlot.value_as_numeric(v, unit)
         return type(self)(data, numeric=True)
 
-    def as_humanized(self, slot_types):
+    @staticmethod
+    def value_as_numeric(value, unit):
+        if unit == 'bytes':
+            if isinstance(value, (Decimal, int)):
+                return value
+            value = BinarySize.from_str(value)
+        else:
+            value = Decimal(value)
+        return value
+
+    @staticmethod
+    def _humanize(src_data, slot_types):
         data = {}
-        for k, v in self.data.items():
+        for k, v in src_data.items():
             unit = slot_types.get(k, 'count')
             if unit == 'bytes':
-                v = '{:g}'.format(BinarySize(v))
+                try:
+                    v = '{:s}'.format(BinarySize(v))
+                except ValueError:
+                    v = str(v)
             else:
                 v = str(v)
             data[k] = v
+        return data
+
+    def as_humanized(self, slot_types):
+        data = self._humanize(self.data, slot_types)
         return type(self)(data, numeric=False)
+
+    def as_json_humanized(self, slot_types):
+        data = self._humanize(self.data, slot_types)
+        return data
+
+    def as_json_numeric(self, slot_types, default_slot_type=None):
+        data = {}
+        for k, v in self.data.items():
+            unit = slot_types.get(k, default_slot_type)
+            if unit is None:
+                raise ValueError('unit unknown for slot', k)
+            data[k] = str(ResourceSlot.value_as_numeric(v, unit))
+        return data
 
     # legacy:
     # mem: Decimal = Decimal(0)  # multiple of GiBytes
     # cpu: Decimal = Decimal(0)  # multiple of CPU cores
     # accel_slots: Optional[Mapping[str, Decimal]] = None
-
-
-class DeviceTypes(enum.Enum):
-    CPU = 'cpu'
-    MEMORY = 'mem'
-
-
-DeviceType = NewType('DeviceType', Union[str, DeviceTypes])
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -508,7 +583,7 @@ class ShareRequest:
     meaningful only when specified.  If specified, they indicate the minimum
     compatible versions required to execute the given compute session.
     '''
-    device_type: DeviceType
+    slot_type: SlotType
     device_share: Decimal
     feature_version: str = None
     feature_set: Set[str] = attr.Factory(set)
