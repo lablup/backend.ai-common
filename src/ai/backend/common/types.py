@@ -525,7 +525,7 @@ class ResourceSlot(UserDict):
         if unit == 'bytes':
             if isinstance(value, (Decimal, int)):
                 return value
-            value = BinarySize.from_str(value)
+            value = int(BinarySize.from_str(value))
         else:
             value = Decimal(value)
         return value
