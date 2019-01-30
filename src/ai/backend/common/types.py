@@ -1,7 +1,6 @@
 from collections import UserDict
 from decimal import Decimal
 import enum
-import numbers
 from packaging import version
 import re
 from typing import (
@@ -49,6 +48,7 @@ SlotType = NewType('DeviceType', Union[str, IntrinsicSlotTypes])
 class MountPermission(str, enum.Enum):
     READ_ONLY = 'ro'
     READ_WRITE = 'rw'
+    WRITE_DELETE = 'wd'
 
 
 class BinarySize(int):
@@ -249,7 +249,6 @@ class ImageRef:
         else:
             raise AliasResolutionFailed('Could not resolve the given image name!')
         known_registries = await get_known_registries(etcd)
-        print(known_registries)
         return cls(alias_target, known_registries)
 
     def __init__(self, value: str,
@@ -260,22 +259,23 @@ class ImageRef:
         parts = value.split('/', maxsplit=1)
         if len(parts) == 1:
             self._registry = default_registry
-            self._name, self._tag = ImageRef._parse_image_tag(value)
+            self._name, self._tag = ImageRef._parse_image_tag(value, True)
             if not rx_slug.search(self._tag):
                 raise ValueError('Invalid image tag')
         else:
             if is_known_registry(parts[0], known_registries):
                 self._registry = parts[0]
-                self._name, self._tag = ImageRef._parse_image_tag(parts[1])
+                using_default = (parts[0].endswith('.docker.io') or parts[0] == 'docker.io')
+                self._name, self._tag = ImageRef._parse_image_tag(parts[1], using_default)
             else:
                 self._registry = default_registry
-                self._name, self._tag = ImageRef._parse_image_tag(value)
+                self._name, self._tag = ImageRef._parse_image_tag(value, True)
             if not rx_slug.search(self._tag):
                 raise ValueError('Invalid image tag')
         self._update_tag_set()
 
     @staticmethod
-    def _parse_image_tag(s: str) -> Tuple[str, str]:
+    def _parse_image_tag(s: str, using_default_registry: bool = False) -> Tuple[str, str]:
         image_tag = s.rsplit(':', maxsplit=1)
         if len(image_tag) == 1:
             image = image_tag[0]
@@ -285,7 +285,7 @@ class ImageRef:
             tag = image_tag[1]
         if not image:
             raise ValueError('Empty image repository/name')
-        if '/' not in image:
+        if ('/' not in image) and using_default_registry:
             image = default_repository + '/' + image
         return image, tag
 
@@ -589,12 +589,6 @@ class ShareRequest:
     feature_set: Set[str] = attr.Factory(set)
     lib_version: str = None
     driver_version: str = None
-
-
-class MountPermission(enum.Enum):
-    READ_ONLY = 'ro'
-    READ_WRITE = 'rw'
-    WRITE_DELETE = 'wd'
 
 
 @attr.s(auto_attribs=True, slots=True)

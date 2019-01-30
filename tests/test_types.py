@@ -108,13 +108,13 @@ def test_image_ref_parsing():
     assert ref.tag_set == ('latest', set())
 
     ref = ImageRef('myregistry.org/lua', ['myregistry.org'])
-    assert ref.name == f'lablup/lua'
+    assert ref.name == f'lua'
     assert ref.tag == 'latest'
     assert ref.registry == 'myregistry.org'
     assert ref.tag_set == ('latest', set())
 
     ref = ImageRef('myregistry.org/lua:5.3-alpine', ['myregistry.org'])
-    assert ref.name == f'lablup/lua'
+    assert ref.name == f'lua'
     assert ref.tag == '5.3-alpine'
     assert ref.registry == 'myregistry.org'
     assert ref.tag_set == ('5.3', {'alpine'})
@@ -136,7 +136,7 @@ def test_image_ref_parsing():
 
     # IP addresses are treated as valid registry URLs.
     ref = ImageRef('127.0.0.1:5000/python:3.6-cuda9-ubuntu')
-    assert ref.name == f'{default_repository}/python'
+    assert ref.name == f'python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == '127.0.0.1:5000'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
@@ -149,19 +149,19 @@ def test_image_ref_parsing():
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
     ref = ImageRef('[::1]/python:3.6-cuda9-ubuntu')
-    assert ref.name == f'{default_repository}/python'
+    assert ref.name == f'python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == '[::1]'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
     ref = ImageRef('[::1]:5000/python:3.6-cuda9-ubuntu')
-    assert ref.name == f'{default_repository}/python'
+    assert ref.name == f'python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == '[::1]:5000'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
     ref = ImageRef('[212c:9cb9:eada:e57b:84c9:6a9:fbec:bdd2]:1024/python')
-    assert ref.name == f'{default_repository}/python'
+    assert ref.name == f'python'
     assert ref.tag == 'latest'
     assert ref.registry == '[212c:9cb9:eada:e57b:84c9:6a9:fbec:bdd2]:1024'
     assert ref.tag_set == ('latest', set())
@@ -230,7 +230,7 @@ async def test_image_ref_resolve(etcd):
     # resolution with custom registry
     ref = await ImageRef.resolve_alias('mypython', etcd)
     assert ref.registry == 'myregistry.org'
-    assert ref.name == 'lablup/python'
+    assert ref.name == 'python'
     assert ref.tag == '3.6'
 
 
