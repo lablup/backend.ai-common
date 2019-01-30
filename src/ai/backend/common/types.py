@@ -397,6 +397,16 @@ class ImageRef:
     def __hash__(self) -> int:
         return hash((self._name, self._tag, self._registry))
 
+    def __eq__(self, other) -> bool:
+        return (self._registry == other._registry and
+                self._name == other._name and
+                self._tag == other._tag)
+
+    def __ne__(self, other) -> bool:
+        return (self._registry != other._registry or
+                self._name != other._name or
+                self._tag != other._tag)
+
     def __lt__(self, other) -> bool:
         if self == other:   # call __eq__ first for resolved check
             return False
