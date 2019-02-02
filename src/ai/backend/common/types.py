@@ -42,6 +42,11 @@ class IntrinsicSlotTypes(str, enum.Enum):
     MEMORY = 'mem'
 
 
+class HandlerForUnknownSlotType(str, enum.Enum):
+    DROP = 'drop'
+    ERROR = 'error'
+
+
 DeviceId = NewType('DeviceId', Hashable)
 SlotType = NewType('DeviceType', Union[str, IntrinsicSlotTypes])
 
@@ -528,12 +533,17 @@ class ResourceSlot(UserDict):
     # as_numeric series methods are to preserve accuracy of values.
     # as_humanized series methods are to pretty-print values.
 
-    def as_numeric(self, slot_types, default_slot_type=None):
+    def as_numeric(self, slot_types, *,
+                   unknown: HandlerForUnknownSlotType = 'error'):
         data = {}
+        unknown_handler = HandlerForUnknownSlotType(unknown)
         for k, v in self.data.items():
-            unit = slot_types.get(k, default_slot_type)
+            unit = slot_types.get(k)
             if unit is None:
-                raise ValueError('unit unknown for slot', k)
+                if unknown_handler == 'drop':
+                    continue
+                elif unknown_handler == 'error':
+                    raise ValueError('unit unknown for slot', k)
             data[k] = ResourceSlot.value_as_numeric(v, unit)
         return type(self)(data, numeric=True)
 
@@ -570,12 +580,17 @@ class ResourceSlot(UserDict):
         data = self._humanize(self.data, slot_types)
         return data
 
-    def as_json_numeric(self, slot_types, default_slot_type=None):
+    def as_json_numeric(self, slot_types, *,
+                        unknown: HandlerForUnknownSlotType = 'error'):
         data = {}
+        unknown_handler = HandlerForUnknownSlotType(unknown)
         for k, v in self.data.items():
-            unit = slot_types.get(k, default_slot_type)
+            unit = slot_types.get(k)
             if unit is None:
-                raise ValueError('unit unknown for slot', k)
+                if unknown_handler == 'drop':
+                    continue
+                elif unknown_handler == 'error':
+                    raise ValueError('unit unknown for slot', k)
             data[k] = str(ResourceSlot.value_as_numeric(v, unit))
         return data
 
