@@ -461,6 +461,8 @@ class ResourceSlot(UserDict):
         return self_values == other_values
 
     def __ne__(self, other):
+        if self.keys() != other.keys():
+            return True
         return not self.__eq__(other)
 
     def eq_contains(self, other):
