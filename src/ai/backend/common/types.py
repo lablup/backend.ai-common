@@ -455,12 +455,14 @@ class ResourceSlot(UserDict):
         if not self.numeric or not other.numeric:
             raise TypeError('Only numeric slots can be compared.')
         if self.keys() != other.keys():
-            raise TypeError('Only slots with same keys can be compared.')
+            raise False
         self_values = [self.data[k] for k in sorted(self.data.keys())]
         other_values = [other.data[k] for k in sorted(other.data.keys())]
         return self_values == other_values
 
     def __ne__(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be compared.')
         if self.keys() != other.keys():
             return True
         return not self.__eq__(other)
