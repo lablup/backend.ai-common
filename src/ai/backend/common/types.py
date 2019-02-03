@@ -558,7 +558,7 @@ class ResourceSlot(UserDict):
         return value
 
     @staticmethod
-    def _humanize(src_data, slot_types):
+    def _humanize(src_data, slot_types, fill_empty):
         data = {}
         for k, v in src_data.items():
             unit = slot_types.get(k, 'count')
@@ -570,14 +570,20 @@ class ResourceSlot(UserDict):
             else:
                 v = str(v)
             data[k] = v
+        if fill_empty:
+            for k in slot_types.keys():
+                if k not in data:
+                    data[k] = '0'
         return data
 
-    def as_humanized(self, slot_types):
-        data = self._humanize(self.data, slot_types)
+    def as_humanized(self, slot_types, *,
+                     fill_empty: bool = True):
+        data = self._humanize(self.data, slot_types, fill_empty)
         return type(self)(data, numeric=False)
 
-    def as_json_humanized(self, slot_types):
-        data = self._humanize(self.data, slot_types)
+    def as_json_humanized(self, slot_types, *,
+                          fill_empty: bool = True):
+        data = self._humanize(self.data, slot_types, fill_empty)
         return data
 
     def as_json_numeric(self, slot_types, *,
