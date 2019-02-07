@@ -574,7 +574,7 @@ class ResourceSlot(UserDict):
                 return value
             value = int(BinarySize.from_str(value))
         else:
-            value = Decimal(value)
+            value = Decimal(value).normalize()
         return value
 
     @staticmethod
