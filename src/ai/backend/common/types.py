@@ -449,7 +449,7 @@ class ResourceSlot(UserDict):
     def __sub__(self, other):
         if not self.numeric or not other.numeric:
             raise TypeError('Only numeric slots can be operands of subtraction.')
-        if other.keys() - self.keys():
+        if other.keys() > self.keys():
             raise ValueError('Cannot subtract resource slot with more keys!')
         return type(self)({
             k: self.data[k] - other.get(k, 0)
@@ -530,11 +530,27 @@ class ResourceSlot(UserDict):
         return (not any(s < o for s, o in zip(self_values, other_values)) and
                 not (self_values == other_values))
 
+    def lte_unlimited(self, other):
+        if not self.numeric or not other.numeric:
+            raise TypeError('Only numeric slots can be compared.')
+        if other.keys() != self.keys():
+            raise ValueError('To allow unlimited resource comparison, keys must be same.')
+        for self_value, other_value in zip((self.data[k] for k in self.keys()),
+                                           (other.data[k] for k in self.keys())):
+            # If the right operand has zero or null values,
+            # treat them like infinity.
+            if other_value is None or other_value == 0:
+                continue
+            if self_value > other_value:
+                return False
+        return True
+
     # as_numeric series methods are to preserve accuracy of values.
     # as_humanized series methods are to pretty-print values.
 
     def as_numeric(self, slot_types, *,
-                   unknown: HandlerForUnknownSlotType = 'error'):
+                   unknown: HandlerForUnknownSlotType = 'error',
+                   fill_missing: bool = True):
         data = {}
         unknown_handler = HandlerForUnknownSlotType(unknown)
         for k, v in self.data.items():
@@ -545,6 +561,10 @@ class ResourceSlot(UserDict):
                 elif unknown_handler == 'error':
                     raise ValueError('unit unknown for slot', k)
             data[k] = ResourceSlot.value_as_numeric(v, unit)
+        if fill_missing:
+            for k in slot_types.keys():
+                if k not in data:
+                    data[k] = 0
         return type(self)(data, numeric=True)
 
     @staticmethod
@@ -558,7 +578,7 @@ class ResourceSlot(UserDict):
         return value
 
     @staticmethod
-    def _humanize(src_data, slot_types, fill_empty):
+    def _humanize(src_data, slot_types, fill_missing):
         data = {}
         for k, v in src_data.items():
             unit = slot_types.get(k, 'count')
@@ -570,24 +590,25 @@ class ResourceSlot(UserDict):
             else:
                 v = str(v)
             data[k] = v
-        if fill_empty:
+        if fill_missing:
             for k in slot_types.keys():
                 if k not in data:
                     data[k] = '0'
         return data
 
     def as_humanized(self, slot_types, *,
-                     fill_empty: bool = True):
-        data = self._humanize(self.data, slot_types, fill_empty)
+                     fill_missing: bool = True):
+        data = self._humanize(self.data, slot_types, fill_missing)
         return type(self)(data, numeric=False)
 
     def as_json_humanized(self, slot_types, *,
-                          fill_empty: bool = True):
-        data = self._humanize(self.data, slot_types, fill_empty)
+                          fill_missing: bool = True):
+        data = self._humanize(self.data, slot_types, fill_missing)
         return data
 
     def as_json_numeric(self, slot_types, *,
-                        unknown: HandlerForUnknownSlotType = 'error'):
+                        unknown: HandlerForUnknownSlotType = 'error',
+                        fill_missing: bool = True):
         data = {}
         unknown_handler = HandlerForUnknownSlotType(unknown)
         for k, v in self.data.items():
@@ -598,6 +619,10 @@ class ResourceSlot(UserDict):
                 elif unknown_handler == 'error':
                     raise ValueError('unit unknown for slot', k)
             data[k] = str(ResourceSlot.value_as_numeric(v, unit))
+        if fill_missing:
+            for k in slot_types.keys():
+                if k not in data:
+                    data[k] = '0'
         return data
 
     # legacy:
