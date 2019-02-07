@@ -550,7 +550,7 @@ class ResourceSlot(UserDict):
 
     def as_numeric(self, slot_types, *,
                    unknown: HandlerForUnknownSlotType = 'error',
-                   fill_missing: bool = True):
+                   fill_missing: bool = False):
         data = {}
         unknown_handler = HandlerForUnknownSlotType(unknown)
         for k, v in self.data.items():
@@ -608,7 +608,7 @@ class ResourceSlot(UserDict):
 
     def as_json_numeric(self, slot_types, *,
                         unknown: HandlerForUnknownSlotType = 'error',
-                        fill_missing: bool = True):
+                        fill_missing: bool = False):
         data = {}
         unknown_handler = HandlerForUnknownSlotType(unknown)
         for k, v in self.data.items():
