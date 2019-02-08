@@ -586,9 +586,9 @@ class ResourceSlot(UserDict):
                 try:
                     v = '{:s}'.format(BinarySize(v))
                 except ValueError:
-                    v = str(v)
+                    v = _stringify_number(v)
             else:
-                v = str(v)
+                v = _stringify_number(v)
             data[k] = v
         if fill_missing:
             for k in slot_types.keys():
@@ -618,7 +618,8 @@ class ResourceSlot(UserDict):
                     continue
                 elif unknown_handler == 'error':
                     raise ValueError('unit unknown for slot', k)
-            data[k] = str(ResourceSlot.value_as_numeric(v, unit))
+            v = ResourceSlot.value_as_numeric(v, unit)
+            data[k] = _stringify_number(v)
         if fill_missing:
             for k in slot_types.keys():
                 if k not in data:
@@ -700,3 +701,16 @@ class SessionRequest:
     # for multi-container sessions
     worker_image: str = None
     worker_resource_spec: ResourceRequest = None
+
+
+def _stringify_number(v):
+    '''
+    Stringify a number, preventing unwanted scientific notations.
+    '''
+    if isinstance(v, (float, Decimal)):
+        v = '{:f}'.format(v)
+    elif isinstance(v, int):
+        v = '{:d}'.format(v)
+    else:
+        v = str(v)
+    return v
