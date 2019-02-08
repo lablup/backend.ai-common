@@ -709,6 +709,8 @@ def _stringify_number(v):
     '''
     if isinstance(v, (float, Decimal)):
         v = '{:f}'.format(v)
+    elif isinstance(v, BinarySize):
+        v = '{:d}'.format(int(v))
     elif isinstance(v, int):
         v = '{:d}'.format(v)
     else:
