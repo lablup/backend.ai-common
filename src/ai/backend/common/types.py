@@ -54,7 +54,7 @@ SlotType = NewType('DeviceType', Union[str, IntrinsicSlotTypes])
 class MountPermission(str, enum.Enum):
     READ_ONLY = 'ro'
     READ_WRITE = 'rw'
-    WRITE_DELETE = 'wd'
+    RW_DELETE = 'wd'
 
 
 class BinarySize(int):
