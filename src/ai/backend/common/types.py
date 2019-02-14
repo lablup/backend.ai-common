@@ -29,6 +29,7 @@ __all__ = (
     'IntrinsicSlotTypes',
     'Allocation',
     'ResourceAllocations',
+    'ResourceSlot',
     'MountPermission',
 
     # TODO: to be updated
