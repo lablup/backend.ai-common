@@ -28,9 +28,11 @@ event_map = {
 
 class AsyncEtcd:
 
-    def __init__(self, addr, namespace, *, encoding='utf8', loop=None):
+    def __init__(self, addr, namespace, *, credentials=None, encoding='utf8', loop=None):
         self.loop = loop if loop else asyncio.get_event_loop()
         self.etcd = client(str(addr))
+        # TODO: apply credentials if given
+        #       (2019.02: aioetcd3 seems not have implemented user/password auth)
         self.ns = namespace
         log.info(f'using etcd cluster from {addr} with namespace "{namespace}"')
         self.encoding = encoding

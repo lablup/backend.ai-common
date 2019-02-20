@@ -56,10 +56,13 @@ def make_dict_from_pairs(key_prefix, pairs, path_sep='/'):
 
 class AsyncEtcd:
 
-    def __init__(self, addr, namespace, *, encoding='utf8', loop=None):
+    def __init__(self, addr, namespace, *, credentials=None, encoding='utf8', loop=None):
         self.loop = loop if loop else asyncio.get_event_loop()
         self.executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='etcd')
-        self.etcd_sync = etcd3.client(host=str(addr.host), port=addr.port)
+        self.etcd_sync = etcd3.client(
+            host=str(addr.host), port=addr.port,
+            user=credentials.get('user') if credentials else None,
+            password=credentials.get('password') if credentials else None)
         self.ns = namespace
         log.info(f'using etcd cluster from {addr} with namespace "{namespace}"')
         self.encoding = encoding
