@@ -1,6 +1,7 @@
 from collections import UserDict
 from decimal import Decimal
 import enum
+import math
 import numbers
 from packaging import version
 import re
