@@ -51,6 +51,8 @@ class HandlerForUnknownSlotType(str, enum.Enum):
 DeviceId = NewType('DeviceId', Hashable)
 SlotType = NewType('DeviceType', Union[str, IntrinsicSlotTypes])
 
+Quantum = Decimal('0.000')
+
 
 class MountPermission(str, enum.Enum):
     READ_ONLY = 'ro'
@@ -570,12 +572,14 @@ class ResourceSlot(UserDict):
 
     @staticmethod
     def value_as_numeric(value, unit):
+        if value in (float('inf'), 'inf'):
+            return Decimal('Infinity')
         if unit == 'bytes':
             if isinstance(value, (Decimal, int)):
-                return value
+                return int(value)
             value = int(BinarySize.from_str(value))
         else:
-            value = Decimal(value).normalize()
+            value = Decimal(value).quantize(Quantum).normalize()
         return value
 
     @staticmethod
@@ -709,7 +713,12 @@ def _stringify_number(v):
     Stringify a number, preventing unwanted scientific notations.
     '''
     if isinstance(v, (float, Decimal)):
-        v = '{:f}'.format(v)
+        if math.isinf(v) and v > 0:
+            v = 'inf'
+        elif math.isinf(v) and v < 0:
+            v = '-inf'
+        else:
+            v = '{:f}'.format(v)
     elif isinstance(v, BinarySize):
         v = '{:d}'.format(int(v))
     elif isinstance(v, int):
