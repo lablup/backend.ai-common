@@ -451,7 +451,7 @@ class ResourceSlot(UserDict):
         return type(self)({
             k: self.get(k, 0) + other.get(k, 0)
             for k in (self.keys() | other.keys())
-        }, numeric=True)
+        })
 
     def __sub__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can subtract ResourceSlot from ResourceSlot.'
@@ -460,7 +460,7 @@ class ResourceSlot(UserDict):
         return type(self)({
             k: self.data[k] - other.get(k, 0)
             for k in self.keys()
-        }, numeric=True)
+        })
 
     def __eq__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
