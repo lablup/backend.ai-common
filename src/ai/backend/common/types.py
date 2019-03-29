@@ -553,7 +553,7 @@ class ResourceSlot(UserDict):
     def from_policy(cls, policy: Mapping[str, Any], slot_types: Mapping):
         try:
             data = {
-                k: cls._normalize(v, slot_types[k])
+                k: cls._normalize_value(v, slot_types[k])
                 for k, v in policy['total_resource_slots'].items()
                 if v is not None
             }
@@ -572,7 +572,7 @@ class ResourceSlot(UserDict):
     def from_user_input(cls, obj: Mapping[str, Any], slot_types: Mapping):
         try:
             data = {
-                k: cls._normalize(v, slot_types[k]) for k, v in obj.items()
+                k: cls._normalize_value(v, slot_types[k]) for k, v in obj.items()
                 if v is not None
             }
             # fill missing
@@ -586,7 +586,7 @@ class ResourceSlot(UserDict):
     def to_humanized(self, slot_types: Mapping) -> Mapping[str, str]:
         try:
             return {
-                k: type(self)._humanize(v, slot_types[k]) for k, v in self.data.items()
+                k: type(self)._humanize_value(v, slot_types[k]) for k, v in self.data.items()
                 if v is not None
             }
         except KeyError as e:
