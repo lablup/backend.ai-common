@@ -684,9 +684,9 @@ def _stringify_number(v):
     '''
     if isinstance(v, (float, Decimal)):
         if math.isinf(v) and v > 0:
-            v = 'inf'
+            v = 'Infinity'
         elif math.isinf(v) and v < 0:
-            v = '-inf'
+            v = '-Infinity'
         else:
             v = '{:f}'.format(v)
     elif isinstance(v, BinarySize):
