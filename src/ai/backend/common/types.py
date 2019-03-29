@@ -1,7 +1,6 @@
 from collections import UserDict
 from decimal import Decimal
 import enum
-import json
 import math
 import numbers
 from packaging import version
@@ -60,14 +59,6 @@ class MountPermission(str, enum.Enum):
     READ_ONLY = 'ro'
     READ_WRITE = 'rw'
     RW_DELETE = 'wd'
-
-
-class DecimalAwareJSONEncoder(json.JSONEncoder):
-
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return str(obj.normalize())
-        return super().default(self, obj)
 
 
 class BinarySize(int):
@@ -645,16 +636,15 @@ class ResourceSlot(UserDict):
     def from_json(cls, value):
         data = {
             k: Decimal(v) for k, v in value.items()
+            if v is not None
         }
         return cls(data)
 
     def to_json(self) -> str:
-        return json.dumps(self.data, cls=DecimalAwareJSONEncoder)
-
-    # legacy:
-    # mem: Decimal = Decimal(0)  # multiple of GiBytes
-    # cpu: Decimal = Decimal(0)  # multiple of CPU cores
-    # accel_slots: Optional[Mapping[str, Decimal]] = None
+        return {
+            k: str(v) for k, v in self.data.items()
+            if v is not None
+        }
 
 
 @attr.s(auto_attribs=True, slots=True)
