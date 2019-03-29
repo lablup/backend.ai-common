@@ -92,7 +92,7 @@ class BinarySize(int):
 
     @classmethod
     def from_str(cls, expr):
-        if isinstance(expr, numbers.Integral):
+        if isinstance(expr, (Decimal, numbers.Integral)):
             return cls(expr)
         assert isinstance(expr, str)
         orig_expr = expr
