@@ -44,6 +44,11 @@ class IntrinsicSlotTypes(str, enum.Enum):
     MEMORY = 'mem'
 
 
+class DefaultForUnspecified(enum.Enum):
+    LIMITED = 0
+    UNLIMITED = 1
+
+
 class HandlerForUnknownSlotType(str, enum.Enum):
     DROP = 'drop'
     ERROR = 'error'
@@ -87,7 +92,7 @@ class BinarySize(int):
 
     @classmethod
     def from_str(cls, expr):
-        if isinstance(expr, numbers.Integral):
+        if isinstance(expr, (Decimal, numbers.Integral)):
             return cls(expr)
         assert isinstance(expr, str)
         orig_expr = expr
@@ -436,33 +441,29 @@ class ImageRef:
 
 class ResourceSlot(UserDict):
 
-    __slots__ = ('data', 'numeric')
+    __slots__ = ('data', )
 
-    def __init__(self, *args, numeric=False):
+    def __init__(self, *args):
         super().__init__(*args)
-        self.numeric = numeric
 
     def __add__(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be added together.')
+        assert isinstance(other, ResourceSlot), 'Only can add ResourceSlot to ResourceSlot.'
         return type(self)({
             k: self.get(k, 0) + other.get(k, 0)
             for k in (self.keys() | other.keys())
-        }, numeric=True)
+        })
 
     def __sub__(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be operands of subtraction.')
+        assert isinstance(other, ResourceSlot), 'Only can subtract ResourceSlot from ResourceSlot.'
         if other.keys() > self.keys():
             raise ValueError('Cannot subtract resource slot with more keys!')
         return type(self)({
             k: self.data[k] - other.get(k, 0)
             for k in self.keys()
-        }, numeric=True)
+        })
 
     def __eq__(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be compared.')
+        assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         if self.keys() != other.keys():
             raise False
         self_values = [self.data[k] for k in sorted(self.data.keys())]
@@ -470,15 +471,13 @@ class ResourceSlot(UserDict):
         return self_values == other_values
 
     def __ne__(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be compared.')
+        assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         if self.keys() != other.keys():
             return True
         return not self.__eq__(other)
 
     def eq_contains(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be compared.')
+        assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         if self.keys() < other.keys():
             raise ValueError('Slots with less keys cannot contain other.')
         common_keys = sorted(other.keys() & self.keys())
@@ -487,8 +486,7 @@ class ResourceSlot(UserDict):
         return self_values == other_values
 
     def eq_contained(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be compared.')
+        assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         if self.keys() > other.keys():
             raise ValueError('Slots with more keys cannot be contained in other.')
         common_keys = sorted(other.keys() & self.keys())
@@ -497,8 +495,7 @@ class ResourceSlot(UserDict):
         return self_values == other_values
 
     def __le__(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be compared.')
+        assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         if self.keys() > other.keys():
             raise ValueError('Slots with more keys cannot be smaller than other.')
         self_values = [self.data[k] for k in self.keys()]
@@ -506,8 +503,7 @@ class ResourceSlot(UserDict):
         return not any(s > o for s, o in zip(self_values, other_values))
 
     def __lt__(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be compared.')
+        assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         if self.keys() > other.keys():
             raise ValueError('Slots with more keys cannot be smaller than other.')
         self_values = [self.data[k] for k in self.keys()]
@@ -516,8 +512,7 @@ class ResourceSlot(UserDict):
                 not (self_values == other_values))
 
     def __ge__(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be compared.')
+        assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         if self.keys() < other.keys():
             raise ValueError('Slots with less keys cannot be larger than other.')
         self_values = [self.data[k] for k in other.keys()]
@@ -525,8 +520,7 @@ class ResourceSlot(UserDict):
         return not any(s < o for s, o in zip(self_values, other_values))
 
     def __gt__(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be compared.')
+        assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         if self.keys() < other.keys():
             raise ValueError('Slots with less keys cannot be larger than other.')
         self_values = [self.data[k] for k in other.keys()]
@@ -534,113 +528,90 @@ class ResourceSlot(UserDict):
         return (not any(s < o for s, o in zip(self_values, other_values)) and
                 not (self_values == other_values))
 
-    def lte_unlimited(self, other):
-        if not self.numeric or not other.numeric:
-            raise TypeError('Only numeric slots can be compared.')
-        if other.keys() != self.keys():
-            raise ValueError('To allow unlimited resource comparison, keys must be same.')
-        for self_value, other_value in zip((self.data[k] for k in self.keys()),
-                                           (other.data[k] for k in self.keys())):
-            # If the right operand has zero or null values,
-            # treat them like infinity.
-            if other_value is None or other_value == 0:
-                continue
-            if self_value > other_value:
-                return False
-        return True
+    def filter_slots(self, known_slots):
+        if isinstance(known_slots, Mapping):
+            slots = {*known_slots.keys()}
+        else:
+            slots = {*known_slots}
+        data = {
+            k: v for k, v in self.data.items()
+            if k in slots
+        }
+        return type(self)(data)
 
-    # as_numeric series methods are to preserve accuracy of values.
-    # as_humanized series methods are to pretty-print values.
-
-    def as_numeric(self, slot_types, *,
-                   unknown: HandlerForUnknownSlotType = 'error',
-                   fill_missing: bool = False):
-        data = {}
-        unknown_handler = HandlerForUnknownSlotType(unknown)
-        for k, v in self.data.items():
-            unit = slot_types.get(k)
-            if unit is None:
-                if unknown_handler == 'drop':
-                    continue
-                elif unknown_handler == 'error':
-                    raise ValueError('unit unknown for slot', k)
-            data[k] = ResourceSlot.value_as_numeric(v, unit)
-        if fill_missing:
-            for k in slot_types.keys():
-                if k not in data:
-                    data[k] = 0
-        return type(self)(data, numeric=True)
-
-    @staticmethod
-    def value_as_numeric(value, unit):
-        if value in (float('inf'), 'inf'):
-            return Decimal('Infinity')
+    @classmethod
+    def _normalize_value(cls, value: Any, unit: str):
         if unit == 'bytes':
             if isinstance(value, (Decimal, int)):
                 return int(value)
-            value = int(BinarySize.from_str(value))
+            value = Decimal(BinarySize.from_str(value))
         else:
             value = Decimal(value).quantize(Quantum).normalize()
         return value
 
-    @staticmethod
-    def _humanize(src_data, slot_types, fill_missing):
-        data = {}
-        for k, v in src_data.items():
-            unit = slot_types.get(k, 'count')
-            if unit == 'bytes':
-                try:
-                    v = '{:s}'.format(BinarySize(v))
-                except ValueError:
-                    v = _stringify_number(v)
-            else:
-                v = _stringify_number(v)
-            data[k] = v
-        if fill_missing:
-            for k in slot_types.keys():
-                if k not in data:
-                    data[k] = '0'
-        return data
-
-    def as_humanized(self, slot_types, *,
-                     fill_missing: bool = True):
-        data = self._humanize(self.data, slot_types, fill_missing)
-        return type(self)(data, numeric=False)
-
-    def as_json_humanized(self, slot_types, *,
-                          fill_missing: bool = True):
-        data = self._humanize(self.data, slot_types, fill_missing)
-        return data
-
-    def as_json_numeric(self, slot_types, *,
-                        unknown: HandlerForUnknownSlotType = 'error',
-                        fill_missing: bool = False):
-        data = {}
-        unknown_handler = HandlerForUnknownSlotType(unknown)
-        for k, v in self.data.items():
-            unit = slot_types.get(k)
-            if unit is None:
-                if unknown_handler == 'drop':
-                    continue
-                elif unknown_handler == 'error':
-                    raise ValueError('unit unknown for slot', k)
-            v = ResourceSlot.value_as_numeric(v, unit)
-            data[k] = _stringify_number(v)
-        if fill_missing:
-            for k in slot_types.keys():
-                if k not in data:
-                    data[k] = '0'
-        return data
+    @classmethod
+    def _humanize_value(cls, value: Decimal, unit: str):
+        if unit == 'bytes':
+            try:
+                value = '{:s}'.format(BinarySize(value))
+            except ValueError:
+                value = _stringify_number(value)
+        else:
+            value = _stringify_number(value)
+        return value
 
     @classmethod
-    def from_json(cls, value):
+    def from_policy(cls, policy: Mapping[str, Any], slot_types: Mapping):
+        try:
+            data = {
+                k: cls._normalize_value(v, slot_types[k])
+                for k, v in policy['total_resource_slots'].items()
+                if v is not None
+            }
+            # fill missing (depending on the policy for unspecified)
+            fill = Decimal(0)
+            if policy['default_for_unspecified'] == DefaultForUnspecified.UNLIMITED:
+                fill = Decimal('Infinity')
+            for k in slot_types.keys():
+                if k not in data:
+                    data[k] = fill
+        except KeyError as e:
+            raise ValueError('unit unknown for slot', e.args[0])
+        return cls(data)
+
+    @classmethod
+    def from_user_input(cls, obj: Mapping[str, Any], slot_types: Mapping):
+        try:
+            data = {
+                k: cls._normalize_value(v, slot_types[k]) for k, v in obj.items()
+                if v is not None
+            }
+            # fill missing
+            for k in slot_types.keys():
+                if k not in data:
+                    data[k] = Decimal(0)
+        except KeyError as e:
+            raise ValueError('unit unknown for slot', e.args[0])
+        return cls(data)
+
+    def to_humanized(self, slot_types: Mapping) -> Mapping[str, str]:
+        try:
+            return {
+                k: type(self)._humanize_value(v, slot_types[k]) for k, v in self.data.items()
+                if v is not None
+            }
+        except KeyError as e:
+            raise ValueError('unit unknown for slot', e.args[0])
+
+    @classmethod
+    def from_json(cls, obj: Mapping[str, Any]):
         data = {
-            k: Decimal(v) for k, v in value.items()
+            k: Decimal(v) for k, v in obj.items()
             if v is not None
         }
         return cls(data)
 
-    def to_json(self) -> str:
+    def to_json(self) -> Mapping[str, str]:
         return {
             k: str(v) for k, v in self.data.items()
             if v is not None
@@ -724,9 +695,9 @@ def _stringify_number(v):
     '''
     if isinstance(v, (float, Decimal)):
         if math.isinf(v) and v > 0:
-            v = 'inf'
+            v = 'Infinity'
         elif math.isinf(v) and v < 0:
-            v = '-inf'
+            v = '-Infinity'
         else:
             v = '{:f}'.format(v)
     elif isinstance(v, BinarySize):
