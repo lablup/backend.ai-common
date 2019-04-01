@@ -528,6 +528,17 @@ class ResourceSlot(UserDict):
         return (not any(s < o for s, o in zip(self_values, other_values)) and
                 not (self_values == other_values))
 
+    def filter_slots(self, known_slots):
+        if isinstance(known_slots, Mapping):
+            slots = {*known_slots.keys()}
+        else:
+            slots = {*known_slots}
+        data = {
+            k: v for k, v in self.data.items()
+            if k in slots
+        }
+        return type(self)(data)
+
     @classmethod
     def _normalize_value(cls, value: Any, unit: str):
         if unit == 'bytes':
