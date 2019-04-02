@@ -566,7 +566,7 @@ class ResourceSlot(UserDict):
             data = {
                 k: cls._normalize_value(v, slot_types[k])
                 for k, v in policy['total_resource_slots'].items()
-                if v is not None
+                if v is not None and k in slot_types
             }
             # fill missing (depending on the policy for unspecified)
             fill = Decimal(0)
