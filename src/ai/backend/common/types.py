@@ -613,7 +613,7 @@ class ResourceSlot(UserDict):
 
     def to_json(self) -> Mapping[str, str]:
         return {
-            k: str(v) for k, v in self.data.items()
+            k: str(Decimal(v)) for k, v in self.data.items()
             if v is not None
         }
 
