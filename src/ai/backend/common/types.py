@@ -465,7 +465,7 @@ class ResourceSlot(UserDict):
     def __eq__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         if self.keys() != other.keys():
-            raise False
+            return False
         self_values = [self.data[k] for k in sorted(self.data.keys())]
         other_values = [other.data[k] for k in sorted(other.data.keys())]
         return self_values == other_values
