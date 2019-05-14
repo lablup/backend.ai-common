@@ -101,19 +101,22 @@ class BinarySize(int):
             return int(expr)
         except ValueError:
             expr = expr.lower()
-            for ending in cls.endings:
-                if expr.endswith(ending):
-                    length = len(ending) + 1
-                    suffix = expr[-length]
-                    expr = Decimal(expr[:-length])
-                    break
-            else:
-                # when there is no unit ending (e.g., "2K")
-                if not str.isnumeric(expr[-1]):
-                    suffix = expr[-1]
-                    expr = Decimal(expr[:-1])
+            try:
+                for ending in cls.endings:
+                    if expr.endswith(ending):
+                        length = len(ending) + 1
+                        suffix = expr[-length]
+                        expr = Decimal(expr[:-length])
+                        break
                 else:
-                    suffix = ' '
+                    # when there is no unit ending (e.g., "2K")
+                    if not str.isnumeric(expr[-1]):
+                        suffix = expr[-1]
+                        expr = Decimal(expr[:-1])
+                    else:
+                        suffix = ' '
+            except ArithmeticError:
+                raise ValueError('Unconvertible value', orig_expr)
             try:
                 multiplier = cls.suffix_map[suffix]
                 return cls(expr * multiplier)
