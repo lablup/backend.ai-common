@@ -10,12 +10,14 @@ using callbacks in separate threads.
 import asyncio
 import collections
 from concurrent.futures import ThreadPoolExecutor
+import enum
 import functools
 import logging
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping, Optional, Tuple
 from urllib.parse import quote as _quote, unquote
 
 import etcd3
+import trafaret as t
 
 __all__ = (
     'quote', 'unquote',
@@ -24,6 +26,14 @@ __all__ = (
 
 Event = collections.namedtuple('Event', 'key event value')
 log = logging.getLogger(__name__)
+
+
+class ConfigScopes(enum.Enum):
+    MERGED = 0
+    GLOBAL = 1
+    SGROUP = 2
+    NODE = 3
+
 
 quote = functools.partial(_quote, safe='')
 
@@ -56,8 +66,14 @@ def make_dict_from_pairs(key_prefix, pairs, path_sep='/'):
 
 class AsyncEtcd:
 
-    def __init__(self, addr, namespace, *, credentials=None, encoding='utf8', loop=None):
+    def __init__(self, addr, namespace: str, scope_prefixes: Mapping[ConfigScopes, str], *,
+                 credentials=None, encoding='utf8', loop=None):
         self.loop = loop if loop else asyncio.get_event_loop()
+        self.scope_prefixes = t.Dict({
+            t.Key(ConfigScopes.GLOBAL): t.String,
+            t.Key(ConfigScopes.SGROUP): t.String,
+            t.Key(ConfigScopes.NODE): t.String,
+        }).check(scope_prefixes)
         self.executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='etcd')
         self.etcd_sync = etcd3.client(
             host=str(addr.host), port=addr.port,
@@ -106,14 +122,35 @@ class AsyncEtcd:
              for k, v in dict_obj.items()],
             [])
 
-    async def get(self, key):
-        key = self._mangle_key(key)
-        val, _ = await self.loop.run_in_executor(
-            self.executor,
-            self.etcd_sync.get, key)
-        return val.decode(self.encoding) if val is not None else None
+    async def get(self, key: str,
+                  scope: ConfigScopes = ConfigScopes.MERGED) \
+                  -> Optional[str]:
 
-    async def get_prefix(self, key_prefix):
+        async def get_impl(key: str) -> Optional[str]:
+            key = self._mangle_key(key)
+            val, _ = await self.loop.run_in_executor(
+                self.executor,
+                self.etcd_sync.get, key)
+            return val.decode(self.encoding) if val is not None else None
+
+        if scope == ConfigScopes.MERGED:
+            scope_prefixes = [self.scope_prefixes[ConfigScopes.NODE],
+                              self.scope_prefixes[ConfigScopes.SGROUP],
+                              self.scope_prefixes[ConfigScopes.GLOBAL]]
+        else:
+            scope_prefixes = [self.scope_prefixes[scope]]
+        values = await asyncio.gather(*[
+            get_impl(f'{scope_prefix}/{key}')
+            for scope_prefix in scope_prefixes
+        ])
+        for value in values:
+            if value is not None:
+                break
+        else:
+            value = None
+        return value
+
+    async def _get_prefix(self, key_prefix: str) -> Iterable[Tuple[str, str]]:
         key_prefix = self._mangle_key(key_prefix)
         results = await self.loop.run_in_executor(
             self.executor,
@@ -122,9 +159,27 @@ class AsyncEtcd:
                  t[0].decode(self.encoding))
                 for t in results)
 
-    async def get_prefix_dict(self, key_prefix, path_sep='/'):
-        pairs = await self.get_prefix(key_prefix)
-        return make_dict_from_pairs(key_prefix, pairs, path_sep)
+    async def get_prefix(self, key_prefix, path_sep='/',
+                         scope: ConfigScopes = ConfigScopes.MERGED) \
+                         -> Mapping[str, Optional[str]]:
+        if scope == ConfigScopes.MERGED:
+            scope_prefixes = [self.scope_prefixes[ConfigScopes.NODE],
+                              self.scope_prefixes[ConfigScopes.SGROUP],
+                              self.scope_prefixes[ConfigScopes.GLOBAL]]
+        else:
+            scope_prefixes = [self.scope_prefixes[scope]]
+        pair_sets = await asyncio.gather(*[
+            self._get_prefix(f'{scope_prefix}/{key_prefix}')
+            for scope_prefix in scope_prefixes
+        ])
+        configs = (
+            make_dict_from_pairs(f'{scope_prefix}/{key_prefix}', pairs, path_sep)
+            for scope_prefix, pairs in zip(scope_prefixes, pair_sets)
+        )
+        return collections.ChainMap(*configs)
+
+    # for legacy
+    get_prefix_dict = get_prefix
 
     async def replace(self, key, initial_val, new_val):
         key = self._mangle_key(key)
