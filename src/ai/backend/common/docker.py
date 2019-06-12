@@ -86,13 +86,11 @@ async def login(
 
 
 async def get_known_registries(etcd: AsyncEtcd) -> Mapping[str, yarl.URL]:
-    pairs = await etcd.get_prefix('config/docker/registry/')
+    data = await etcd.get_prefix('config/docker/registry/')
     results = {}
-    for key, value in pairs:
-        parts = key.split('/')
-        if len(parts) == 4:
-            name = etcd_unquote(parts[-1])
-            results[name] = value
+    for key, value in data.items():
+        name = etcd_unquote(key)
+        results[name] = value
     return results
 
 
@@ -113,7 +111,7 @@ def is_known_registry(val: str,
 
 async def get_registry_info(etcd: AsyncEtcd, name: str) -> Tuple[yarl.URL, dict]:
     reg_path = f'config/docker/registry/{etcd_quote(name)}'
-    item = await etcd.get_prefix_dict(reg_path)
+    item = await etcd.get_prefix(reg_path)
     if not item:
         raise UnknownImageRegistry(name)
     registry_addr = item['']

@@ -23,7 +23,7 @@ def test_ns():
 @pytest.fixture
 async def etcd(etcd_addr, test_ns):
     etcd = AsyncEtcd(addr=etcd_addr, namespace=test_ns, scope_prefixes={
-        ConfigScopes.GLOBAL: 'config',
+        ConfigScopes.GLOBAL: 'global',
         ConfigScopes.SGROUP: 'sgroup/testing',
         ConfigScopes.NODE: 'node/i-test',
     })

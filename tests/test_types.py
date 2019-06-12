@@ -9,6 +9,7 @@ from ai.backend.common.types import (
     BinarySize, ImageRef, PlatformTagSet, ResourceSlot,
     DefaultForUnspecified,
 )
+from ai.backend.common.etcd import ConfigScopes
 
 import pytest
 
@@ -197,14 +198,15 @@ def test_image_ref_formats():
 
 @pytest.mark.asyncio
 async def test_image_ref_resolve(etcd):
-    await etcd.put('config/docker/registry/myregistry.org', 'https://myregistry.org')
-    await etcd.put('images/index.docker.io/lablup%2Fpython/3.6', 'abcd')
-    await etcd.put('images/index.docker.io/lablup%2Fpython/3.5', 'abef')
-    await etcd.put('images/myregistry.org/python/3.6-ubuntu', 'eeab')
-    await etcd.put('images/_aliases/python',        'python:latest')
-    await etcd.put('images/_aliases/python:latest', 'lablup/python:3.6')
-    await etcd.put('images/_aliases/mypython',      'myregistry.org/python:3.6')
-    await etcd.put('images/_aliases/infinite-loop', 'infinite-loop')
+    scope = ConfigScopes.GLOBAL
+    await etcd.put('config/docker/registry/myregistry.org', 'https://myregistry.org', scope)
+    await etcd.put('images/index.docker.io/lablup%2Fpython/3.6', 'abcd', scope)
+    await etcd.put('images/index.docker.io/lablup%2Fpython/3.5', 'abef', scope)
+    await etcd.put('images/myregistry.org/python/3.6-ubuntu', 'eeab', scope)
+    await etcd.put('images/_aliases/python',        'python:latest', scope)
+    await etcd.put('images/_aliases/python:latest', 'lablup/python:3.6', scope)
+    await etcd.put('images/_aliases/mypython',      'myregistry.org/python:3.6', scope)
+    await etcd.put('images/_aliases/infinite-loop', 'infinite-loop', scope)
 
     # single-shot resolution
     ref = await ImageRef.resolve_alias('python:latest', etcd)
