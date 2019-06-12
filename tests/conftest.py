@@ -2,7 +2,7 @@ import os
 import secrets
 
 from ai.backend.common.argparse import host_port_pair
-from ai.backend.common.etcd import AsyncEtcd
+from ai.backend.common.etcd import AsyncEtcd, ConfigScopes
 
 import pytest
 
@@ -22,10 +22,18 @@ def test_ns():
 
 @pytest.fixture
 async def etcd(etcd_addr, test_ns):
-    etcd = AsyncEtcd(addr=etcd_addr, namespace=test_ns)
+    etcd = AsyncEtcd(addr=etcd_addr, namespace=test_ns, scope_prefixes={
+        ConfigScopes.GLOBAL: 'config',
+        ConfigScopes.SGROUP: 'sgroup/testing',
+        ConfigScopes.NODE: 'node/i-test',
+    })
     try:
-        await etcd.delete_prefix('')
+        await etcd.delete_prefix('', ConfigScopes.GLOBAL)
+        await etcd.delete_prefix('', ConfigScopes.SGROUP)
+        await etcd.delete_prefix('', ConfigScopes.NODE)
         yield etcd
     finally:
-        await etcd.delete_prefix('')
+        await etcd.delete_prefix('', ConfigScopes.GLOBAL)
+        await etcd.delete_prefix('', ConfigScopes.SGROUP)
+        await etcd.delete_prefix('', ConfigScopes.NODE)
         del etcd

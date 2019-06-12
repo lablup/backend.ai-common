@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 import enum
 import functools
 import logging
-from typing import Any, Iterable, Mapping, Optional, Tuple
+from typing import AsyncGenerator, Iterable, Mapping, Optional, Tuple
 from urllib.parse import quote as _quote, unquote
 
 import etcd3
@@ -25,6 +25,7 @@ __all__ = (
 )
 
 Event = collections.namedtuple('Event', 'key event value')
+
 log = logging.getLogger(__name__)
 
 
@@ -96,29 +97,21 @@ class AsyncEtcd:
             k = k[len(prefix):]
         return k
 
-    async def put(self, key, val):
-        key = self._mangle_key(key)
+    async def put(self, key: str, val: str, scope: ConfigScopes):
+        scope_prefix = self.scope_prefixes[scope]
+        key = self._mangle_key(f'{scope_prefix}/{key}')
         return await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.put, key, str(val).encode(self.encoding))
 
-    async def put_multi(self, keys, values):
+    async def put_dict(self, dict_obj: Mapping[str, str], scope: ConfigScopes):
+        scope_prefix = self.scope_prefixes[scope]
         return await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.transaction,
             [],
             [self.etcd_sync.transactions.put(
-                self._mangle_key(k), str(v).encode(self.encoding))
-             for k, v in zip(keys, values)],
-            [])
-
-    async def put_dict(self, dict_obj: Mapping[str, Any]):
-        return await self.loop.run_in_executor(
-            self.executor,
-            self.etcd_sync.transaction,
-            [],
-            [self.etcd_sync.transactions.put(
-                self._mangle_key(k), str(v).encode(self.encoding))
+                self._mangle_key(f'{scope_prefix}/{k}'), str(v).encode(self.encoding))
              for k, v in dict_obj.items()],
             [])
 
@@ -159,7 +152,7 @@ class AsyncEtcd:
                  t[0].decode(self.encoding))
                 for t in results)
 
-    async def get_prefix(self, key_prefix, path_sep='/',
+    async def get_prefix(self, key_prefix: str,
                          scope: ConfigScopes = ConfigScopes.MERGED) \
                          -> Mapping[str, Optional[str]]:
         if scope == ConfigScopes.MERGED:
@@ -172,50 +165,54 @@ class AsyncEtcd:
             self._get_prefix(f'{scope_prefix}/{key_prefix}')
             for scope_prefix in scope_prefixes
         ])
-        configs = (
-            make_dict_from_pairs(f'{scope_prefix}/{key_prefix}', pairs, path_sep)
+        configs = [
+            make_dict_from_pairs(f'{scope_prefix}/{key_prefix}', pairs, '/')
             for scope_prefix, pairs in zip(scope_prefixes, pair_sets)
-        )
+        ]
         return collections.ChainMap(*configs)
 
     # for legacy
     get_prefix_dict = get_prefix
 
-    async def replace(self, key, initial_val, new_val):
-        key = self._mangle_key(key)
+    async def replace(self, key: str, initial_val: str, new_val: str, scope: ConfigScopes) -> bool:
+        scope_prefix = self.scope_prefixes[scope]
+        key = self._mangle_key(f'{scope_prefix}/{key}')
         success = await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.replace, key, initial_val, new_val)
         return success
 
-    async def delete(self, key):
-        key = self._mangle_key(key)
+    async def delete(self, key: str, scope: ConfigScopes):
+        scope_prefix = self.scope_prefixes[scope]
+        key = self._mangle_key(f'{scope_prefix}/{key}')
         return await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.delete, key)
 
-    async def delete_multi(self, keys):
+    async def delete_multi(self, keys: Iterable[str], scope: ConfigScopes):
+        scope_prefix = self.scope_prefixes[scope]
         return await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.transaction,
             [],
-            [self.etcd_sync.transactions.delete(self._mangle_key(k))
+            [self.etcd_sync.transactions.delete(self._mangle_key(f'{scope_prefix}/{k}'))
              for k in keys],
             [])
 
-    async def delete_prefix(self, key_prefix):
-        key_prefix = self._mangle_key(key_prefix)
+    async def delete_prefix(self, key_prefix: str, scope: ConfigScopes):
+        scope_prefix = self.scope_prefixes[scope]
+        key_prefix = self._mangle_key(f'{scope_prefix}/{key_prefix}')
         return await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.delete_prefix, key_prefix)
 
-    def _watch_cb(self, queue, ev):
+    def _watch_cb(self, queue: asyncio.Queue, ev: etcd3.events.Event) -> None:
         if isinstance(ev, etcd3.events.PutEvent):
             ev_type = 'put'
         elif isinstance(ev, etcd3.events.DeleteEvent):
             ev_type = 'delete'
         else:
-            assert False, 'Not recognized etcd event type.'
+            raise TypeError('Not recognized etcd event type.')
         # etcd3 library uses a separate thread for its watchers.
         event = Event(
             self._demangle_key(ev.key),
@@ -224,7 +221,7 @@ class AsyncEtcd:
         )
         self.loop.call_soon_threadsafe(queue.put_nowait, event)
 
-    async def _watch_impl(self, raw_key, **kwargs):
+    async def _watch_impl(self, raw_key: str, **kwargs) -> AsyncGenerator[Event, None]:
         queue = asyncio.Queue(loop=self.loop)
         cb = functools.partial(self._watch_cb, queue)
         watch_id = self.etcd_sync.add_watch_callback(raw_key, cb, **kwargs)
@@ -239,22 +236,28 @@ class AsyncEtcd:
             self.etcd_sync.cancel_watch(watch_id)
             del queue
 
-    async def watch(self, key, *, once=False, ready_event=None):
-        key = self._mangle_key(key)
+    async def watch(self, key: str, scope: ConfigScopes, *,
+                    once: bool = False, ready_event: asyncio.Event = None) \
+                    -> AsyncGenerator[Event, None]:
+        scope_prefix = self.scope_prefixes[scope]
+        key = self._mangle_key(f'{scope_prefix}/{key}')
         if ready_event:
             ready_event.set()
         # yield from in async-generator is not supported.
         async for ev in self._watch_impl(key):
-            yield ev
+            yield Event(ev.key.lstrip(f'{scope_prefix}/'), ev.event, ev.value)
             if once:
                 break
 
-    async def watch_prefix(self, key_prefix, *, once=False, ready_event=True):
-        key_prefix = self._mangle_key(key_prefix)
+    async def watch_prefix(self, key_prefix: str, scope: ConfigScopes, *,
+                           once: bool = False, ready_event: asyncio.Event = None) \
+                           -> AsyncGenerator[Event, None]:
+        scope_prefix = self.scope_prefixes[scope]
+        key_prefix = self._mangle_key(f'{scope_prefix}/{key_prefix}')
         range_end = etcd3.utils.increment_last_byte(etcd3.utils.to_bytes(key_prefix))
         if ready_event:
             ready_event.set()
         async for ev in self._watch_impl(key_prefix, range_end=range_end):
-            yield ev
+            yield Event(ev.key.lstrip(f'{scope_prefix}/'), ev.event, ev.value)
             if once:
                 break
