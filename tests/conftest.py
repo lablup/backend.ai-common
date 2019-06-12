@@ -22,18 +22,18 @@ def test_ns():
 
 @pytest.fixture
 async def etcd(etcd_addr, test_ns):
-    etcd = AsyncEtcd(addr=etcd_addr, namespace=test_ns, scope_prefixes={
+    etcd = AsyncEtcd(addr=etcd_addr, namespace=test_ns, scope_prefix_map={
         ConfigScopes.GLOBAL: 'global',
         ConfigScopes.SGROUP: 'sgroup/testing',
         ConfigScopes.NODE: 'node/i-test',
     })
     try:
-        await etcd.delete_prefix('', ConfigScopes.GLOBAL)
-        await etcd.delete_prefix('', ConfigScopes.SGROUP)
-        await etcd.delete_prefix('', ConfigScopes.NODE)
+        await etcd.delete_prefix('', scope=ConfigScopes.GLOBAL)
+        await etcd.delete_prefix('', scope=ConfigScopes.SGROUP)
+        await etcd.delete_prefix('', scope=ConfigScopes.NODE)
         yield etcd
     finally:
-        await etcd.delete_prefix('', ConfigScopes.GLOBAL)
-        await etcd.delete_prefix('', ConfigScopes.SGROUP)
-        await etcd.delete_prefix('', ConfigScopes.NODE)
+        await etcd.delete_prefix('', scope=ConfigScopes.GLOBAL)
+        await etcd.delete_prefix('', scope=ConfigScopes.SGROUP)
+        await etcd.delete_prefix('', scope=ConfigScopes.NODE)
         del etcd
