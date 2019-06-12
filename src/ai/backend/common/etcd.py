@@ -269,9 +269,10 @@ class AsyncEtcd:
         key = self._mangle_key(f'{scope_prefix}/{key}')
         if ready_event:
             ready_event.set()
-        # yield from in async-generator is not supported.
+        scope_prefix_len = len(f'{scope_prefix}/')
+        # NOTE: yield from in async-generator is not supported.
         async for ev in self._watch_impl(key):
-            yield Event(ev.key.lstrip(f'{scope_prefix}/'), ev.event, ev.value)
+            yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
             if once:
                 break
 
@@ -286,7 +287,8 @@ class AsyncEtcd:
         range_end = etcd3.utils.increment_last_byte(etcd3.utils.to_bytes(key_prefix))
         if ready_event:
             ready_event.set()
+        scope_prefix_len = len(f'{scope_prefix}/')
         async for ev in self._watch_impl(key_prefix, range_end=range_end):
-            yield Event(ev.key.lstrip(f'{scope_prefix}/'), ev.event, ev.value)
+            yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
             if once:
                 break
