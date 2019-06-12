@@ -9,7 +9,6 @@ from ai.backend.common.types import (
     BinarySize, ImageRef, PlatformTagSet, ResourceSlot,
     DefaultForUnspecified,
 )
-from ai.backend.common.etcd import ConfigScopes
 
 import pytest
 
