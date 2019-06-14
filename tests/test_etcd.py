@@ -2,6 +2,8 @@ import asyncio
 
 import pytest
 
+from ai.backend.common.etcd import ConfigScopes
+
 
 @pytest.mark.asyncio
 async def test_basic_crud(etcd):
@@ -10,9 +12,9 @@ async def test_basic_crud(etcd):
 
     v = await etcd.get('wow')
     assert v == 'abc'
-    v = list(await etcd.get_prefix('wow'))
+    v = await etcd.get_prefix('wow')
     assert len(v) == 1
-    assert v[0] == ('wow', 'abc')
+    assert v == {'': 'abc'}
 
     r = await etcd.replace('wow', 'aaa', 'ccc')
     assert r is False
@@ -25,7 +27,83 @@ async def test_basic_crud(etcd):
 
     v = await etcd.get('wow')
     assert v is None
-    v = list(await etcd.get_prefix('wow'))
+    v = await etcd.get_prefix('wow')
+    assert len(v) == 0
+
+
+@pytest.mark.asyncio
+async def test_scope_empty_prefix(gateway_etcd):
+    # This test case is to ensure compatibility with the legacy managers.
+    # gateway_etcd is created with a scope prefix map that contains
+    # ConfigScopes.GLOBAL => ''
+    # setting so that global scope configurations have the same key
+    # used before introduction of scoped configurations.
+    await gateway_etcd.put('wow', 'abc')
+    v = await gateway_etcd.get('wow')
+    assert v == 'abc'
+
+    v = await gateway_etcd.get_prefix('wow')
+    assert len(v) == 1
+    assert v == {'': 'abc'}
+
+    r = await gateway_etcd.replace('wow', 'aaa', 'ccc')
+    assert r is False
+    r = await gateway_etcd.replace('wow', 'abc', 'def')
+    assert r is True
+    v = await gateway_etcd.get('wow')
+    assert v == 'def'
+
+    await gateway_etcd.delete('wow')
+
+    v = await gateway_etcd.get('wow')
+    assert v is None
+    v = await gateway_etcd.get_prefix('wow')
+    assert len(v) == 0
+
+
+@pytest.mark.asyncio
+async def test_scope(etcd):
+    await etcd.put('wow', 'abc', scope=ConfigScopes.GLOBAL)
+    await etcd.put('wow', 'def', scope=ConfigScopes.SGROUP)
+    await etcd.put('wow', 'ghi', scope=ConfigScopes.NODE)
+    v = await etcd.get('wow')
+    assert v == 'ghi'
+
+    await etcd.delete('wow', scope=ConfigScopes.NODE)
+    v = await etcd.get('wow')
+    assert v == 'def'
+
+    await etcd.delete('wow', scope=ConfigScopes.SGROUP)
+    v = await etcd.get('wow')
+    assert v == 'abc'
+
+    await etcd.delete('wow', scope=ConfigScopes.GLOBAL)
+    v = await etcd.get('wow')
+    assert v is None
+
+    await etcd.put('wow', '000', scope=ConfigScopes.NODE)
+    v = await etcd.get('wow')
+    assert v == '000'
+
+
+@pytest.mark.asyncio
+async def test_scope_dict(etcd):
+    await etcd.put_dict({'point/x': '1', 'point/y': '2'}, scope=ConfigScopes.GLOBAL)
+    await etcd.put_dict({'point/y': '3'}, scope=ConfigScopes.SGROUP)
+    await etcd.put_dict({'point/x': '4'}, scope=ConfigScopes.NODE)
+    v = await etcd.get_prefix('point')
+    assert v == {'x': '4', 'y': '3'}
+
+    await etcd.delete_prefix('point', scope=ConfigScopes.NODE)
+    v = await etcd.get_prefix('point')
+    assert v == {'x': '1', 'y': '3'}
+
+    await etcd.delete_prefix('point', scope=ConfigScopes.SGROUP)
+    v = await etcd.get_prefix('point')
+    assert v == {'x': '1', 'y': '2'}
+
+    await etcd.delete_prefix('point', scope=ConfigScopes.GLOBAL)
+    v = await etcd.get_prefix('point')
     assert len(v) == 0
 
 
@@ -37,7 +115,7 @@ async def test_multi(etcd):
     v = await etcd.get('bar')
     assert v is None
 
-    await etcd.put_multi(['foo', 'bar'], ['x', 'y'])
+    await etcd.put_dict({'foo': 'x', 'bar': 'y'})
     v = await etcd.get('foo')
     assert v == 'x'
     v = await etcd.get('bar')
