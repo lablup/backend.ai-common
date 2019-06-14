@@ -139,9 +139,13 @@ class AsyncEtcd:
 
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         if scope == ConfigScopes.MERGED:
-            scope_prefixes = [scope_prefix_map[ConfigScopes.NODE],
-                              scope_prefix_map[ConfigScopes.SGROUP],
-                              scope_prefix_map[ConfigScopes.GLOBAL]]
+            scope_prefixes = [scope_prefix_map[ConfigScopes.GLOBAL]]
+            p = scope_prefix_map.get(ConfigScopes.SGROUP)
+            if p is not None:
+                scope_prefixes.insert(0, p)
+            p = scope_prefix_map.get(ConfigScopes.NODE)
+            if p is not None:
+                scope_prefixes.insert(0, p)
         else:
             scope_prefixes = [scope_prefix_map[scope]]
         values = await asyncio.gather(*[
@@ -171,9 +175,13 @@ class AsyncEtcd:
 
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         if scope == ConfigScopes.MERGED:
-            scope_prefixes = [scope_prefix_map[ConfigScopes.NODE],
-                              scope_prefix_map[ConfigScopes.SGROUP],
-                              scope_prefix_map[ConfigScopes.GLOBAL]]
+            scope_prefixes = [scope_prefix_map[ConfigScopes.GLOBAL]]
+            p = scope_prefix_map.get(ConfigScopes.SGROUP)
+            if p is not None:
+                scope_prefixes.insert(0, p)
+            p = scope_prefix_map.get(ConfigScopes.NODE)
+            if p is not None:
+                scope_prefixes.insert(0, p)
         else:
             scope_prefixes = [scope_prefix_map[scope]]
         pair_sets = await asyncio.gather(*[
