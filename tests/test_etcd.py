@@ -32,6 +32,36 @@ async def test_basic_crud(etcd):
 
 
 @pytest.mark.asyncio
+async def test_scope_empty_prefix(gateway_etcd):
+    # This test case is to ensure compatibility with the legacy managers.
+    # gateway_etcd is created with a scope prefix map that contains
+    # ConfigScopes.GLOBAL => ''
+    # setting so that global scope configurations have the same key
+    # used before introduction of scoped configurations.
+    await gateway_etcd.put('wow', 'abc')
+    v = await gateway_etcd.get('wow')
+    assert v == 'abc'
+
+    v = await gateway_etcd.get_prefix('wow')
+    assert len(v) == 1
+    assert v == {'': 'abc'}
+
+    r = await gateway_etcd.replace('wow', 'aaa', 'ccc')
+    assert r is False
+    r = await gateway_etcd.replace('wow', 'abc', 'def')
+    assert r is True
+    v = await gateway_etcd.get('wow')
+    assert v == 'def'
+
+    await gateway_etcd.delete('wow')
+
+    v = await gateway_etcd.get('wow')
+    assert v is None
+    v = await gateway_etcd.get_prefix('wow')
+    assert len(v) == 0
+
+
+@pytest.mark.asyncio
 async def test_scope(etcd):
     await etcd.put('wow', 'abc', scope=ConfigScopes.GLOBAL)
     await etcd.put('wow', 'def', scope=ConfigScopes.SGROUP)

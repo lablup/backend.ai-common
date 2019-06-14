@@ -37,3 +37,18 @@ async def etcd(etcd_addr, test_ns):
         await etcd.delete_prefix('', scope=ConfigScopes.SGROUP)
         await etcd.delete_prefix('', scope=ConfigScopes.NODE)
         del etcd
+
+
+@pytest.fixture
+async def gateway_etcd(etcd_addr, test_ns):
+    etcd = AsyncEtcd(addr=etcd_addr, namespace=test_ns, scope_prefix_map={
+        ConfigScopes.GLOBAL: '',
+        ConfigScopes.SGROUP: 'sgroup/testing',
+        ConfigScopes.NODE: 'node/i-test',
+    })
+    try:
+        await etcd.delete_prefix('', scope=ConfigScopes.GLOBAL)
+        yield etcd
+    finally:
+        await etcd.delete_prefix('', scope=ConfigScopes.GLOBAL)
+        del etcd

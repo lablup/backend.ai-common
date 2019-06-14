@@ -65,13 +65,17 @@ def make_dict_from_pairs(key_prefix, pairs, path_sep='/'):
     return result
 
 
+def _slash(v: str):
+    return v.rstrip('/') + '/' if len(v) > 0 else ''
+
+
 class AsyncEtcd:
 
     def __init__(self, addr, namespace: str, scope_prefix_map: Mapping[ConfigScopes, str], *,
                  credentials=None, encoding='utf8', loop=None):
         self.loop = loop if loop else asyncio.get_event_loop()
         self.scope_prefix_map = t.Dict({
-            t.Key(ConfigScopes.GLOBAL): t.String,
+            t.Key(ConfigScopes.GLOBAL): t.String(allow_blank=True),
             t.Key(ConfigScopes.SGROUP, optional=True): t.String,
             t.Key(ConfigScopes.NODE, optional=True): t.String,
         }).check(scope_prefix_map)
@@ -102,7 +106,7 @@ class AsyncEtcd:
                   scope_prefix_map: Mapping[ConfigScopes, str] = None):
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key = self._mangle_key(f'{scope_prefix}/{key}')
+        key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         return await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.put, key, str(val).encode(self.encoding))
@@ -117,7 +121,7 @@ class AsyncEtcd:
             self.etcd_sync.transaction,
             [],
             [self.etcd_sync.transactions.put(
-                self._mangle_key(f'{scope_prefix}/{k}'), str(v).encode(self.encoding))
+                self._mangle_key(f'{_slash(scope_prefix)}{k}'), str(v).encode(self.encoding))
              for k, v in dict_obj.items()],
             [])
 
@@ -141,7 +145,7 @@ class AsyncEtcd:
         else:
             scope_prefixes = [scope_prefix_map[scope]]
         values = await asyncio.gather(*[
-            get_impl(f'{scope_prefix}/{key}')
+            get_impl(f'{_slash(scope_prefix)}{key}')
             for scope_prefix in scope_prefixes
         ])
         for value in values:
@@ -173,11 +177,11 @@ class AsyncEtcd:
         else:
             scope_prefixes = [scope_prefix_map[scope]]
         pair_sets = await asyncio.gather(*[
-            get_prefix_impl(f'{scope_prefix}/{key_prefix}')
+            get_prefix_impl(f'{_slash(scope_prefix)}{key_prefix}')
             for scope_prefix in scope_prefixes
         ])
         configs = [
-            make_dict_from_pairs(f'{scope_prefix}/{key_prefix}', pairs, '/')
+            make_dict_from_pairs(f'{_slash(scope_prefix)}{key_prefix}', pairs, '/')
             for scope_prefix, pairs in zip(scope_prefixes, pair_sets)
         ]
         return ChainMap(*configs)
@@ -190,7 +194,7 @@ class AsyncEtcd:
                       scope_prefix_map: Mapping[ConfigScopes, str] = None) -> bool:
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key = self._mangle_key(f'{scope_prefix}/{key}')
+        key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         success = await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.replace, key, initial_val, new_val)
@@ -201,7 +205,7 @@ class AsyncEtcd:
                      scope_prefix_map: Mapping[ConfigScopes, str] = None):
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key = self._mangle_key(f'{scope_prefix}/{key}')
+        key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         return await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.delete, key)
@@ -215,7 +219,7 @@ class AsyncEtcd:
             self.executor,
             self.etcd_sync.transaction,
             [],
-            [self.etcd_sync.transactions.delete(self._mangle_key(f'{scope_prefix}/{k}'))
+            [self.etcd_sync.transactions.delete(self._mangle_key(f'{_slash(scope_prefix)}{k}'))
              for k in keys],
             [])
 
@@ -224,7 +228,7 @@ class AsyncEtcd:
                             scope_prefix_map: Mapping[ConfigScopes, str] = None):
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key_prefix = self._mangle_key(f'{scope_prefix}/{key_prefix}')
+        key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
         return await self.loop.run_in_executor(
             self.executor,
             self.etcd_sync.delete_prefix, key_prefix)
@@ -266,10 +270,10 @@ class AsyncEtcd:
                     -> AsyncGenerator[Event, None]:
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key = self._mangle_key(f'{scope_prefix}/{key}')
+        key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         if ready_event:
             ready_event.set()
-        scope_prefix_len = len(f'{scope_prefix}/')
+        scope_prefix_len = len(f'{_slash(scope_prefix)}')
         # NOTE: yield from in async-generator is not supported.
         async for ev in self._watch_impl(key):
             yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
@@ -283,11 +287,11 @@ class AsyncEtcd:
                            -> AsyncGenerator[Event, None]:
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key_prefix = self._mangle_key(f'{scope_prefix}/{key_prefix}')
+        key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
         range_end = etcd3.utils.increment_last_byte(etcd3.utils.to_bytes(key_prefix))
         if ready_event:
             ready_event.set()
-        scope_prefix_len = len(f'{scope_prefix}/')
+        scope_prefix_len = len(f'{_slash(scope_prefix)}')
         async for ev in self._watch_impl(key_prefix, range_end=range_end):
             yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
             if once:
