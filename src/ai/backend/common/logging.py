@@ -10,11 +10,38 @@ import urllib.request, urllib.error
 
 from setproctitle import setproctitle
 from pythonjsonlogger.jsonlogger import JsonFormatter
+import trafaret as t
 import zmq
+
+from . import validators as tx
 
 __all__ = ('Logger', 'BraceStyleAdapter')
 
 _logging_ctx = zmq.Context()
+
+
+loglevel_iv = t.Enum('DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL')
+logformat_iv = t.Enum('simple', 'verbose')
+
+logging_config_iv = t.Dict({
+    t.Key('level', default='INFO'): loglevel_iv,
+    t.Key('pkg-ns'): t.Mapping(t.String, loglevel_iv),
+    t.Key('drivers', default=['console']): t.List(t.Enum('console', 'logstash', 'file')),
+    t.Key('console', default=None): t.Or(t.Null, t.Dict({
+        t.Key('colored', default=True): t.Bool,
+        t.Key('format', default='verbose'): logformat_iv,
+    }).allow_extra('*')),
+    t.Key('file', default=None): t.Or(t.Null, t.Dict({
+        t.Key('path'): tx.Path(type='dir', auto_create=True),
+        t.Key('filename'): t.String,
+        t.Key('rotation-size', default='10M'): tx.BinarySize,
+        t.Key('format', default='verbose'): logformat_iv,
+    }).allow_extra('*')),
+    t.Key('logstash', default=None): t.Or(t.Null, t.Dict({
+        t.Key('endpoint'): tx.HostPortPair,
+        # NOTE: logstash does not have format optoin.
+    }).allow_extra('*')),
+}).allow_extra('*')
 
 
 class LogstashHandler(logging.Handler):
@@ -137,6 +164,7 @@ class BraceStyleAdapter(logging.LoggerAdapter):
 class Logger():
 
     def __init__(self, config):
+        self.daemon_config = logging_config_iv.check(config)
         self.log_config = {
             'version': 1,
             'disable_existing_loggers': False,
@@ -177,7 +205,6 @@ class Logger():
                 },
             },
         }
-        self.cli_config = config
 
     @staticmethod
     def update_log_args(parser):
@@ -201,11 +228,11 @@ class Logger():
                    help='The maximum size of each log file in MiB '
                         '(default: 10 MiB)')
 
-    def add_pkg(self, pkgpath):
+    def add_pkg(self, pkgpath, level):
         self.log_config['loggers'][pkgpath] = {
             'handlers': ['console'],
             'propagate': False,
-            'level': 'DEBUG' if self.cli_config.debug else 'INFO',
+            'level': level,
         }
 
     def __enter__(self):
