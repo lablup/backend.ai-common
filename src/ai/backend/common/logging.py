@@ -22,12 +22,12 @@ from .exception import ConfigurationError
 __all__ = ('Logger', 'BraceStyleAdapter')
 
 
-loglevel_iv = t.Enum('DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL')
+loglevel_iv = t.Enum('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'NOTSET')
 logformat_iv = t.Enum('simple', 'verbose')
 
 logging_config_iv = t.Dict({
     t.Key('level', default='INFO'): loglevel_iv,
-    t.Key('pkg-ns'): t.Mapping(t.String, loglevel_iv),
+    t.Key('pkg-ns'): t.Mapping(t.String(allow_blank=True), loglevel_iv),
     t.Key('drivers', default=['console']): t.List(t.Enum('console', 'logstash', 'file')),
     t.Key('console', default=None): t.Or(t.Null, t.Dict({
         t.Key('colored', default=True): t.Bool,
