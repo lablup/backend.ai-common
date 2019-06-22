@@ -10,6 +10,17 @@ from . import validators as tx
 from .etcd import AsyncEtcd, ConfigScopes
 from .exception import ConfigurationError
 
+__all__ = (
+    'ConfigurationError',
+    'etcd_config_iv',
+    'read_from_file',
+    'read_from_etcd',
+    'override_key',
+    'override_with_env',
+    'check',
+    'merge',
+)
+
 
 etcd_config_iv = t.Dict({
     t.Key('etcd'): t.Dict({
