@@ -12,6 +12,14 @@ import trafaret as t
 
 from .types import BinarySize as _BinarySize
 
+__all__ = (
+    'BinarySize',
+    'HostPortPair',
+    'Path',
+    'PortRange',
+    'UID',
+)
+
 
 class BinarySize(t.Trafaret):
 

@@ -6,7 +6,8 @@ from typing import Any, Mapping, Optional, Tuple
 import toml
 import trafaret as t
 
-from ai.backend.common import validators as tx
+from . import validators as tx
+from .etcd import AsyncEtcd, ConfigScopes
 
 
 etcd_config_iv = t.Dict({
@@ -67,9 +68,13 @@ def read_from_file(toml_path: Optional[str], daemon_name: str):
             return config
 
 
-async def read_from_etcd(etcd_config):
-    # TODO: implement
-    return {}
+async def read_from_etcd(etcd_config: Mapping[str, Any], scope_prefix_map: Mapping[ConfigScopes, str]) \
+                        -> Mapping[str, Any]:
+    etcd = AsyncEtcd(etcd_config['addr'], etcd_config['namespace'], scope_prefix_map)
+    raw_value = await etcd.get('daemon/config')
+    if raw_value is None:
+        return None
+    return toml.loads(raw_value)
 
 
 def override_key(table: Mapping[str, Any], key_path: Tuple[str, ...], value: str):
