@@ -1,23 +1,25 @@
 from collections import OrderedDict
 from datetime import datetime
 import itertools
+import json
 import logging, logging.config, logging.handlers
 import multiprocessing as mp
 import os
 from pathlib import Path
 import signal
-import urllib.request, urllib.error
+import socket
+import ssl
 
 from setproctitle import setproctitle
 from pythonjsonlogger.jsonlogger import JsonFormatter
 import trafaret as t
 import zmq
 
+from . import config
 from . import validators as tx
+from .exception import ConfigurationError
 
 __all__ = ('Logger', 'BraceStyleAdapter')
-
-_logging_ctx = zmq.Context()
 
 
 loglevel_iv = t.Enum('DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL')
@@ -34,11 +36,15 @@ logging_config_iv = t.Dict({
     t.Key('file', default=None): t.Or(t.Null, t.Dict({
         t.Key('path'): tx.Path(type='dir', auto_create=True),
         t.Key('filename'): t.String,
+        t.Key('backup-count', default='5'): t.Int[1:100],
         t.Key('rotation-size', default='10M'): tx.BinarySize,
         t.Key('format', default='verbose'): logformat_iv,
     }).allow_extra('*')),
     t.Key('logstash', default=None): t.Or(t.Null, t.Dict({
         t.Key('endpoint'): tx.HostPortPair,
+        t.Key('protocol', default='tcp'): t.Enum('zmq.push', 'zmq.pub', 'tcp', 'udp'),
+        t.Key('ssl-enabled', default=True): t.Bool,
+        t.Key('ssl-verify', default=True): t.Bool,
         # NOTE: logstash does not have format optoin.
     }).allow_extra('*')),
 }).allow_extra('*')
@@ -46,19 +52,63 @@ logging_config_iv = t.Dict({
 
 class LogstashHandler(logging.Handler):
 
-    def __init__(self, endpoint):
+    def __init__(self, endpoint, protocol: str, *,
+                 ssl_enabled: bool = True,
+                 ssl_verify: bool = True,
+                 myhost: str = None):
         super().__init__()
-        self.endpoint = endpoint
-        self._cached_priv_ip = None
-        self._cached_inst_id = None
-        self._ctx = _logging_ctx
-        self._sock = self._ctx.socket(zmq.PUB)
-        self._sock.setsockopt(zmq.LINGER, 50)
-        self._sock.setsockopt(zmq.SNDHWM, 20)
-        self._sock.connect(self.endpoint)
+        self._endpoint = endpoint
+        self._protocol = protocol
+        self._ssl_enabled = ssl_enabled
+        self._ssl_verify = ssl_verify
+        self._myhost = myhost
+        self._sock = None
+        self._sslctx = None
+        self._zmqctx = None
+
+    def _setup_transport(self):
+        if self._sock is not None:
+            return
+        if self._protocol == 'zmq.push':
+            self._zmqctx = zmq.Context()
+            sock = self._zmqctx.socket(zmq.PUSH)
+            sock.setsockopt(zmq.LINGER, 50)
+            sock.setsockopt(zmq.SNDHWM, 20)
+            sock.connect(f'tcp://{self._endpoint[0]}:{self._endpoint[1]}')
+            self._sock = sock
+        elif self._protocol == 'zmq.pub':
+            self._zmqctx = zmq.Context()
+            sock = self._zmqctx.socket(zmq.PUB)
+            sock.setsockopt(zmq.LINGER, 50)
+            sock.setsockopt(zmq.SNDHWM, 20)
+            sock.connect(f'tcp://{self._endpoint[0]}:{self._endpoint[1]}')
+            self._sock = sock
+        elif self._protocol == 'tcp':
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            if self._ssl_enabled:
+                self._sslctx = ssl.create_default_context()
+                if not self._ssl_verify:
+                    self._sslctx.check_hostname = False
+                    self._sslctx.verify_mode = ssl.CERT_NONE
+                sock = self._sslctx.wrap_socket(sock, server_hostname=self._endpoint[0])
+            sock.connect(self._endpoint)
+            self._sock = sock
+        elif self._protocol == 'udp':
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.connect(self._endpoint)
+            self._sock = sock
+        else:
+            raise ConfigurationError({'logging.LogstashHandler': f'unsupported protocol: {self._protocol}'})
+
+    def cleanup(self):
+        if self._sock:
+            self._sock.close()
+        self._sslctx = None
+        if self._zmqctx:
+            self._zmqctx.term()
 
     def emit(self, record):
-        now = datetime.now().isoformat()
+        self._setup_transport()
         tags = set()
         extra_data = dict()
 
@@ -71,38 +121,22 @@ class LogstashHandler(logging.Handler):
 
         # This log format follows logstash's event format.
         log = OrderedDict([
-            ('@timestamp', now),
+            ('@timestamp', datetime.now().isoformat()),
             ('@version', 1),
-            ('host', self._get_my_private_ip()),
-            ('instance', self._get_my_instance_id()),
+            ('host', self._myhost),
             ('logger', record.name),
-            ('loc', '{0}:{1}:{2}'.format(record.pathname, record.funcName, record.lineno)),
+            ('path', record.pathname),
+            ('func', record.funcName),
+            ('lineno', record.lineno),
             ('message', record.getMessage()),
             ('level', record.levelname),
             ('tags', list(tags)),
         ])
         log.update(extra_data)
-        self._sock.send_json(log)
-
-    def _get_my_private_ip(self):
-        # See the full list of EC2 instance metadata at
-        # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
-        if self._cached_priv_ip is None:
-            try:
-                resp = urllib.request.urlopen('http://169.254.169.254/latest/meta-data/local-ipv4', timeout=0.2)
-                self._cached_priv_ip = resp.read().decode('ascii')
-            except urllib.error.URLError:
-                self._cached_priv_ip = 'unavailable'
-        return self._cached_priv_ip
-
-    def _get_my_instance_id(self):
-        if self._cached_inst_id is None:
-            try:
-                resp = urllib.request.urlopen('http://169.254.169.254/latest/meta-data/instance-id', timeout=0.2)
-                self._cached_inst_id = resp.read().decode('ascii')
-            except urllib.error.URLError:
-                self._cached_inst_id = 'i-00000000'
-        return self._cached_inst_id
+        if self._protocol.startswith('zmq'):
+            self._sock.send_json(log)
+        else:
+            self._sock.sendall(json.dumps(log).encode('utf-8'))
 
 
 class CustomJsonFormatter(JsonFormatter):
@@ -119,23 +153,46 @@ class CustomJsonFormatter(JsonFormatter):
             log_record['level'] = record.levelname
 
 
-def log_worker(config, parent_pid, log_queue):
+def log_worker(daemon_config, parent_pid, log_queue):
     setproctitle(f'backend.ai: logger pid({parent_pid})')
-    if config.log_file is not None:
+    file_handler = None
+    logstash_handler = None
+
+    if 'file' in daemon_config['drivers']:
+        drv_config = daemon_config['file']
         fmt = '(timestamp) (level) (name) (processName) (message)'
         file_handler = logging.handlers.RotatingFileHandler(
-            filename=config.log_file,
-            backupCount=config.log_file_count,
-            maxBytes=1048576 * config.log_file_size,
+            filename=drv_config['path'] / drv_config['filename'],
+            backupCount=drv_config['backup-count'],
+            maxBytes=drv_config['rotation-size'],
             encoding='utf-8',
         )
-        file_handler.setLevel(logging.DEBUG)
+        file_handler.setLevel(daemon_config['level'])
         file_handler.setFormatter(CustomJsonFormatter(fmt))
-    while True:
-        rec = log_queue.get()
-        if rec is None:
-            break
-        file_handler.emit(rec)
+
+    if 'logstash' in daemon_config['drivers']:
+        drv_config = daemon_config['logstash']
+        logstash_handler = LogstashHandler(
+            endpoint=drv_config['endpoint'],
+            protocol=drv_config['protocol'],
+            ssl_enabled=drv_config['ssl-enabled'],
+            ssl_verify=drv_config['ssl-verify'],
+            myhost='hostname',  # TODO: implement
+        )
+        logstash_handler.setLevel(daemon_config['level'])
+
+    try:
+        while True:
+            rec = log_queue.get()
+            if rec is None:
+                break
+            if file_handler:
+                file_handler.emit(rec)
+            if logstash_handler:
+                logstash_handler.emit(rec)
+    finally:
+        if logstash_handler:
+            logstash_handler.cleanup()
 
 
 class BraceMessage:
@@ -163,16 +220,56 @@ class BraceStyleAdapter(logging.LoggerAdapter):
 
 class Logger():
 
-    def __init__(self, config):
-        self.daemon_config = logging_config_iv.check(config)
+    def __init__(self, daemon_config):
+        legacy_logfile_path = os.environ.get('BACKEND_LOG_FILE')
+        if legacy_logfile_path:
+            p = Path(legacy_logfile_path)
+            config.override_key(daemon_config, ('file', 'path'), p.parent)
+            config.override_key(daemon_config, ('file', 'filename'), p.name)
+        config.override_with_env(daemon_config, ('file', 'backup-count'), 'BACKEND_LOG_FILE_COUNT')
+        legacy_logfile_size = os.environ.get('BACKEND_LOG_FILE_SIZE')
+        if legacy_logfile_size:
+            legacy_logfile_size = f'{legacy_logfile_size}M'
+            config.override_with_env(daemon_config, ('file', 'rotation-size'), legacy_logfile_size)
+
+        cfg = logging_config_iv.check(daemon_config)
+
+        def _check_driver_config_exists_if_activated(cfg, driver):
+            if driver in cfg['drivers'] and cfg[driver] is None:
+                raise ConfigurationError({'logging': f'{driver} driver is activated but no config given.'})
+
+        _check_driver_config_exists_if_activated(cfg, 'console')
+        _check_driver_config_exists_if_activated(cfg, 'file')
+        _check_driver_config_exists_if_activated(cfg, 'logstash')
+
+        self.daemon_config = cfg
+        self.log_formats = {
+            'simple': '%(levelname)s %(message)s',
+            'verbose': '%(asctime)s %(levelname)s %(name)s [%(process)d] %(message)s',
+        }
         self.log_config = {
             'version': 1,
             'disable_existing_loggers': False,
             'formatters': {
-                'colored': {
+            },
+            'handlers': {
+                'null': {'class': 'logging.NullHandler'},
+            },
+            'loggers': {
+                '': {'handlers': [], 'level': cfg['level']},
+                **{k: {'handlers': [], 'level': v, 'propagate': False} for k, v in cfg['pkg-ns'].items()},
+            },
+        }
+
+    def __enter__(self):
+        self.log_queue = mp.Queue()
+
+        if 'console' in self.daemon_config['drivers']:
+            drv_config = self.daemon_config['console']
+            if drv_config['colored']:
+                self.log_config['formatters']['console'] = {
                     '()': 'coloredlogs.ColoredFormatter',
-                    'format': '%(asctime)s %(levelname)s %(name)s '
-                              '[%(process)d] %(message)s',
+                    'format': self.log_formats[drv_config['format']],
                     'field_styles': {'levelname': {'color': 248, 'bold': True},
                                      'name': {'color': 246, 'bold': False},
                                      'process': {'color': 'cyan'},
@@ -185,72 +282,43 @@ class Logger():
                                      'error': {'color': 'red', 'bright': True},
                                      'success': {'color': 77},
                                      'critical': {'background': 'red', 'color': 255, 'bold': True}},
-                },
-            },
-            'handlers': {
-                'console': {
-                    'class': 'logging.StreamHandler',
-                    'level': 'DEBUG',
-                    'formatter': 'colored',
-                    'stream': 'ext://sys.stderr',
-                },
-                'null': {
-                    'class': 'logging.NullHandler',
-                },
-            },
-            'loggers': {
-                '': {
-                    'handlers': ['console'],
-                    'level': 'INFO',
-                },
-            },
-        }
-
-    @staticmethod
-    def update_log_args(parser):
-        parser.add('--debug', env_var='BACKEND_DEBUG',
-                   action='store_true', default=False,
-                   help='Set the debug mode and verbose logging. (default: false)')
-        parser.add('-v', '--verbose', env_var='BACKEND_VERBOSE',
-                   action='store_true', default=False,
-                   help='Set even more verbose logging which includes all SQL '
-                        'statements issued. (default: false)')
-        parser.add('--log-file', env_var='BACKEND_LOG_FILE',
-                   type=Path, default=None,
-                   help='If set to a file path, line-by-line JSON logs will be '
-                        'recorded there.  It also automatically rotates the logs '
-                        'using dotted number suffixes. (default: None)')
-        parser.add('--log-file-count', env_var='BACKEND_LOG_FILE_COUNT',
-                   type=int, default=10,
-                   help='The maximum number of rotated log files (default: 10)')
-        parser.add('--log-file-size', env_var='BACKEND_LOG_FILE_SIZE',
-                   type=float, default=10.0,
-                   help='The maximum size of each log file in MiB '
-                        '(default: 10 MiB)')
-
-    def add_pkg(self, pkgpath, level):
-        self.log_config['loggers'][pkgpath] = {
-            'handlers': ['console'],
-            'propagate': False,
-            'level': level,
-        }
-
-    def __enter__(self):
-        self.log_queue = mp.Queue()
-        if self.cli_config.log_file is not None:
-            self.log_config['handlers']['fileq'] = {
-                'class': 'logging.handlers.QueueHandler',
-                'level': 'DEBUG',
-                'queue': self.log_queue,
+                }
+            else:
+                self.log_config['formatters']['console'] = {
+                    'class': 'logging.Formatter',
+                    'format': self.log_formats[drv_config['format']],
+                }
+            self.log_config['handlers']['console'] = {
+                'class': 'logging.StreamHandler',
+                'level': self.daemon_config['level'],
+                'formatter': 'console',
+                'stream': 'ext://sys.stderr',
             }
             for l in self.log_config['loggers'].values():
-                l['handlers'].append('fileq')
+                l['handlers'].append('console')
+
+        def _activate_aggregator():
+            if 'aggregator' not in self.log_config['handlers']:
+                self.log_config['handlers']['aggregator'] = {
+                    'class': 'logging.handlers.QueueHandler',
+                    'level': self.daemon_config['level'],
+                    'queue': self.log_queue,
+                }
+                for l in self.log_config['loggers'].values():
+                    l['handlers'].append('aggregator')
+
+        if 'file' in self.daemon_config['drivers']:
+            _activate_aggregator()
+
+        if 'logstash' in self.daemon_config['drivers']:
+            _activate_aggregator()
+
         logging.config.dictConfig(self.log_config)
         # block signals that may interrupt/corrupt logging
         stop_signals = {signal.SIGINT, signal.SIGTERM}
         signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
         proc = mp.Process(target=log_worker, name='Logger',
-                          args=(self.cli_config, os.getpid(), self.log_queue))
+                          args=(self.daemon_config, os.getpid(), self.log_queue))
         proc.start()
         signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
         # reset process counter
@@ -258,5 +326,3 @@ class Logger():
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.log_queue.put(None)
-        self.log_queue.close()
-        self.log_queue.join_thread()

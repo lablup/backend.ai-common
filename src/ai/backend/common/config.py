@@ -8,6 +8,7 @@ import trafaret as t
 
 from . import validators as tx
 from .etcd import AsyncEtcd, ConfigScopes
+from .exception import ConfigurationError
 
 
 etcd_config_iv = t.Dict({
@@ -18,15 +19,6 @@ etcd_config_iv = t.Dict({
         t.Key('password', default=''): t.String(allow_blank=True),
     }).allow_extra('*'),
 }).allow_extra('*')
-
-
-class ConfigurationError(Exception):
-
-    invalid_data: Mapping[str, Any]
-
-    def __init__(self, invalid_data: Mapping[str, Any]):
-        super().__init__(invalid_data)
-        self.invalid_data = invalid_data
 
 
 def read_from_file(toml_path: Optional[str], daemon_name: str):

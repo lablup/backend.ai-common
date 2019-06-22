@@ -1,3 +1,15 @@
+from typing import Any, Mapping
+
+
+class ConfigurationError(Exception):
+
+    invalid_data: Mapping[str, Any]
+
+    def __init__(self, invalid_data: Mapping[str, Any]):
+        super().__init__(invalid_data)
+        self.invalid_data = invalid_data
+
+
 class UnknownImageReference(ValueError):
     '''
     Represents an error for invalid/unknown image reference.

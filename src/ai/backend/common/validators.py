@@ -2,6 +2,7 @@
 An extension module to Trafaret which provides additional type checkers.
 '''
 
+import collections
 import ipaddress
 import os
 from pathlib import Path as _Path
@@ -28,6 +29,9 @@ class BinarySize(t.Trafaret):
             return _BinarySize.from_str(value)
         except ValueError:
             self._failure('value is not a valid binary size', value=value)
+
+
+_HostPortPair = collections.namedtuple('_HostPortPair', 'host port')
 
 
 class Path(t.Trafaret):
@@ -89,7 +93,7 @@ class HostPortPair(t.Trafaret):
             port = t.Int[1:65535].check(port)
         except t.DataError:
             self._failure('port number must be between 1 and 65535', value=value)
-        return host, port
+        return _HostPortPair(host, port)
 
 
 class PortRange(t.Trafaret):
@@ -125,9 +129,14 @@ class UID(t.Trafaret):
             if not value:
                 return os.getuid()
             try:
-                return pwd.getpwnam(value).pw_uid
-            except KeyError:
-                self._failure('no such user in system', value=value)
+                value = int(value)
+            except ValueError:
+                try:
+                    return pwd.getpwnam(value).pw_uid
+                except KeyError:
+                    self._failure('no such user in system', value=value)
+            else:
+                return self.check_and_return(value)
         else:
             self._failure('value must be either int or str', value=value)
         return value
