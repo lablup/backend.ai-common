@@ -12,6 +12,7 @@ import pwd
 
 import trafaret as t
 from trafaret.base import TrafaretMeta
+from trafaret.lib import _empty
 
 from .types import BinarySize as _BinarySize
 
@@ -32,6 +33,47 @@ class StringLengthMeta(TrafaretMeta):
 
     def __getitem__(cls, slice_):
         return cls(min_length=slice_.start, max_length=slice_.stop)
+
+
+class AliasedKey(t.Key):
+    '''
+    An extension to trafaret.Key which accepts multiple aliases of a single key.
+    When successfully matched, the returned key name is the first one of the given aliases
+    or the renamed key set via ``to_name()`` method or the ``>>`` operator.
+    '''
+
+    def __init__(self, names: Sequence[str], **kwargs):
+        super().__init__(names[0], **kwargs)
+        self.names = names
+
+    def __call__(self, data, context=None):
+        for name in self.names:
+            if name in data:
+                key = name
+                break
+        else:
+            key = None
+
+        if key is None:  # not specified
+            if self.default is not _empty:
+                default = self.default() if callable(self.default) else self.default
+                try:
+                    result = self.trafaret(default, context=context)
+                except t.DataError as inner_error:
+                    yield self.get_name(), inner_error, self.names
+                else:
+                    yield self.get_name(), result, self.names
+                return
+            if not self.optional:
+                yield self.get_name(), t.DataError(error='is required'), self.names
+            # if optional, just bypass
+        else:
+            try:
+                result = self.trafaret(data[key], context=context)
+            except t.DataError as inner_error:
+                yield key, inner_error, self.names
+            else:
+                yield self.get_name(), result, self.names
 
 
 class BinarySize(t.Trafaret):
@@ -108,6 +150,8 @@ class HostPortPair(t.Trafaret):
             host = ipaddress.ip_address(host.strip('[]'))
         except ValueError:
             pass  # just treat as a string hostname
+        if not host:
+            self._failure('value has empty host', value=value)
         try:
             port = t.Int[1:65535].check(port)
         except t.DataError:
@@ -166,6 +210,10 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
     _rx_slug = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$')
 
     def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None):
+        if min_length is not None and min_length < 0:
+            raise TypeError('min_length must be larger than or equal to zero.')
+        if max_length is not None and max_length < 0:
+            raise TypeError('max_length must be larger than or equal to zero.')
         if max_length is not None and min_length is not None and min_length > max_length:
             raise TypeError('min_length must be less than or equal to max_length when both set.')
         self._min_length = min_length
