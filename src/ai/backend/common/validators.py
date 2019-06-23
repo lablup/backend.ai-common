@@ -90,6 +90,11 @@ class _HostPortPair(collections.namedtuple('_HostPortPair', 'host port')):
     def as_sockaddr(self):
         return str(self.host), self.port
 
+    def __str__(self):
+        if isinstance(self.host, ipaddress.IPv6Address):
+            return f'[{self.host}]:{self.port}'
+        return f'{self.host}:{self.port}'
+
 
 class Path(t.Trafaret):
 
