@@ -6,10 +6,10 @@ import click
 class LazyGroup(click.Group):
     '''
     Click's documentations says "supports lazy loading of subcommands at runtime",
-    but there is actual examples and how-tos.
-    (Issue: https://github.com/pallets/click/issues/945)
+    but there is no actual examples and how-tos as indicated by the issue:
+    https://github.com/pallets/click/issues/945
 
-    From TheifMaster's comment in the referenced issue, this LazyGroup class is derived from
+    From ThiefMaster's comment in the referenced issue, this LazyGroup class is derived from
     https://github.com/indico/indico/blob/b495262/indico/cli/util.py#L86
     '''
 
