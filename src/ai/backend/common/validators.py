@@ -25,7 +25,7 @@ __all__ = (
 )
 
 
-class StrLengthMeta(TrafaretMeta):
+class StringLengthMeta(TrafaretMeta):
     '''
     A metaclass that makes string-like trafarets to have sliced min/max length indicator.
     '''
@@ -49,12 +49,14 @@ _HostPortPair = collections.namedtuple('_HostPortPair', 'host port')
 class Path(t.Trafaret):
 
     def __init__(self, *, type: str,
+                 base_path: _Path = None,
                  auto_create: bool = False,
                  allow_nonexisting: bool = False,
                  allow_devnull: bool = False):
         self._type = type
         if auto_create and type != 'dir':
             raise TypeError('Only directory paths can be set auto-created.')
+        self._base_path = base_path
         self._auto_create = auto_create
         self._allow_nonexisting = allow_nonexisting
         self._allow_devnull = allow_devnull
@@ -64,6 +66,11 @@ class Path(t.Trafaret):
             p = _Path(value).resolve()
         except (TypeError, ValueError):
             self._failure('cannot parse value as a path', value=value)
+        if self._base_path is not None:
+            try:
+                p.relative_to(self._base_path.resolve())
+            except ValueError:
+                self._failure('value is not in the base path', value=value)
         if self._type == 'dir':
             if self._auto_create:
                 p.mkdir(parents=True, exist_ok=True)
@@ -154,11 +161,11 @@ class UID(t.Trafaret):
         return value
 
 
-class Slug(t.Trafaret, metaclass=StrLengthMeta):
+class Slug(t.Trafaret, metaclass=StringLengthMeta):
 
     _rx_slug = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$')
 
-    def __init__(self, min_length: Optional[int] = None, max_length: Optional[int] = None):
+    def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None):
         if max_length is not None and min_length is not None and min_length > max_length:
             raise TypeError('min_length must be less than or equal to max_length when both set.')
         self._min_length = min_length
