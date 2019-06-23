@@ -85,7 +85,10 @@ class BinarySize(t.Trafaret):
             self._failure('value is not a valid binary size', value=value)
 
 
-_HostPortPair = collections.namedtuple('_HostPortPair', 'host port')
+class _HostPortPair(collections.namedtuple('_HostPortPair', 'host port')):
+
+    def as_sockaddr(self):
+        return str(self.host), self.port
 
 
 class Path(t.Trafaret):
