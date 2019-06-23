@@ -6,10 +6,12 @@ import collections
 import ipaddress
 import os
 from pathlib import Path as _Path
-from typing import Any, Mapping, Sequence, Tuple
+import re
+from typing import Any, Mapping, Optional, Sequence, Tuple
 import pwd
 
 import trafaret as t
+from trafaret.base import TrafaretMeta
 
 from .types import BinarySize as _BinarySize
 
@@ -19,7 +21,17 @@ __all__ = (
     'Path',
     'PortRange',
     'UID',
+    'Slug',
 )
+
+
+class StrLengthMeta(TrafaretMeta):
+    '''
+    A metaclass that makes string-like trafarets to have sliced min/max length indicator.
+    '''
+
+    def __getitem__(cls, slice_):
+        return cls(min_length=slice_.start, max_length=slice_.stop)
 
 
 class BinarySize(t.Trafaret):
@@ -139,4 +151,28 @@ class UID(t.Trafaret):
                 return self.check_and_return(value)
         else:
             self._failure('value must be either int or str', value=value)
+        return value
+
+
+class Slug(t.Trafaret, metaclass=StrLengthMeta):
+
+    _rx_slug = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$')
+
+    def __init__(self, min_length: Optional[int] = None, max_length: Optional[int] = None):
+        if max_length is not None and min_length is not None and min_length > max_length:
+            raise TypeError('min_length must be less than or equal to max_length when both set.')
+        self._min_length = min_length
+        self._max_length = max_length
+
+    def check_and_return(self, value: Any) -> str:
+        if isinstance(value, str):
+            if self._min_length is not None and len(value) < self._min_length:
+                self._failure(f'value is too short (min length {self._min_length})', value=value)
+            if self._max_length is not None and len(value) > self._max_length:
+                self._failure(f'value is too long (max length {self._max_length})', value=value)
+            m = type(self)._rx_slug.search(value)
+            if not m:
+                self._failure('value must be a valid slug.', value=value)
+        else:
+            self._failure('value must be a string', value=value)
         return value

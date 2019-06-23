@@ -29,24 +29,24 @@ logging_config_iv = t.Dict({
     t.Key('level', default='INFO'): loglevel_iv,
     t.Key('pkg-ns'): t.Mapping(t.String(allow_blank=True), loglevel_iv),
     t.Key('drivers', default=['console']): t.List(t.Enum('console', 'logstash', 'file')),
-    t.Key('console', default=None): t.Or(t.Null, t.Dict({
+    t.Key('console', default=None): t.Null | t.Dict({
         t.Key('colored', default=True): t.Bool,
         t.Key('format', default='verbose'): logformat_iv,
-    }).allow_extra('*')),
-    t.Key('file', default=None): t.Or(t.Null, t.Dict({
+    }).allow_extra('*'),
+    t.Key('file', default=None): t.Null | t.Dict({
         t.Key('path'): tx.Path(type='dir', auto_create=True),
         t.Key('filename'): t.String,
         t.Key('backup-count', default='5'): t.Int[1:100],
         t.Key('rotation-size', default='10M'): tx.BinarySize,
         t.Key('format', default='verbose'): logformat_iv,
-    }).allow_extra('*')),
-    t.Key('logstash', default=None): t.Or(t.Null, t.Dict({
+    }).allow_extra('*'),
+    t.Key('logstash', default=None): t.Null | t.Dict({
         t.Key('endpoint'): tx.HostPortPair,
         t.Key('protocol', default='tcp'): t.Enum('zmq.push', 'zmq.pub', 'tcp', 'udp'),
         t.Key('ssl-enabled', default=True): t.Bool,
         t.Key('ssl-verify', default=True): t.Bool,
         # NOTE: logstash does not have format optoin.
-    }).allow_extra('*')),
+    }).allow_extra('*'),
 }).allow_extra('*')
 
 
@@ -136,6 +136,7 @@ class LogstashHandler(logging.Handler):
         if self._protocol.startswith('zmq'):
             self._sock.send_json(log)
         else:
+            # TODO: reconnect if disconnected
             self._sock.sendall(json.dumps(log).encode('utf-8'))
 
 
