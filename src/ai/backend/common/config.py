@@ -52,7 +52,7 @@ def read_from_file(toml_path: Optional[str], daemon_name: str):
             toml_paths = [toml_path_from_env]
         for toml_path in toml_paths:
             if toml_path.is_file():
-                return toml.loads(toml_path.read_text())
+                return toml.loads(toml_path.read_text()), toml_path
         else:
             searched_paths = ','.join(map(str, toml_paths))
             raise ConfigurationError({
@@ -66,9 +66,8 @@ def read_from_file(toml_path: Optional[str], daemon_name: str):
             raise ConfigurationError({
                 'read_from_file()': f"Could not read config from: {toml_path}",
             })
-            return 1
         else:
-            return config
+            return config, toml_path
 
 
 async def read_from_etcd(etcd_config: Mapping[str, Any], scope_prefix_map: Mapping[ConfigScopes, str]) \
