@@ -1,20 +1,9 @@
-import asyncio
 import argparse
-from collections import namedtuple
 import ipaddress
 import pathlib
-import socket
 from typing import Tuple
-import threading
 
-try:
-    import aiodns
-    _aiodns_available = True
-    _aiodns_ctx = threading.local()
-    _aiodns_ctx.resolver = None
-except ImportError:
-    _aiodns_available = False
-    _aiodns_ctx = None
+from .types import HostPortPair
 
 
 def port_no(s: str) -> int:
@@ -67,47 +56,6 @@ def non_negative_int(s: str) -> int:
         msg = f'{s!r} is not a non-negative integer.'
         raise argparse.ArgumentTypeError(msg)
     return val
-
-
-class HostPortPair(namedtuple('_HostPortPair', 'host port')):
-
-    def __format__(self, spec):
-        return self.__str__()
-
-    def __str__(self):
-        if isinstance(self.host, ipaddress.IPv6Address):
-            return f'[{self.host}]:{self.port}'
-        return f'{self.host}:{self.port}'
-
-    def as_sockaddr(self):
-        # Translate this to a tuple of host/port pair without hostname resolving.
-        return str(self.host), self.port
-
-    def resolve(self):
-        if isinstance(self.host, ipaddress._BaseAddress):
-            # Already resolved one.
-            return self
-        # Resolve now and return a new HostPortPair.
-        addrs = socket.getaddrinfo(self.host, 80)
-        ip = ipaddress.ip_address(addrs[0][4][0])
-        return HostPortPair(ip, self.port)
-
-    async def resolve_async(self):
-        if isinstance(self.host, ipaddress._BaseAddress):
-            return self
-        loop = asyncio.get_event_loop()
-        if _aiodns_available:
-            if _aiodns_ctx.resolver is None:
-                _aiodns_ctx.resolver = aiodns.DNSResolver(loop=loop)
-            else:
-                assert _aiodns_ctx.resolver.loop is loop
-            result = await _aiodns_ctx.resolver.gethostbyname(self.host, 0)
-            ip = ipaddress.ip_address(result.addresses[0])
-            return HostPortPair(ip, self.port)
-        else:
-            addrs = await loop.getaddrinfo(self.host, 80)
-            ip = ipaddress.ip_address(addrs[0][4][0])
-            return HostPortPair(ip, self.port)
 
 
 def host_port_pair(s: str) -> Tuple[ipaddress._BaseAddress, int]:
