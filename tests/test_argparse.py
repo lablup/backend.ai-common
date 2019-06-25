@@ -2,13 +2,11 @@ import argparse
 import ipaddress
 
 import pytest
-import aiodns
 
 from ai.backend.common.argparse import (
     port_no, port_range, positive_int, non_negative_int,
     HostPortPair, host_port_pair, ipaddr, path,
 )
-import ai.backend.common.argparse
 
 localhost_ipv4 = ipaddress.ip_address('127.0.0.1')
 localhost_ipv6 = ipaddress.ip_address('::1')
