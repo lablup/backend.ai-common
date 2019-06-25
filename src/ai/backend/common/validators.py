@@ -2,7 +2,6 @@
 An extension module to Trafaret which provides additional type checkers.
 '''
 
-import collections
 import ipaddress
 import os
 from pathlib import Path as _Path
@@ -14,7 +13,10 @@ import trafaret as t
 from trafaret.base import TrafaretMeta
 from trafaret.lib import _empty
 
-from .types import BinarySize as _BinarySize
+from .types import (
+    BinarySize as _BinarySize,
+    HostPortPair as _HostPortPair,
+)
 
 __all__ = (
     'BinarySize',
@@ -83,17 +85,6 @@ class BinarySize(t.Trafaret):
             return _BinarySize.from_str(value)
         except ValueError:
             self._failure('value is not a valid binary size', value=value)
-
-
-class _HostPortPair(collections.namedtuple('_HostPortPair', 'host port')):
-
-    def as_sockaddr(self):
-        return str(self.host), self.port
-
-    def __str__(self):
-        if isinstance(self.host, ipaddress.IPv6Address):
-            return f'[{self.host}]:{self.port}'
-        return f'{self.host}:{self.port}'
 
 
 class Path(t.Trafaret):

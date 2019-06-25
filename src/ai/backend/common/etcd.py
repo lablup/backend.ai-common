@@ -19,6 +19,8 @@ from urllib.parse import quote as _quote, unquote
 import etcd3
 import trafaret as t
 
+from .types import HostPortPair
+
 __all__ = (
     'quote', 'unquote',
     'AsyncEtcd',
@@ -71,7 +73,8 @@ def _slash(v: str):
 
 class AsyncEtcd:
 
-    def __init__(self, addr, namespace: str, scope_prefix_map: Mapping[ConfigScopes, str], *,
+    def __init__(self, addr: HostPortPair, namespace: str,
+                 scope_prefix_map: Mapping[ConfigScopes, str], *,
                  credentials=None, encoding='utf8', loop=None):
         self.loop = loop if loop else asyncio.get_event_loop()
         self.scope_prefix_map = t.Dict({

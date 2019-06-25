@@ -1,6 +1,7 @@
-from collections import UserDict
+from collections import UserDict, namedtuple
 from decimal import Decimal
 import enum
+import ipaddress
 import math
 import numbers
 from typing import (
@@ -13,6 +14,7 @@ import attr
 
 __all__ = (
     'BinarySize',
+    'HostPortPair',
     'DeviceId',
     'SlotType',
     'IntrinsicSlotTypes',
@@ -52,6 +54,17 @@ class MountPermission(str, enum.Enum):
     READ_ONLY = 'ro'
     READ_WRITE = 'rw'
     RW_DELETE = 'wd'
+
+
+class HostPortPair(namedtuple('HostPortPair', 'host port')):
+
+    def as_sockaddr(self):
+        return str(self.host), self.port
+
+    def __str__(self):
+        if isinstance(self.host, ipaddress.IPv6Address):
+            return f'[{self.host}]:{self.port}'
+        return f'{self.host}:{self.port}'
 
 
 class BinarySize(int):
