@@ -94,6 +94,7 @@ class Path(t.Trafaret):
                  auto_create: bool = False,
                  allow_nonexisting: bool = False,
                  allow_devnull: bool = False):
+        super().__init__()
         self._type = type
         if auto_create and type != 'dir':
             raise TypeError('Only directory paths can be set auto-created.')
@@ -128,6 +129,10 @@ class Path(t.Trafaret):
 
 class HostPortPair(t.Trafaret):
 
+    def __init__(self, *, allow_blank_host: bool = False):
+        super().__init__()
+        self._allow_blank_host = allow_blank_host
+
     def check_and_return(self, value: Any) -> Tuple[ipaddress._BaseAddress, int]:
         if isinstance(value, str):
             pair = value.rsplit(':', maxsplit=1)
@@ -149,7 +154,7 @@ class HostPortPair(t.Trafaret):
             host = ipaddress.ip_address(host.strip('[]'))
         except ValueError:
             pass  # just treat as a string hostname
-        if not host:
+        if not self._allow_blank_host and not host:
             self._failure('value has empty host', value=value)
         try:
             port = t.Int[1:65535].check(port)
@@ -209,6 +214,7 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
     _rx_slug = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$')
 
     def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None):
+        super().__init__()
         if min_length is not None and min_length < 0:
             raise TypeError('min_length must be larger than or equal to zero.')
         if max_length is not None and max_length < 0:
