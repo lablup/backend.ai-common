@@ -2,13 +2,16 @@
 An extension module to Trafaret which provides additional type checkers.
 '''
 
+import datetime
 import ipaddress
 import os
 from pathlib import Path as _Path
 import re
 from typing import Any, Mapping, Optional, Sequence, Tuple
+import uuid
 import pwd
 
+import dateutil.tz
 import trafaret as t
 from trafaret.base import TrafaretMeta
 from trafaret.lib import _empty
@@ -127,6 +130,24 @@ class Path(t.Trafaret):
         return p
 
 
+class IPNetwork(t.Trafaret):
+
+    def check_and_return(self, value: Any) -> ipaddress._BaseNetwork:
+        try:
+            return ipaddress.ip_network(value)
+        except ValueError:
+            self._failure('Invalid IP network format', value=value)
+
+
+class IPAddress(t.Trafaret):
+
+    def check_and_return(self, value: Any) -> ipaddress._BaseAddress:
+        try:
+            return ipaddress.ip_address(value)
+        except ValueError:
+            self._failure('Invalid IP address format', value=value)
+
+
 class HostPortPair(t.Trafaret):
 
     def __init__(self, *, allow_blank_host: bool = False):
@@ -207,6 +228,31 @@ class UID(t.Trafaret):
         else:
             self._failure('value must be either int or str', value=value)
         return value
+
+
+class UUID(t.Trafaret):
+
+    def check_and_return(self, value: Any) -> uuid.UUID:
+        try:
+            if isinstance(value, str):
+                return uuid.UUID(value)
+            elif isinstance(value, bytes):
+                return uuid.UUID(bytes=value)
+            else:
+                self._failure('value must be string or bytes', value=value)
+        except ValueError:
+            self._failure('cannot convert value to UUID', value=value)
+
+
+class TimeZone(t.Trafaret):
+
+    def check_and_return(self, value: Any) -> datetime.tzinfo:
+        if not isinstance(value, str):
+            self._failure('value must be string', value=value)
+        tz = dateutil.tz.gettz(value)
+        if tz is None:
+            self._failure('value is not a known timezone', value=value)
+        return tz
 
 
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
