@@ -1,11 +1,17 @@
+from ipaddress import (
+    ip_address,
+    _BaseNetwork as BaseIPNetwork, _BaseAddress as BaseIPAddress,
+)
 import json
 import logging
 import os
 import socket
 import sys
+from typing import Iterable
 from pathlib import Path
 
 import aiodns
+import netifaces
 
 from .utils import curl
 
@@ -71,6 +77,19 @@ def detect_cloud() -> str:
     else:
         log.warning('Cloud detection is implemented for Linux only yet.')
     return None
+
+
+def fetch_local_ipaddrs(cidr: BaseIPNetwork) -> Iterable[BaseIPAddress]:
+    ifnames = netifaces.interfaces()
+    proto = netifaces.AF_INET if cidr.version == 4 else netifaces.AF_INET6
+    for ifname in ifnames:
+        addrs = netifaces.ifaddresses(ifname).get(proto, None)
+        if addrs is None:
+            continue
+        for entry in addrs:
+            addr = ip_address(entry['addr'])
+            if addr in cidr:
+                yield addr
 
 
 # Detect upon module load.
@@ -195,7 +214,12 @@ def _define_functions():
         async def _get_instance_id():
             return f'i-{socket.gethostname()}'
 
-        async def _get_instance_ip():
+        async def _get_instance_ip(subnet_hint: BaseIPNetwork = None):
+            if subnet_hint is not None and subnet_hint.prefixlen > 0:
+                local_ipaddrs = [*fetch_local_ipaddrs(subnet_hint)]
+                if local_ipaddrs:
+                    return str(local_ipaddrs[0])
+                raise RuntimeError('Could not find my IP address bound to subnet {}', subnet_hint)
             try:
                 myself = socket.gethostname()
                 resolver = aiodns.DNSResolver()
