@@ -26,7 +26,8 @@ __all__ = (
     'HostPortPair',
     'Path',
     'PortRange',
-    'UID',
+    'UserID',
+    'GroupID',
     'Slug',
 )
 
@@ -207,10 +208,12 @@ class PortRange(t.Trafaret):
         return min_port, max_port
 
 
-class UID(t.Trafaret):
+class UserID(t.Trafaret):
 
     def check_and_return(self, value: Any) -> int:
-        if isinstance(value, int):
+        if value is None:
+            return os.getuid()
+        elif isinstance(value, int):
             if value == -1:
                 return os.getuid()
         elif isinstance(value, str):
@@ -223,6 +226,31 @@ class UID(t.Trafaret):
                     return pwd.getpwnam(value).pw_uid
                 except KeyError:
                     self._failure('no such user in system', value=value)
+            else:
+                return self.check_and_return(value)
+        else:
+            self._failure('value must be either int or str', value=value)
+        return value
+
+
+class GroupID(t.Trafaret):
+
+    def check_and_return(self, value: Any) -> int:
+        if value is None:
+            return os.getgid()
+        elif isinstance(value, int):
+            if value == -1:
+                return os.getgid()
+        elif isinstance(value, str):
+            if not value:
+                return os.getgid()
+            try:
+                value = int(value)
+            except ValueError:
+                try:
+                    return pwd.getpwnam(value).pw_gid
+                except KeyError:
+                    self._failure('no such group in system', value=value)
             else:
                 return self.check_and_return(value)
         else:
