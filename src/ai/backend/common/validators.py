@@ -210,15 +210,25 @@ class PortRange(t.Trafaret):
 
 class UserID(t.Trafaret):
 
+    def __init__(self, *, default_uid: int = None):
+        super().__init__()
+        self._default_uid = default_uid
+
     def check_and_return(self, value: Any) -> int:
         if value is None:
-            return os.getuid()
+            if self._default_uid is not None:
+                return self._default_uid
+            else:
+                return os.getuid()
         elif isinstance(value, int):
             if value == -1:
                 return os.getuid()
         elif isinstance(value, str):
             if not value:
-                return os.getuid()
+                if self._default_uid is not None:
+                    return self._default_uid
+                else:
+                    return os.getuid()
             try:
                 value = int(value)
             except ValueError:
@@ -235,15 +245,25 @@ class UserID(t.Trafaret):
 
 class GroupID(t.Trafaret):
 
+    def __init__(self, *, default_gid: int = None):
+        super().__init__()
+        self._default_gid = default_gid
+
     def check_and_return(self, value: Any) -> int:
         if value is None:
-            return os.getgid()
+            if self._default_gid is not None:
+                return self._default_gid
+            else:
+                return os.getgid()
         elif isinstance(value, int):
             if value == -1:
                 return os.getgid()
         elif isinstance(value, str):
             if not value:
-                return os.getgid()
+                if self._default_gid is not None:
+                    return self._default_gid
+                else:
+                    return os.getgid()
             try:
                 value = int(value)
             except ValueError:
