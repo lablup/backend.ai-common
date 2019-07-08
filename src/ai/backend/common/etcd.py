@@ -13,12 +13,17 @@ from concurrent.futures import ThreadPoolExecutor
 import enum
 import functools
 import logging
+import time
 from typing import AsyncGenerator, Iterable, Mapping, Optional, Tuple
 from urllib.parse import quote as _quote, unquote
 
 import etcd3
+from etcd3 import etcdrpc
+from etcd3.client import EtcdTokenCallCredentials
+import grpc
 import trafaret as t
 
+from .logging_utils import BraceStyleAdapter
 from .types import HostPortPair
 
 __all__ = (
@@ -28,7 +33,7 @@ __all__ = (
 
 Event = namedtuple('Event', 'key event value')
 
-log = logging.getLogger(__name__)
+log = BraceStyleAdapter(logging.getLogger(__name__))
 
 
 class ConfigScopes(enum.Enum):
@@ -71,6 +76,23 @@ def _slash(v: str):
     return v.rstrip('/') + '/' if len(v) > 0 else ''
 
 
+async def reauthenticate(etcd_sync, creds, executor):
+    # This code is taken from the constructor of etcd3.client.Etcd3Client class.
+    # Related issue: kragniz/python-etcd3#580
+    etcd_sync.auth_stub = etcdrpc.AuthStub(etcd_sync.channel)
+    auth_request = etcdrpc.AuthenticateRequest(
+        name=creds['user'],
+        password=creds['password'],
+    )
+    loop = asyncio.get_event_loop()
+    resp = await loop.run_in_executor(
+        executor,
+        lambda: etcd_sync.auth_stub.Authenticate(auth_request, etcd_sync.timeout))
+    etcd_sync.metadata = (('token', resp.token),)
+    etcd_sync.call_credentials = grpc.metadata_call_credentials(
+        EtcdTokenCallCredentials(resp.token))
+
+
 class AsyncEtcd:
 
     def __init__(self, addr: HostPortPair, namespace: str,
@@ -83,12 +105,22 @@ class AsyncEtcd:
             t.Key(ConfigScopes.NODE, optional=True): t.String,
         }).check(scope_prefix_map)
         self.executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='etcd')
-        self.etcd_sync = etcd3.client(
-            host=str(addr.host), port=addr.port,
-            user=credentials.get('user') if credentials else None,
-            password=credentials.get('password') if credentials else None)
+        self._creds = credentials
+        while True:
+            try:
+                self.etcd_sync = etcd3.client(
+                    host=str(addr.host), port=addr.port,
+                    user=credentials.get('user') if credentials else None,
+                    password=credentials.get('password') if credentials else None)
+                break
+            except grpc.RpcError as e:
+                if e.code() == grpc.StatusCode.UNAVAILABLE:
+                    log.debug('etcd3 connection failed. retrying after 1 sec...')
+                    time.sleep(1)
+                    continue
+                raise
         self.ns = namespace
-        log.info(f'using etcd cluster from {addr} with namespace "{namespace}"')
+        log.info('using etcd cluster from {} with namespace "{}"', addr, namespace)
         self.encoding = encoding
 
     def _mangle_key(self, k):
@@ -104,6 +136,36 @@ class AsyncEtcd:
             k = k[len(prefix):]
         return k
 
+    def reconn_reauth_adaptor(meth):
+        @functools.wraps(meth)
+        async def wrapped(self, *args, **kwargs):
+            num_reauth_tries = 0
+            num_reconn_tries = 0
+            while True:
+                try:
+                    return await meth(self, *args, **kwargs)
+                except etcd3.exceptions.ConnectionFailedError:
+                    if num_reconn_tries >= 30:
+                        log.warning('etcd3 connection failed more than %d times. retrying after 1 sec...',
+                                    num_reconn_tries)
+                    else:
+                        log.debug('etcd3 connection failed. retrying after 1 sec...')
+                    await asyncio.sleep(1.0)
+                    num_reconn_tries += 1
+                    continue
+                except grpc.RpcError as e:
+                    if e.code() == grpc.StatusCode.UNAUTHENTICATED and self._creds:
+                        if num_reauth_tries > 0:
+                            raise
+                        await reauthenticate(self.etcd_sync, self._creds, self.executor)
+                        log.debug('etcd3 reauthenticated due to auth token expiration.')
+                        num_reauth_tries += 1
+                        continue
+                    else:
+                        raise
+        return wrapped
+
+    @reconn_reauth_adaptor
     async def put(self, key: str, val: str, *,
                   scope: ConfigScopes = ConfigScopes.GLOBAL,
                   scope_prefix_map: Mapping[ConfigScopes, str] = None):
@@ -112,8 +174,9 @@ class AsyncEtcd:
         key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         return await self.loop.run_in_executor(
             self.executor,
-            self.etcd_sync.put, key, str(val).encode(self.encoding))
+            lambda: self.etcd_sync.put(key, str(val).encode(self.encoding)))
 
+    @reconn_reauth_adaptor
     async def put_dict(self, dict_obj: Mapping[str, str], *,
                        scope: ConfigScopes = ConfigScopes.GLOBAL,
                        scope_prefix_map: Mapping[ConfigScopes, str] = None):
@@ -121,13 +184,15 @@ class AsyncEtcd:
         scope_prefix = scope_prefix_map[scope]
         return await self.loop.run_in_executor(
             self.executor,
-            self.etcd_sync.transaction,
-            [],
-            [self.etcd_sync.transactions.put(
-                self._mangle_key(f'{_slash(scope_prefix)}{k}'), str(v).encode(self.encoding))
-             for k, v in dict_obj.items()],
-            [])
+            lambda: self.etcd_sync.transaction(
+                [],
+                [self.etcd_sync.transactions.put(
+                    self._mangle_key(f'{_slash(scope_prefix)}{k}'), str(v).encode(self.encoding))
+                 for k, v in dict_obj.items()],
+                []
+            ))
 
+    @reconn_reauth_adaptor
     async def get(self, key: str, *,
                   scope: ConfigScopes = ConfigScopes.MERGED,
                   scope_prefix_map: Mapping[ConfigScopes, str] = None) \
@@ -137,7 +202,7 @@ class AsyncEtcd:
             key = self._mangle_key(key)
             val, _ = await self.loop.run_in_executor(
                 self.executor,
-                self.etcd_sync.get, key)
+                lambda: self.etcd_sync.get(key))
             return val.decode(self.encoding) if val is not None else None
 
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
@@ -162,6 +227,7 @@ class AsyncEtcd:
             value = None
         return value
 
+    @reconn_reauth_adaptor
     async def get_prefix(self, key_prefix: str,
                          scope: ConfigScopes = ConfigScopes.MERGED,
                          scope_prefix_map: Mapping[ConfigScopes, str] = None) \
@@ -171,7 +237,7 @@ class AsyncEtcd:
             key_prefix = self._mangle_key(key_prefix)
             results = await self.loop.run_in_executor(
                 self.executor,
-                self.etcd_sync.get_prefix, key_prefix)
+                lambda: self.etcd_sync.get_prefix(key_prefix))
             return ((self._demangle_key(t[1].key),
                      t[0].decode(self.encoding))
                     for t in results)
@@ -200,6 +266,7 @@ class AsyncEtcd:
     # for legacy
     get_prefix_dict = get_prefix
 
+    @reconn_reauth_adaptor
     async def replace(self, key: str, initial_val: str, new_val: str, *,
                       scope: ConfigScopes = ConfigScopes.GLOBAL,
                       scope_prefix_map: Mapping[ConfigScopes, str] = None) -> bool:
@@ -208,9 +275,10 @@ class AsyncEtcd:
         key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         success = await self.loop.run_in_executor(
             self.executor,
-            self.etcd_sync.replace, key, initial_val, new_val)
+            lambda: self.etcd_sync.replace(key, initial_val, new_val))
         return success
 
+    @reconn_reauth_adaptor
     async def delete(self, key: str, *,
                      scope: ConfigScopes = ConfigScopes.GLOBAL,
                      scope_prefix_map: Mapping[ConfigScopes, str] = None):
@@ -219,8 +287,9 @@ class AsyncEtcd:
         key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         return await self.loop.run_in_executor(
             self.executor,
-            self.etcd_sync.delete, key)
+            lambda: self.etcd_sync.delete(key))
 
+    @reconn_reauth_adaptor
     async def delete_multi(self, keys: Iterable[str], *,
                            scope: ConfigScopes = ConfigScopes.GLOBAL,
                            scope_prefix_map: Mapping[ConfigScopes, str] = None):
@@ -228,12 +297,14 @@ class AsyncEtcd:
         scope_prefix = scope_prefix_map[scope]
         return await self.loop.run_in_executor(
             self.executor,
-            self.etcd_sync.transaction,
-            [],
-            [self.etcd_sync.transactions.delete(self._mangle_key(f'{_slash(scope_prefix)}{k}'))
-             for k in keys],
-            [])
+            lambda: self.etcd_sync.transaction(
+                [],
+                [self.etcd_sync.transactions.delete(self._mangle_key(f'{_slash(scope_prefix)}{k}'))
+                 for k in keys],
+                []
+            ))
 
+    @reconn_reauth_adaptor
     async def delete_prefix(self, key_prefix: str, *,
                             scope: ConfigScopes = ConfigScopes.GLOBAL,
                             scope_prefix_map: Mapping[ConfigScopes, str] = None):
@@ -242,7 +313,7 @@ class AsyncEtcd:
         key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
         return await self.loop.run_in_executor(
             self.executor,
-            self.etcd_sync.delete_prefix, key_prefix)
+            lambda: self.etcd_sync.delete_prefix(key_prefix))
 
     def _watch_cb(self, queue: asyncio.Queue, ev: etcd3.events.Event) -> None:
         if isinstance(ev, etcd3.events.PutEvent):
@@ -259,10 +330,22 @@ class AsyncEtcd:
         )
         self.loop.call_soon_threadsafe(queue.put_nowait, event)
 
+    @reconn_reauth_adaptor
+    async def _add_watch_callback(self, raw_key, cb, **kwargs):
+        return await self.loop.run_in_executor(
+            self.executor,
+            lambda: self.etcd_sync.add_watch_callback(raw_key, cb, **kwargs))
+
+    @reconn_reauth_adaptor
+    async def _cancel_watch(self, watch_id):
+        return await self.loop.run_in_executor(
+            self.executor,
+            lambda: self.etcd_sync.cancel_watch(watch_id))
+
     async def _watch_impl(self, raw_key: str, **kwargs) -> AsyncGenerator[Event, None]:
         queue = asyncio.Queue(loop=self.loop)
         cb = functools.partial(self._watch_cb, queue)
-        watch_id = self.etcd_sync.add_watch_callback(raw_key, cb, **kwargs)
+        watch_id = await self._add_watch_callback(raw_key, cb, **kwargs)
         try:
             while True:
                 ev = await queue.get()
@@ -271,7 +354,7 @@ class AsyncEtcd:
         except asyncio.CancelledError:
             pass
         finally:
-            self.etcd_sync.cancel_watch(watch_id)
+            await self._cancel_watch(watch_id)
             del queue
 
     async def watch(self, key: str, *,
