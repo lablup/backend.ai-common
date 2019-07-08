@@ -342,10 +342,13 @@ class AsyncEtcd:
             self.executor,
             lambda: self.etcd_sync.cancel_watch(watch_id))
 
-    async def _watch_impl(self, raw_key: str, **kwargs) -> AsyncGenerator[Event, None]:
+    async def _watch_impl(self, raw_key: str, ready_event: asyncio.Event = None, **kwargs) \
+                         -> AsyncGenerator[Event, None]:
         queue = asyncio.Queue(loop=self.loop)
         cb = functools.partial(self._watch_cb, queue)
         watch_id = await self._add_watch_callback(raw_key, cb, **kwargs)
+        if ready_event is not None:
+            ready_event.set()
         try:
             while True:
                 ev = await queue.get()
@@ -364,12 +367,10 @@ class AsyncEtcd:
                     -> AsyncGenerator[Event, None]:
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
-        if ready_event:
-            ready_event.set()
         scope_prefix_len = len(f'{_slash(scope_prefix)}')
+        key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         # NOTE: yield from in async-generator is not supported.
-        async for ev in self._watch_impl(key):
+        async for ev in self._watch_impl(key, ready_event):
             yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
             if once:
                 break
@@ -381,12 +382,10 @@ class AsyncEtcd:
                            -> AsyncGenerator[Event, None]:
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
+        scope_prefix_len = len(f'{_slash(scope_prefix)}')
         key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
         range_end = etcd3.utils.increment_last_byte(etcd3.utils.to_bytes(key_prefix))
-        if ready_event:
-            ready_event.set()
-        scope_prefix_len = len(f'{_slash(scope_prefix)}')
-        async for ev in self._watch_impl(key_prefix, range_end=range_end):
+        async for ev in self._watch_impl(key_prefix, ready_event, range_end=range_end):
             yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
             if once:
                 break
