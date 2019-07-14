@@ -4,6 +4,7 @@ import logging
 import pkg_resources
 import typing
 
+from .hook import AbstractHook
 from .logging import BraceStyleAdapter
 from .monitor import AbstractErrorMonitor, AbstractStatsMonitor
 
@@ -13,6 +14,7 @@ log = BraceStyleAdapter(logging.getLogger('ai.backend.common.plugin'))
 plugin_base_classes = {
     'stats_monitor': AbstractStatsMonitor,
     'error_monitor': AbstractErrorMonitor,
+    'hanati_hook': AbstractHook,
 }
 
 
@@ -23,7 +25,7 @@ class PluginRegistry:
         self._base_class = plugin_base_classes[plugin_name]
         self._methods = {}
         methods = inspect.getmembers(self._base_class,
-                                     predicate=inspect.ismethod)
+                                     predicate=inspect.isfunction)
         for name, method in methods:
             self._methods[name] = method
 
