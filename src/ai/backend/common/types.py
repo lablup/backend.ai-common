@@ -5,7 +5,7 @@ import ipaddress
 import math
 import numbers
 from typing import (
-    Any, Hashable, Mapping,
+    Any, Hashable, Mapping, Optional,
     Sequence, Set,
     NewType, Union
 )
@@ -96,6 +96,8 @@ class BinarySize(int):
         if isinstance(expr, (Decimal, numbers.Integral)):
             return cls(expr)
         assert isinstance(expr, str)
+        if expr.lower().startswith('inf'):
+            return Decimal('Infinity')
         orig_expr = expr
         expr = expr.strip().replace('_', '')
         try:
@@ -303,17 +305,22 @@ class ResourceSlot(UserDict):
         return type(self)(data)
 
     @classmethod
-    def _normalize_value(cls, value: Any, unit: str):
-        if unit == 'bytes':
-            if isinstance(value, (Decimal, int)):
-                return int(value)
-            value = Decimal(BinarySize.from_str(value))
-        else:
-            value = Decimal(value).quantize(Quantum).normalize()
+    def _normalize_value(cls, value: Any, unit: str) -> Decimal:
+        try:
+            if unit == 'bytes':
+                if isinstance(value, (Decimal, int)):
+                    return int(value)
+                value = Decimal(BinarySize.from_str(value))
+            else:
+                value = Decimal(value)
+                if value.is_finite():
+                    value = value.quantize(Quantum).normalize()
+        except ArithmeticError:
+            raise ValueError('Cannot convert to decimal', value)
         return value
 
     @classmethod
-    def _humanize_value(cls, value: Decimal, unit: str):
+    def _humanize_value(cls, value: Decimal, unit: str) -> str:
         if unit == 'bytes':
             try:
                 value = '{:s}'.format(BinarySize(value))
@@ -322,6 +329,12 @@ class ResourceSlot(UserDict):
         else:
             value = _stringify_number(value)
         return value
+
+    @classmethod
+    def _guess_slot_type(cls, key: str) -> str:
+        if 'mem' in key:
+            return 'bytes'
+        return 'count'
 
     @classmethod
     def from_policy(cls, policy: Mapping[str, Any], slot_types: Mapping):
@@ -343,16 +356,22 @@ class ResourceSlot(UserDict):
         return cls(data)
 
     @classmethod
-    def from_user_input(cls, obj: Mapping[str, Any], slot_types: Mapping):
+    def from_user_input(cls, obj: Mapping[str, Any], slot_types: Optional[Mapping]):
         try:
-            data = {
-                k: cls._normalize_value(v, slot_types[k]) for k, v in obj.items()
-                if v is not None
-            }
-            # fill missing
-            for k in slot_types.keys():
-                if k not in data:
-                    data[k] = Decimal(0)
+            if slot_types is None:
+                data = {
+                    k: cls._normalize_value(v, cls._guess_slot_type(k)) for k, v in obj.items()
+                    if v is not None
+                }
+            else:
+                data = {
+                    k: cls._normalize_value(v, slot_types[k]) for k, v in obj.items()
+                    if v is not None
+                }
+                # fill missing
+                for k in slot_types.keys():
+                    if k not in data:
+                        data[k] = Decimal(0)
         except KeyError as e:
             raise ValueError('unit unknown for slot', e.args[0])
         return cls(data)

@@ -108,6 +108,23 @@ def test_resource_slot_serialization():
     assert r2['b'] == Decimal(0)
 
 
+def test_resource_slot_serialization_typeless():
+    r1 = ResourceSlot.from_user_input({'a': '1', 'cuda.mem': '2g'}, None)
+    assert r1['a'] == Decimal(1)
+    assert r1['cuda.mem'] == Decimal(2 * (2**30))
+
+    r1 = ResourceSlot.from_user_input({'a': 'inf', 'cuda.mem': 'inf'}, None)
+    assert r1['a'].is_infinite()
+    assert r1['cuda.mem'].is_infinite()
+
+    with pytest.raises(ValueError):
+        r1 = ResourceSlot.from_user_input({'a': '1', 'cuda.smp': '2g'}, None)
+
+    r1 = ResourceSlot.from_user_input({'a': 'inf', 'cuda.smp': 'inf'}, None)
+    assert r1['a'].is_infinite()
+    assert r1['cuda.smp'].is_infinite()
+
+
 def test_resource_slot_comparison():
     r1 = ResourceSlot.from_json({'a': '3', 'b': '200'})
     r2 = ResourceSlot.from_json({'a': '4', 'b': '100'})
