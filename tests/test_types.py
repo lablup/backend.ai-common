@@ -6,7 +6,8 @@ import typing
 from ai.backend.common.exception import AliasResolutionFailed
 from ai.backend.common.docker import default_registry, default_repository
 from ai.backend.common.types import (
-    BinarySize, ImageRef, PlatformTagSet, ResourceSlot
+    BinarySize, ImageRef, PlatformTagSet, ResourceSlot,
+    DefaultForUnspecified,
 )
 
 import pytest
@@ -378,79 +379,113 @@ def test_image_ref_merge_aliases():
     assert aliases['python'] is refs[0]
 
 
-def test_resource_slot():
-
-    r1 = ResourceSlot({'a': '2', 'b': '2g'})
-    r2 = ResourceSlot({'a': '2', 'b': '1g'})
-    r3 = ResourceSlot({'a': '2'})
-    r4 = ResourceSlot({'a': '1'})
-    assert not r1.numeric
-    assert not r2.numeric
-    assert not r3.numeric
-    assert not r4.numeric
-
-    with pytest.raises(TypeError):
-        r1 + r2
-
-    with pytest.raises(TypeError):
-        r1 < r2
-
-    with pytest.raises(TypeError):
-        r1 == r2
-
+def test_resource_slot_serialization():
     st = {'a': 'count', 'b': 'bytes'}
-    r1n = r1.as_numeric(st)
-    r2n = r2.as_numeric(st)
-    r3n = r3.as_numeric(st)
-    r4n = r4.as_numeric(st)
-
-    assert r1n.numeric
-    assert r2n.numeric
-    assert r3n.numeric
-    assert r4n.numeric
-
-    assert r1n['a'] == Decimal(2)
-    assert r4n['a'] == Decimal(1)
-    assert r1n['b'] == 2 * (2**30)
-    assert r2n['b'] == 1 * (2**30)
-
-    x = r1n - r2n
-    assert x['a'] == Decimal(0)
-    assert x['b'] == 1 * (2**30)
-
-    assert not r1n < r2n
-    assert r1n > r2n
-    assert not r1n == r2n
-    assert r1n != r2n
-
-    assert r1n - r3n == ResourceSlot({'a': Decimal(0), 'b': 2 * (2**30)},
-                                     numeric=True)
-    assert r1n + r3n == ResourceSlot({'a': Decimal(4), 'b': 2 * (2**30)},
-                                     numeric=True)
+    r1 = ResourceSlot.from_user_input({'a': '1', 'b': '2g'}, st)
+    r2 = ResourceSlot.from_user_input({'a': '2', 'b': '1g'}, st)
+    r3 = ResourceSlot.from_user_input({'a': '1'}, st)
     with pytest.raises(ValueError):
-        r3n - r1n
+        ResourceSlot.from_user_input({'x': '1'}, st)
 
-    # r3n has less keys than r1n
-    assert r4n < r1n
-    assert r4n <= r1n
-    assert not r3n < r1n
-    assert r3n <= r1n
-    assert r3n.eq_contained(r1n)
-    with pytest.raises(ValueError):
-        r3n.eq_contains(r1n)
-    with pytest.raises(ValueError):
-        r3n > r1n
-    with pytest.raises(ValueError):
-        r3n >= r1n
+    assert r1['a'] == Decimal(1)
+    assert r2['a'] == Decimal(2)
+    assert r3['a'] == Decimal(1)
+    assert r1['b'] == Decimal(2 * (2**30))
+    assert r2['b'] == Decimal(1 * (2**30))
+    assert r3['b'] == Decimal(0)
+
+    x = r2 - r3
+    assert x['a'] == Decimal(1)
+    assert x['b'] == Decimal(1 * (2**30))
+
+    # Conversely, to_json() stringifies the decimal values as-is,
+    # while to_humanized() takes the explicit slot type information
+    # to generate human-readable strings.
+
+    assert r1.to_json() == {'a': '1', 'b': '2147483648'}
+    assert r2.to_json() == {'a': '2', 'b': '1073741824'}
+    assert r3.to_json() == {'a': '1', 'b': '0'}
+    assert r1.to_humanized(st) == {'a': '1', 'b': '2g'}
+    assert r2.to_humanized(st) == {'a': '2', 'b': '1g'}
+    assert r3.to_humanized(st) == {'a': '1', 'b': '0'}
+    assert r1 == ResourceSlot.from_json({'a': '1', 'b': '2147483648'})
+    assert r2 == ResourceSlot.from_json({'a': '2', 'b': '1073741824'})
+    assert r3 == ResourceSlot.from_json({'a': '1', 'b': '0'})
+
+    # The result for "unspecified" fields may be different
+    # depending on the policy options.
+
+    r1 = ResourceSlot.from_policy({
+        'total_resource_slots': {'a': '10'},
+        'default_for_unspecified': DefaultForUnspecified.UNLIMITED,
+    }, st)
+    assert r1['a'] == Decimal(10)
+    assert r1['b'] == Decimal('Infinity')
+    r2 = ResourceSlot.from_policy({
+        'total_resource_slots': {'a': '10'},
+        'default_for_unspecified': DefaultForUnspecified.LIMITED,
+    }, st)
+    assert r2['a'] == Decimal(10)
+    assert r2['b'] == Decimal(0)
+
+
+def test_resource_slot_serialization_typeless():
+    r1 = ResourceSlot.from_user_input({'a': '1', 'cuda.mem': '2g'}, None)
+    assert r1['a'] == Decimal(1)
+    assert r1['cuda.mem'] == Decimal(2 * (2**30))
+
+    r1 = ResourceSlot.from_user_input({'a': 'inf', 'cuda.mem': 'inf'}, None)
+    assert r1['a'].is_infinite()
+    assert r1['cuda.mem'].is_infinite()
 
     with pytest.raises(ValueError):
-        r1n.eq_contained(r3n)
-    assert r1n.eq_contains(r3n)
+        r1 = ResourceSlot.from_user_input({'a': '1', 'cuda.smp': '2g'}, None)
+
+    r1 = ResourceSlot.from_user_input({'a': 'inf', 'cuda.smp': 'inf'}, None)
+    assert r1['a'].is_infinite()
+    assert r1['cuda.smp'].is_infinite()
+
+
+def test_resource_slot_comparison():
+    r1 = ResourceSlot.from_json({'a': '3', 'b': '200'})
+    r2 = ResourceSlot.from_json({'a': '4', 'b': '100'})
+    r3 = ResourceSlot.from_json({'a': '2'})
+    r4 = ResourceSlot.from_json({'a': '1'})
+    r5 = ResourceSlot.from_json({'b': '100', 'a': '4'})
+
+    assert r1 != r2
+    assert r1 != r3
+    assert r2 != r3
+    assert r3 != r4
+    assert r2 == r5
+
+    assert not r2 < r1
+    assert not r2 <= r1
+    assert r4 < r1
+    assert r4 <= r1
+    assert r3 < r1
+    assert r3 <= r1
     with pytest.raises(ValueError):
-        r1n < r3n
+        r3 > r1
     with pytest.raises(ValueError):
-        r1n <= r3n
-    assert not r1n > r3n
-    assert r1n >= r3n
-    assert r1n > r4n
-    assert r1n >= r4n
+        r3 >= r1
+
+    assert not r2 > r1
+    assert not r2 >= r1
+    assert r1 > r3
+    assert r1 >= r3
+    assert r1 > r4
+    assert r1 >= r4
+    with pytest.raises(ValueError):
+        r1 < r3
+    with pytest.raises(ValueError):
+        r1 <= r3
+
+    r1 = ResourceSlot.from_json({'a': '3', 'b': '200'})
+    r3 = ResourceSlot.from_json({'a': '3'})
+    assert r3.eq_contained(r1)
+    with pytest.raises(ValueError):
+        r3.eq_contains(r1)
+    with pytest.raises(ValueError):
+        r1.eq_contained(r3)
+    assert r1.eq_contains(r3)
