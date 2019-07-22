@@ -307,8 +307,10 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
 
     _rx_slug = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$')
 
-    def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None):
+    def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None,
+                 allow_dot: bool = False):
         super().__init__()
+        self._allow_dot = allow_dot
         if min_length is not None and min_length < 0:
             raise TypeError('min_length must be larger than or equal to zero.')
         if max_length is not None and max_length < 0:
@@ -324,7 +326,11 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
                 self._failure(f'value is too short (min length {self._min_length})', value=value)
             if self._max_length is not None and len(value) > self._max_length:
                 self._failure(f'value is too long (max length {self._max_length})', value=value)
-            m = type(self)._rx_slug.search(value)
+            if self._allow_dot and value.startswith('.'):
+                checked_value = value[1:]
+            else:
+                checked_value = value
+            m = type(self)._rx_slug.search(checked_value)
             if not m:
                 self._failure('value must be a valid slug.', value=value)
         else:

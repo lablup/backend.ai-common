@@ -184,6 +184,12 @@ def test_slug():
     with pytest.raises(t.DataError):
         iv.check('')
 
+    iv = tx.Slug(allow_dot=True)
+    assert iv.check('.a') == '.a'
+    assert iv.check('a') == 'a'
+    with pytest.raises(t.DataError):
+        iv.check('..a')
+
     iv = tx.Slug[:4]
     assert iv.check('abc') == 'abc'
     assert iv.check('abcd') == 'abcd'
