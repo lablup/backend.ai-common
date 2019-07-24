@@ -56,6 +56,12 @@ class MountPermission(str, enum.Enum):
     RW_DELETE = 'wd'
 
 
+class MountTypes(str, enum.Enum):
+    VOLUME = 'volume'
+    BIND = 'bind'
+    TMPFS = 'tmpfs'
+
+
 class HostPortPair(namedtuple('HostPortPair', 'host port')):
 
     def as_sockaddr(self):
