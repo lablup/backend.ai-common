@@ -314,8 +314,10 @@ class ResourceSlot(UserDict):
     def _normalize_value(cls, value: Any, unit: str) -> Decimal:
         try:
             if unit == 'bytes':
-                if isinstance(value, (Decimal, int)):
-                    return int(value)
+                if isinstance(value, Decimal):
+                    return int(value) if value.is_finite() else value
+                if isinstance(value, int):
+                    return value
                 value = Decimal(BinarySize.from_str(value))
             else:
                 value = Decimal(value)
