@@ -63,7 +63,7 @@ jobs:
         provider: pypi
         distributions: sdist bdist_wheel
         skip_upload_docs: true
-        user: @token
+        user: "@token"
         password:
           secure: "CUNOrmTWds5mMtf7bAULEukrPgAIZuUdVaKFztyW01bhLUiISz0nQ3hgiP7In078/Q/C5n2nAt5MrdglBJSNu1QspWODbnqcgOI0LxXLVprszkznpbd/KyOJ2CiD86rJOGTEF3ALXG0g1QwbrVKz7d04DdUjyGOSg+R2gLXXfYcqFw6Du134QCL4J1LgCuo3oJL/CUpVMlA0mAdKjZR3ud7hFmKDpEdwudDzdf41cvGONLv0kB5zFWKc3PRAodm8lvL2J0QfytQKT0+fpfN0PZc1vIOXmy5DQzLh+hNYO7MYSKTDarPSVn/6M41H3531AoJ2IquplVRQsMBmmZXhLhK2P5xA3etRZppUgPthi6WVG/UAV2WrJLO0EBYnKT/iFSSWs11OmqaSYh8GBcDouDRMLuCIrplBGT0/bmmpzI2aXu4/YRLDdTcJGo2VysS+QxVnQHLIYCgSXygX6WKK4I3jxK6nMWWTxEiKjVMjJC6rkL+5YJRa4Z1xqtcSUKrLlxFHCD57D+uiChvzYQ0W56l6nrGTlL9FaDpmMHJeE4WfQBFg8HpafQCh8BbbjNMPgkqcR63Ik2LAby3DEWTKPL3Z97cUs3hJlQBtrN1pwbsCVBcNDOhP9Ep9WA40YQzCtUhWDgveiiYfazA9AWUzwWSOCfHXTiTETiUjbp7kQMk="
 
