@@ -1,0 +1,3 @@
+[submodule "src/ai/backend/common/callosum"]
+	path = src/ai/backend/common/callosum
+	url = https://github.com/lablup/callosum
