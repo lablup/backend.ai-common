@@ -15,6 +15,7 @@ plugin_base_classes = {
     'stats_monitor': AbstractStatsMonitor,
     'error_monitor': AbstractErrorMonitor,
     'hanati_hook': AbstractHook,
+    'cloud_beta_hook': AbstractHook,
 }
 
 
