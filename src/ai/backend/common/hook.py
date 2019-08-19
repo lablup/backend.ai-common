@@ -13,4 +13,4 @@ class AbstractHook(ABC):
 
     @abstractmethod
     def get_hook_event_types(self):
-        raise NotimplementedError
+        raise NotImplementedError
