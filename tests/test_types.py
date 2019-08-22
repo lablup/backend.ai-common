@@ -108,6 +108,18 @@ def test_resource_slot_serialization():
     assert r2['b'] == Decimal(0)
 
 
+def test_resource_slot_serialization_prevent_scientific_notation():
+    r1 = ResourceSlot({'a': '2E+1', 'b': '200'})
+    assert r1.to_json()['a'] == '20'
+    assert r1.to_json()['b'] == '200'
+
+
+def test_resource_slot_serialization_filter_null():
+    r1 = ResourceSlot({'a': '1', 'x': None})
+    assert r1.to_json()['a'] == '1'
+    assert 'x' not in r1.to_json()
+
+
 def test_resource_slot_serialization_typeless():
     r1 = ResourceSlot.from_user_input({'a': '1', 'cuda.mem': '2g'}, None)
     assert r1['a'] == Decimal(1)
