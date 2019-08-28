@@ -246,13 +246,13 @@ class Fstab:
                 line = await self._fp.readline()
                 if not line.startswith('#'):
                     yield self._hydrate_entry(line)
-            except ValueError:
+            except TypeError:
                 pass
             if not line:
                 break
 
     async def get_entry_by_attr(self, attr, value):
-        for entry in await self.get_entries():
+        async for entry in self.get_entries():
             e_attr = getattr(entry, attr)
             if e_attr == value:
                 return entry
@@ -265,7 +265,7 @@ class Fstab:
         await self._fp.truncate()
         return entry
 
-    async def add(cls, device, mountpoint, fstype, options=None, d=0, p=0):
+    async def add(self, device, mountpoint, fstype, options=None, d=0, p=0):
         return await self.add_entry(FstabEntry(device, mountpoint, fstype, options, d, p))
 
     async def remove_entry(self, entry):
