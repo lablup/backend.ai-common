@@ -244,6 +244,7 @@ class Fstab:
         while True:
             try:
                 line = await self._fp.readline()
+                line = line.strip()
                 if not line.startswith('#'):
                     yield self._hydrate_entry(line)
             except TypeError:
