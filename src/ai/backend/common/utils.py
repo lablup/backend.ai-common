@@ -241,16 +241,13 @@ class Fstab:
 
     async def get_entries(self):
         await self._fp.seek(0)
-        while True:
+        for line in await self._fp.readlines():
             try:
-                line = await self._fp.readline()
                 line = line.strip()
-                if not line.startswith('#'):
+                if not line.startswith("#"):
                     yield self._hydrate_entry(line)
             except TypeError:
                 pass
-            if not line:
-                break
 
     async def get_entry_by_attr(self, attr, value):
         async for entry in self.get_entries():
@@ -274,10 +271,13 @@ class Fstab:
         lines = await self._fp.readlines()
         found = False
         for index, line in enumerate(lines):
-            if not line.startswith("#"):
-                if self._hydrate_entry(line) == entry:
-                    found = True
-                    break
+            try:
+                if not line.strip().startswith("#"):
+                    if self._hydrate_entry(line) == entry:
+                        found = True
+                        break
+            except TypeError:
+                pass
         if not found:
             return False
         lines.remove(line)
