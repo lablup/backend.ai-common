@@ -88,7 +88,13 @@ class MultiKey(t.Key):
     def get_data(self, data, default):
         if isinstance(data, (multidict.MultiDict, multidict.MultiDictProxy)):
             return data.getall(self.name, default)
-        return data.get(self.name, default)
+        # fallback for plain dicts
+        raw_value = data.get(self.name, default)
+        if isinstance(raw_value, Sequence):
+            # if plain dict already contains list of values, just return it.
+            return raw_value
+        # otherwise, wrap the value in a list.
+        return [raw_value]
 
 
 class BinarySize(t.Trafaret):

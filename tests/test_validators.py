@@ -89,8 +89,9 @@ def test_multikey():
         'x': 10,
         'y': 30,
     }
-    with pytest.raises(t.DataError):
-        result = iv.check(plain_data_nolist)
+    result = iv.check(plain_data_nolist)
+    assert result['x'] == [10]
+    assert result['y'] == 30
 
 
 def test_binary_size():
