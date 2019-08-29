@@ -12,6 +12,7 @@ import uuid
 import pwd
 
 import dateutil.tz
+import multidict
 import trafaret as t
 from trafaret.base import TrafaretMeta
 from trafaret.lib import _empty
@@ -80,6 +81,14 @@ class AliasedKey(t.Key):
                 yield key, inner_error, self.names
             else:
                 yield self.get_name(), result, self.names
+
+
+class MultiKey(t.Key):
+
+    def get_data(self, data, default):
+        if isinstance(data, (multidict.MultiDict, multidict.MultiDictProxy)):
+            return data.getall(self.name, default)
+        return data.get(self.name, default)
 
 
 class BinarySize(t.Trafaret):

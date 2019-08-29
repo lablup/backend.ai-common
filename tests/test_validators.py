@@ -1,5 +1,6 @@
 from ipaddress import IPv4Address
 
+import multidict
 import pytest
 import trafaret as t
 
@@ -53,6 +54,43 @@ def test_aliased_key():
     err_data = e.value.as_dict()
     assert 'z' in err_data
     assert "not allowed key" in err_data['z']
+
+
+def test_multikey():
+    iv = t.Dict({
+        tx.MultiKey('x'): t.List(t.Int),
+        t.Key('y'): t.Int,
+    })
+
+    data = multidict.MultiDict()
+    data.add('x', 1)
+    data.add('x', 2)
+    data.add('y', 3)
+    result = iv.check(data)
+    assert result['x'] == [1, 2]
+    assert result['y'] == 3
+
+    data = multidict.MultiDict()
+    data.add('x', 1)
+    data.add('y', 3)
+    result = iv.check(data)
+    assert result['x'] == [1]
+    assert result['y'] == 3
+
+    plain_data = {
+        'x': [10, 20],
+        'y': 30,
+    }
+    result = iv.check(plain_data)
+    assert result['x'] == [10, 20]
+    assert result['y'] == 30
+
+    plain_data_nolist = {
+        'x': 10,
+        'y': 30,
+    }
+    with pytest.raises(t.DataError):
+        result = iv.check(plain_data_nolist)
 
 
 def test_binary_size():
