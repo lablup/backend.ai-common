@@ -7,7 +7,7 @@ import ipaddress
 import os
 from pathlib import Path as _Path
 import re
-from typing import Any, Mapping, Optional, Sequence, Tuple
+from typing import Any, List, Mapping, Optional, Sequence, Tuple
 import uuid
 import pwd
 
@@ -90,7 +90,7 @@ class MultiKey(t.Key):
             return data.getall(self.name, default)
         # fallback for plain dicts
         raw_value = data.get(self.name, default)
-        if isinstance(raw_value, Sequence):
+        if isinstance(raw_value, (List, Tuple)):
             # if plain dict already contains list of values, just return it.
             return raw_value
         # otherwise, wrap the value in a list.

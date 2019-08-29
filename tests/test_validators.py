@@ -94,6 +94,29 @@ def test_multikey():
     assert result['y'] == 30
 
 
+def test_multikey_string():
+    iv = t.Dict({
+        tx.MultiKey('x'): t.List(t.String),
+        t.Key('y'): t.String,
+    })
+
+    plain_data = {
+        'x': ['abc'],
+        'y': 'def',
+    }
+    result = iv.check(plain_data)
+    assert result['x'] == ['abc']
+    assert result['y'] == 'def'
+
+    plain_data_nolist = {
+        'x': 'abc',
+        'y': 'def',
+    }
+    result = iv.check(plain_data_nolist)
+    assert result['x'] == ['abc']
+    assert result['y'] == 'def'
+
+
 def test_binary_size():
     iv = tx.BinarySize()
     assert iv.check('10M') == 10 * (2 ** 20)
