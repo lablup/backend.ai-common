@@ -206,7 +206,7 @@ class AsyncEtcd:
             return val.decode(self.encoding) if val is not None else None
 
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
-        if scope == ConfigScopes.MERGED:
+        if scope == ConfigScopes.MERGED or scope == ConfigScopes.NODE:
             scope_prefixes = [scope_prefix_map[ConfigScopes.GLOBAL]]
             p = scope_prefix_map.get(ConfigScopes.SGROUP)
             if p is not None:
@@ -214,8 +214,15 @@ class AsyncEtcd:
             p = scope_prefix_map.get(ConfigScopes.NODE)
             if p is not None:
                 scope_prefixes.insert(0, p)
+        elif scope == ConfigScopes.SGROUP:
+            scope_prefixes = [scope_prefix_map[ConfigScopes.GLOBAL]]
+            p = scope_prefix_map.get(ConfigScopes.SGROUP)
+            if p is not None:
+                scope_prefixes.insert(0, p)
+        elif scope == ConfigScopes.GLOBAL:
+            scope_prefixes = [scope_prefix_map[ConfigScopes.GLOBAL]]
         else:
-            scope_prefixes = [scope_prefix_map[scope]]
+            raise ValueError('Invalid scope prefix value')
         values = await asyncio.gather(*[
             get_impl(f'{_slash(scope_prefix)}{key}')
             for scope_prefix in scope_prefixes
@@ -243,7 +250,7 @@ class AsyncEtcd:
                     for t in results)
 
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
-        if scope == ConfigScopes.MERGED:
+        if scope == ConfigScopes.MERGED or scope == ConfigScopes.NODE:
             scope_prefixes = [scope_prefix_map[ConfigScopes.GLOBAL]]
             p = scope_prefix_map.get(ConfigScopes.SGROUP)
             if p is not None:
@@ -251,8 +258,15 @@ class AsyncEtcd:
             p = scope_prefix_map.get(ConfigScopes.NODE)
             if p is not None:
                 scope_prefixes.insert(0, p)
+        elif scope == ConfigScopes.SGROUP:
+            scope_prefixes = [scope_prefix_map[ConfigScopes.GLOBAL]]
+            p = scope_prefix_map.get(ConfigScopes.SGROUP)
+            if p is not None:
+                scope_prefixes.insert(0, p)
+        elif scope == ConfigScopes.GLOBAL:
+            scope_prefixes = [scope_prefix_map[ConfigScopes.GLOBAL]]
         else:
-            scope_prefixes = [scope_prefix_map[scope]]
+            raise ValueError('Invalid scope prefix value')
         pair_sets = await asyncio.gather(*[
             get_prefix_impl(f'{_slash(scope_prefix)}{key_prefix}')
             for scope_prefix in scope_prefixes

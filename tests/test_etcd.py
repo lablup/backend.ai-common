@@ -90,20 +90,24 @@ async def test_scope(etcd):
 async def test_scope_dict(etcd):
     await etcd.put_dict({'point/x': '1', 'point/y': '2'}, scope=ConfigScopes.GLOBAL)
     await etcd.put_dict({'point/y': '3'}, scope=ConfigScopes.SGROUP)
-    await etcd.put_dict({'point/x': '4'}, scope=ConfigScopes.NODE)
-    v = await etcd.get_prefix('point')
-    assert v == {'x': '4', 'y': '3'}
+    await etcd.put_dict({'point/x': '4', 'point/z': '5'}, scope=ConfigScopes.NODE)
+    v = await etcd.get_prefix('point', scope=ConfigScopes.MERGED)
+    assert v == {'x': '4', 'y': '3', 'z': '5'}
+    v = await etcd.get_prefix('point', scope=ConfigScopes.SGROUP)
+    assert v == {'x': '1', 'y': '3'}
+    v = await etcd.get_prefix('point', scope=ConfigScopes.GLOBAL)
+    assert v == {'x': '1', 'y': '2'}
 
     await etcd.delete_prefix('point', scope=ConfigScopes.NODE)
-    v = await etcd.get_prefix('point')
+    v = await etcd.get_prefix('point', scope=ConfigScopes.MERGED)
     assert v == {'x': '1', 'y': '3'}
 
     await etcd.delete_prefix('point', scope=ConfigScopes.SGROUP)
-    v = await etcd.get_prefix('point')
+    v = await etcd.get_prefix('point', scope=ConfigScopes.MERGED)
     assert v == {'x': '1', 'y': '2'}
 
     await etcd.delete_prefix('point', scope=ConfigScopes.GLOBAL)
-    v = await etcd.get_prefix('point')
+    v = await etcd.get_prefix('point', scope=ConfigScopes.MERGED)
     assert len(v) == 0
 
 
