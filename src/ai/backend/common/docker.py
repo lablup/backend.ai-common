@@ -102,11 +102,9 @@ async def get_known_registries(etcd: AsyncEtcd) -> Mapping[str, yarl.URL]:
 
 def is_known_registry(val: str,
                       known_registries: Union[Mapping[str, Any], Sequence[str]] = None):
-    if known_registries is None:
-        return False
     if val == default_registry:
         return True
-    if known_registries and val in known_registries:
+    if known_registries is not None and val in known_registries:
         return True
     try:
         url = yarl.URL('//' + val)
