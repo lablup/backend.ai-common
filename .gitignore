@@ -65,6 +65,7 @@ VENV/
 
 # IDE stuffs
 .idea/
+.vscode/
 .env
 .envrc
 .*.swp
