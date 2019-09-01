@@ -5,9 +5,9 @@ import ipaddress
 import math
 import numbers
 from typing import (
-    Any, Hashable, Mapping, Optional,
+    Any, Mapping, Optional,
     Sequence, Set,
-    NewType, Union
+    NewType
 )
 
 import attr
@@ -44,8 +44,8 @@ class HandlerForUnknownSlotType(str, enum.Enum):
     ERROR = 'error'
 
 
-DeviceId = NewType('DeviceId', Hashable)
-SlotType = NewType('DeviceType', Union[str, IntrinsicSlotTypes])
+DeviceId = NewType('DeviceId', str)
+SlotType = NewType('SlotType', str)
 
 Quantum = Decimal('0.000')
 
@@ -185,7 +185,7 @@ class BinarySize(int):
         return super().__format__(format_spec)
 
 
-Allocation = NewType('Allocation', Union[Decimal, BinarySize])
+Allocation = NewType('Allocation', Decimal)
 
 ResourceAllocations = NewType('ResourceAllocations',
     Mapping[SlotType, Mapping[DeviceId, Allocation]])
@@ -315,9 +315,9 @@ class ResourceSlot(UserDict):
         try:
             if unit == 'bytes':
                 if isinstance(value, Decimal):
-                    return int(value) if value.is_finite() else value
+                    return Decimal(value) if value.is_finite() else value
                 if isinstance(value, int):
-                    return value
+                    return Decimal(value)
                 value = Decimal(BinarySize.from_str(value))
             else:
                 value = Decimal(value)
@@ -331,12 +331,12 @@ class ResourceSlot(UserDict):
     def _humanize_value(cls, value: Decimal, unit: str) -> str:
         if unit == 'bytes':
             try:
-                value = '{:s}'.format(BinarySize(value))
+                result = '{:s}'.format(BinarySize(value))
             except ValueError:
-                value = _stringify_number(value)
+                result = _stringify_number(value)
         else:
-            value = _stringify_number(value)
-        return value
+            result = _stringify_number(value)
+        return result
 
     @classmethod
     def _guess_slot_type(cls, key: str) -> str:
@@ -425,10 +425,10 @@ class ShareRequest:
     '''
     slot_type: SlotType
     device_share: Decimal
-    feature_version: str = None
+    feature_version: Optional[str] = None
     feature_set: Set[str] = attr.Factory(set)
-    lib_version: str = None
-    driver_version: str = None
+    lib_version: Optional[str] = None
+    driver_version: Optional[str] = None
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -453,7 +453,7 @@ class ResourceRequest:
     '''
     shares: Mapping[str, ShareRequest] = attr.Factory(dict)
     vfolders: Sequence[VFolderRequest] = attr.Factory(list)
-    scratch_disk_size: BinarySize = None
+    scratch_disk_size: Optional[BinarySize] = None
     ignore_numa: bool = False
     extra: str = ''
 
@@ -475,8 +475,8 @@ class SessionRequest:
     master_image: str
     master_resource_spec: ResourceRequest
     # for multi-container sessions
-    worker_image: str = None
-    worker_resource_spec: ResourceRequest = None
+    worker_image: Optional[str] = None
+    worker_resource_spec: Optional[ResourceRequest] = None
 
 
 def _stringify_number(v):

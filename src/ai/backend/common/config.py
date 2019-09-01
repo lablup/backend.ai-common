@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import sys
-from typing import Any, Mapping, Optional, Tuple
+from typing import Any, MutableMapping, Mapping, Optional, Tuple
 
 import toml
 import trafaret as t
@@ -49,29 +49,29 @@ def read_from_file(toml_path: Optional[str], daemon_name: str):
                     'read_from_file()': f"Unsupported platform for config path auto-discovery: {sys.platform}",
                 })
         else:
-            toml_paths = [toml_path_from_env]
-        for toml_path in toml_paths:
-            if toml_path.is_file():
-                return toml.loads(toml_path.read_text()), toml_path
+            toml_paths = [Path(toml_path_from_env)]
+        for _path in toml_paths:
+            if _path.is_file():
+                return toml.loads(_path.read_text()), _path
         else:
             searched_paths = ','.join(map(str, toml_paths))
             raise ConfigurationError({
                 'read_from_file()': f"Could not read config from: {searched_paths}",
             })
     else:
-        toml_path = Path(toml_path)
+        _path = Path(toml_path)
         try:
-            config = toml.loads(toml_path.read_text())
+            config = toml.loads(_path.read_text())
         except IOError:
             raise ConfigurationError({
-                'read_from_file()': f"Could not read config from: {toml_path}",
+                'read_from_file()': f"Could not read config from: {_path}",
             })
         else:
-            return config, toml_path
+            return config, _path
 
 
 async def read_from_etcd(etcd_config: Mapping[str, Any], scope_prefix_map: Mapping[ConfigScopes, str]) \
-                        -> Mapping[str, Any]:
+                        -> Optional[Mapping[str, Any]]:
     etcd = AsyncEtcd(etcd_config['addr'], etcd_config['namespace'], scope_prefix_map)
     raw_value = await etcd.get('daemon/config')
     if raw_value is None:
@@ -79,7 +79,7 @@ async def read_from_etcd(etcd_config: Mapping[str, Any], scope_prefix_map: Mappi
     return toml.loads(raw_value)
 
 
-def override_key(table: Mapping[str, Any], key_path: Tuple[str, ...], value: str):
+def override_key(table: MutableMapping[str, Any], key_path: Tuple[str, ...], value: str):
     for k in key_path[:-1]:
         if k not in table:
             table[k] = {}
@@ -87,7 +87,7 @@ def override_key(table: Mapping[str, Any], key_path: Tuple[str, ...], value: str
     table[key_path[-1]] = value
 
 
-def override_with_env(table: Mapping[str, Any], key_path: Tuple[str, ...], env_key: str):
+def override_with_env(table: MutableMapping[str, Any], key_path: Tuple[str, ...], env_key: str):
     val = os.environ.get(env_key, None)
     if val is None:
         return

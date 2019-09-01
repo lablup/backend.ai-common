@@ -1,7 +1,7 @@
 import argparse
 import ipaddress
 import pathlib
-from typing import Tuple
+from typing import cast, Tuple
 
 from .types import HostPortPair
 
@@ -35,7 +35,7 @@ def port_range(s: str) -> Tuple[int, int]:
     if not (port_range[0] < port_range[1]):
         msg = f'{port_range[0]} should be less than {port_range[1]}.'
         raise argparse.ArgumentTypeError(msg)
-    return port_range
+    return cast(Tuple[int, int], port_range)
 
 
 def positive_int(s: str) -> int:

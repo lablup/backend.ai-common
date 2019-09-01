@@ -7,7 +7,7 @@ import logging
 import os
 import socket
 import sys
-from typing import Iterable
+from typing import Iterable, Optional
 from pathlib import Path
 
 import aiodns
@@ -35,11 +35,12 @@ def is_containerized() -> bool:
         cginfo = Path('/proc/self/cgroup').read_text()
         if '/docker/' in cginfo or '/lxc/' in cginfo:
             return True
+        return False
     except IOError:
         return False
 
 
-def detect_cloud() -> str:
+def detect_cloud() -> Optional[str]:
     '''
     Detect the cloud provider where I am running on.
     '''
@@ -122,19 +123,19 @@ def _define_functions():
         _metadata_prefix = 'http://169.254.169.254/latest/meta-data/'
         _dynamic_prefix = 'http://169.254.169.254/latest/dynamic/'
 
-        async def _get_instance_id():
+        async def _get_instance_id() -> str:
             return await curl(_metadata_prefix + 'instance-id',
                               lambda: f'i-{socket.gethostname()}')
 
-        async def _get_instance_ip():
+        async def _get_instance_ip(subnet_hint: BaseIPNetwork = None) -> str:
             return await curl(_metadata_prefix + 'local-ipv4',
                               '127.0.0.1')
 
-        async def _get_instance_type():
+        async def _get_instance_type() -> str:
             return await curl(_metadata_prefix + 'instance-type',
                               'unknown')
 
-        async def _get_instance_region():
+        async def _get_instance_region() -> str:
             doc = await curl(_dynamic_prefix + 'instance-identity/document')
             if doc is None:
                 return 'amazon/unknown'
@@ -145,7 +146,7 @@ def _define_functions():
         # ref: https://docs.microsoft.com/azure/virtual-machines/virtual-machines-instancemetadataservice-overview
         _metadata_prefix = 'http://169.254.169.254/metadata/instance'
 
-        async def _get_instance_id():
+        async def _get_instance_id() -> str:
             data = await curl(_metadata_prefix, None,
                               params={'version': '2017-03-01'},
                               headers={'Metadata': 'true'})
@@ -154,7 +155,7 @@ def _define_functions():
             o = json.loads(data)
             return o['compute']['vmId']
 
-        async def _get_instance_ip():
+        async def _get_instance_ip(subnet_hint: BaseIPNetwork = None) -> str:
             data = await curl(_metadata_prefix, None,
                               params={'version': '2017-03-01'},
                               headers={'Metadata': 'true'})
@@ -163,7 +164,7 @@ def _define_functions():
             o = json.loads(data)
             return o['network']['interface'][0]['ipv4']['ipaddress'][0]['ipaddress']
 
-        async def _get_instance_type():
+        async def _get_instance_type() -> str:
             data = await curl(_metadata_prefix, None,
                               params={'version': '2017-03-01'},
                               headers={'Metadata': 'true'})
@@ -172,7 +173,7 @@ def _define_functions():
             o = json.loads(data)
             return o['compute']['vmSize']
 
-        async def _get_instance_region():
+        async def _get_instance_region() -> str:
             data = await curl(_metadata_prefix, None,
                               params={'version': '2017-03-01'},
                               headers={'Metadata': 'true'})
@@ -186,22 +187,22 @@ def _define_functions():
         # ref: https://cloud.google.com/compute/docs/storing-retrieving-metadata
         _metadata_prefix = 'http://metadata.google.internal/computeMetadata/v1/'
 
-        async def _get_instance_id():
+        async def _get_instance_id() -> str:
             return await curl(_metadata_prefix + 'instance/id',
                               lambda: f'i-{socket.gethostname()}',
                               headers={'Metadata-Flavor': 'Google'})
 
-        async def _get_instance_ip():
+        async def _get_instance_ip(subnet_hint: BaseIPNetwork = None) -> str:
             return await curl(_metadata_prefix + 'instance/network-interfaces/0/ip',
                               '127.0.0.1',
                               headers={'Metadata-Flavor': 'Google'})
 
-        async def _get_instance_type():
+        async def _get_instance_type() -> str:
             return await curl(_metadata_prefix + 'instance/machine-type',
                               'unknown',
                               headers={'Metadata-Flavor': 'Google'})
 
-        async def _get_instance_region():
+        async def _get_instance_region() -> str:
             zone = await curl(_metadata_prefix + 'instance/zone',
                               'unknown',
                               headers={'Metadata-Flavor': 'Google'})
@@ -211,10 +212,10 @@ def _define_functions():
     else:
         _metadata_prefix = None
 
-        async def _get_instance_id():
+        async def _get_instance_id() -> str:
             return f'i-{socket.gethostname()}'
 
-        async def _get_instance_ip(subnet_hint: BaseIPNetwork = None):
+        async def _get_instance_ip(subnet_hint: BaseIPNetwork = None) -> str:
             if subnet_hint is not None and subnet_hint.prefixlen > 0:
                 local_ipaddrs = [*fetch_local_ipaddrs(subnet_hint)]
                 if local_ipaddrs:
@@ -228,10 +229,10 @@ def _define_functions():
             except aiodns.error.DNSError:
                 return '127.0.0.1'
 
-        async def _get_instance_type():
+        async def _get_instance_type() -> str:
             return 'default'
 
-        async def _get_instance_region():
+        async def _get_instance_region() -> str:
             return os.environ.get('BACKEND_REGION', 'local')
 
     get_instance_id = _get_instance_id

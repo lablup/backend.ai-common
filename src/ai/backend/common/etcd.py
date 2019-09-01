@@ -358,7 +358,7 @@ class AsyncEtcd:
 
     async def _watch_impl(self, raw_key: str, ready_event: asyncio.Event = None, **kwargs) \
                          -> AsyncGenerator[Event, None]:
-        queue = asyncio.Queue(loop=self.loop)
+        queue: asyncio.Queue = asyncio.Queue(loop=self.loop)
         cb = functools.partial(self._watch_cb, queue)
         watch_id = await self._add_watch_callback(raw_key, cb, **kwargs)
         if ready_event is not None:
