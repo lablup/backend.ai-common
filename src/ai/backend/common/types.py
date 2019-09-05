@@ -5,7 +5,7 @@ import ipaddress
 import math
 import numbers
 from typing import (
-    Any, Mapping, Optional,
+    Any, Awaitable, Mapping, Optional,
     Sequence, Set,
     NewType
 )
@@ -13,6 +13,7 @@ from typing import (
 import attr
 
 __all__ = (
+    'aobject',
     'BinarySize',
     'HostPortPair',
     'DeviceId',
@@ -27,6 +28,17 @@ __all__ = (
     'ShareRequest',
     'SessionRequest',
 )
+
+
+class aobject(object):
+
+    async def __new__(cls, *args, **kwargs) -> 'aobject':
+        instance = super().__new__(cls)
+        await instance.__init__(*args, **kwargs)
+        return instance
+
+    async def __init__(self) -> Awaitable[None]:
+        pass
 
 
 class IntrinsicSlotTypes(str, enum.Enum):
