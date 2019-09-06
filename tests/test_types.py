@@ -12,10 +12,13 @@ import pytest
 @pytest.mark.asyncio
 async def test_aobject():
 
+    init_count = 0
     ainit_count = 0
 
     class MyBase(aobject):
         def __init__(self, x: int) -> None:
+            nonlocal init_count
+            init_count += 1
             self.x = x
 
         async def __ainit__(self) -> None:
@@ -26,6 +29,8 @@ async def test_aobject():
     class MyDerived(MyBase):
         def __init__(self, x: int, y: int) -> None:
             super().__init__(x)
+            nonlocal init_count
+            init_count += 1
             self.y = y
 
         async def __ainit__(self) -> None:
@@ -34,15 +39,19 @@ async def test_aobject():
             nonlocal ainit_count
             ainit_count += 1
 
+    init_count = 0
     ainit_count = 0
     o = await MyBase(1)
     assert o.x == 1
+    assert init_count == 1
     assert ainit_count == 1
 
+    init_count = 0
     ainit_count = 0
-    o = await MyDerived(1, 2)
-    assert o.x == 1
-    assert o.y == 2
+    o = await MyDerived(2, 3)
+    assert o.x == 2
+    assert o.y == 3
+    assert init_count == 2
     assert ainit_count == 2
 
 
