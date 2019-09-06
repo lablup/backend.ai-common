@@ -1,10 +1,49 @@
+import asyncio
 from decimal import Decimal
 from ai.backend.common.types import (
     BinarySize, ResourceSlot,
     DefaultForUnspecified,
+    aobject,
 )
 
 import pytest
+
+
+@pytest.mark.asyncio
+async def test_aobject():
+
+    ainit_count = 0
+
+    class MyBase(aobject):
+        def __init__(self, x: int) -> None:
+            self.x = x
+
+        async def __ainit__(self) -> None:
+            await asyncio.sleep(0.01)
+            nonlocal ainit_count
+            ainit_count += 1
+
+    class MyDerived(MyBase):
+        def __init__(self, x: int, y: int) -> None:
+            super().__init__(x)
+            self.y = y
+
+        async def __ainit__(self) -> None:
+            await super().__ainit__()
+            await asyncio.sleep(0.01)
+            nonlocal ainit_count
+            ainit_count += 1
+
+    ainit_count = 0
+    o = await MyBase(1)
+    assert o.x == 1
+    assert ainit_count == 1
+
+    ainit_count = 0
+    o = await MyDerived(1, 2)
+    assert o.x == 1
+    assert o.y == 2
+    assert ainit_count == 2
 
 
 def test_binary_size():

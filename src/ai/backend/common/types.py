@@ -5,7 +5,7 @@ import ipaddress
 import math
 import numbers
 from typing import (
-    Any, Awaitable, Mapping, Optional,
+    Any, Mapping, Optional,
     Sequence, Set,
     NewType
 )
@@ -34,10 +34,20 @@ class aobject(object):
 
     async def __new__(cls, *args, **kwargs) -> 'aobject':
         instance = super().__new__(cls)
-        await instance.__init__(*args, **kwargs)
+        instance.__init__(*args, **kwargs)
+        await instance.__ainit__()
         return instance
 
-    async def __init__(self) -> Awaitable[None]:
+    def __init__(self, *args, **kwargs) -> None:
+        pass
+
+    async def __ainit__(self) -> None:
+        '''
+        Automatically called when creating the instance using
+        ``await SubclassOfAObject(...)``
+        where the arguments are passed to __init__() as in
+        the vanilla Python classes.
+        '''
         pass
 
 
