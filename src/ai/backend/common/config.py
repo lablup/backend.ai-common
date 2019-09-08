@@ -1,7 +1,11 @@
 import os
 from pathlib import Path
 import sys
-from typing import Any, MutableMapping, Mapping, Optional, Tuple
+from typing import (
+    Any, Optional, Union,
+    Mapping, MutableMapping,
+    Tuple,
+)
 
 import toml
 import trafaret as t
@@ -32,7 +36,7 @@ etcd_config_iv = t.Dict({
 }).allow_extra('*')
 
 
-def read_from_file(toml_path: Optional[str], daemon_name: str):
+def read_from_file(toml_path: Optional[Union[Path, str]], daemon_name: str):
     if toml_path is None:
         toml_path_from_env = os.environ.get('BACKEND_CONFIG_FILE', None)
         if not toml_path_from_env:
@@ -70,7 +74,8 @@ def read_from_file(toml_path: Optional[str], daemon_name: str):
             return config, _path
 
 
-async def read_from_etcd(etcd_config: Mapping[str, Any], scope_prefix_map: Mapping[ConfigScopes, str]) \
+async def read_from_etcd(etcd_config: Mapping[str, Any],
+                         scope_prefix_map: Mapping[ConfigScopes, str]) \
                         -> Optional[Mapping[str, Any]]:
     etcd = AsyncEtcd(etcd_config['addr'], etcd_config['namespace'], scope_prefix_map)
     raw_value = await etcd.get('daemon/config')
@@ -79,7 +84,7 @@ async def read_from_etcd(etcd_config: Mapping[str, Any], scope_prefix_map: Mappi
     return toml.loads(raw_value)
 
 
-def override_key(table: MutableMapping[str, Any], key_path: Tuple[str, ...], value: str):
+def override_key(table: MutableMapping[str, Any], key_path: Tuple[str, ...], value: Any):
     for k in key_path[:-1]:
         if k not in table:
             table[k] = {}

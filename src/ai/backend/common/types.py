@@ -8,7 +8,7 @@ from typing import (
     Any, Optional, Union,
     Tuple, Sequence,
     Mapping,
-    NewType,
+    NewType, Type, TypeVar,
 )
 from typing_extensions import TypedDict
 
@@ -20,25 +20,56 @@ __all__ = (
     'ContainerId',
     'KernelId',
     'MetricKey',
+    'MetricValue',
+    'MovingStatValue',
     'PID',
     'HostPID',
     'ContainerPID',
     'BinarySize',
     'HostPortPair',
     'DeviceId',
-    'SlotType',
-    'IntrinsicSlotTypes',
-    'Allocation',
-    'ResourceAllocations',
+    'SlotName',
+    'IntrinsicSlotNames',
     'ResourceSlot',
     'MountPermission',
     'KernelCreationResult',
 )
 
 
-class aobject(object):
+T_aobj = TypeVar('T_aobj', bound='aobject')
 
-    async def __new__(cls, *args, **kwargs) -> 'aobject':
+
+class aobject(object):
+    '''
+    An "asynchronous" object which guarantees to invoke both ``def __init__(self, ...)`` and
+    ``async def __ainit(self)__`` to ensure asynchronous initialization of the object.
+
+    You can create an instance of subclasses of aboject in two ways:
+
+    .. code-block:: python
+
+       o = await SomeAObj(...)
+
+    .. code-block:: python
+
+       o = await SomeAObj.new(...)
+
+    The latter is supported to avoid type checking errors (currently confirmed in mypy 0.720).
+    '''
+
+    async def __new__(cls: Type[T_aobj], *args, **kwargs) -> T_aobj:
+        instance = super().__new__(cls)
+        instance.__init__(*args, **kwargs)
+        await instance.__ainit__()
+        return instance
+
+    @classmethod
+    async def new(cls: Type[T_aobj], *args, **kwargs) -> T_aobj:
+        '''
+        We can do ``await SomeAObject(...)``, but this makes mypy
+        to complain about its return type with ``await`` statement.
+        This is a copy of ``__new__()`` to workaround it.
+        '''
         instance = super().__new__(cls)
         instance.__init__(*args, **kwargs)
         await instance.__ainit__()
@@ -51,7 +82,7 @@ class aobject(object):
         '''
         Automatically called when creating the instance using
         ``await SubclassOfAObject(...)``
-        where the arguments are passed to __init__() as in
+        where the arguments are passed to ``__init__()`` as in
         the vanilla Python classes.
         '''
         pass
@@ -63,13 +94,18 @@ ContainerPID = NewType('ContainerPID', PID)
 
 ContainerId = NewType('ContainerId', str)
 KernelId = NewType('KernelId', str)
+DeviceName = NewType('DeviceName', str)
 DeviceId = NewType('DeviceId', str)
-
+SlotName = NewType('SlotName', str)
 MetricKey = NewType('MetricKey', str)
-SlotType = NewType('SlotType', str)
 
 
-class MovingStatValues(TypedDict):
+class SlotTypes(str, enum.Enum):
+    COUNT = 'count'
+    BYTES = 'bytes'
+
+
+class MovingStatValue(TypedDict):
     min: str
     max: str
     sum: str
@@ -79,9 +115,23 @@ class MovingStatValues(TypedDict):
     version: Optional[int]  # for legacy client compatibility
 
 
-class IntrinsicSlotTypes(str, enum.Enum):
-    CPU = 'cpu'
-    MEMORY = 'mem'
+MetricValue = TypedDict('MetricValue', {
+    'current': str,
+    'capacity': Optional[str],
+    'pct': Optional[str],
+    'unit_hint': str,
+    'stats.min': str,
+    'stats.max': str,
+    'stats.sum': str,
+    'stats.avg': str,
+    'stats.diff': str,
+    'stats.rate': str,
+}, total=False)
+
+
+class IntrinsicSlotNames(enum.Enum):
+    CPU = SlotName('cpu')
+    MEMORY = SlotName('mem')
 
 
 class DefaultForUnspecified(enum.Enum):
@@ -89,7 +139,7 @@ class DefaultForUnspecified(enum.Enum):
     UNLIMITED = 1
 
 
-class HandlerForUnknownSlotType(str, enum.Enum):
+class HandlerForUnknownSlotName(str, enum.Enum):
     DROP = 'drop'
     ERROR = 'error'
 
@@ -230,31 +280,6 @@ class BinarySize(int):
             value = self._quantize(self, multiplier)
             return f'{value}{suffix.lower()}'.strip()
         return super().__format__(format_spec)
-
-
-Allocation = NewType('Allocation', Decimal)
-
-ResourceAllocations = NewType('ResourceAllocations',
-    Mapping[SlotType, Mapping[DeviceId, Allocation]])
-'''
-Represents the mappings of resource slot types and
-their device-allocation pairs.
-
-Example:
-
- + "cpu"
-   - "0": 1.0
-   - "1": 1.0
- + "mem"
-   - "node0": "4g"
-   - "node1": "4g"
- + "cuda.smp"
-   - "0": 20
-   - "1": 10
- + "cuda.mem"
-   - "0": "8g"
-   - "1": "2g"
-'''
 
 
 class ResourceSlot(UserDict):
@@ -475,6 +500,7 @@ class ImageRegistry(TypedDict):
 class ImageConfig(TypedDict):
     canonical: str
     digest: str
+    repo_digest: Optional[str]
     registry: ImageRegistry
     labels: Mapping[str, str]
 
@@ -486,11 +512,22 @@ class ServicePort(TypedDict):
     host_port: Optional[int]
 
 
+class DeviceModelInfo(TypedDict):
+    device_id: DeviceId
+    model_name: str
+
+
 class KernelCreationResult(TypedDict):
     id: KernelId
     container_id: ContainerId
     service_ports: Sequence[ServicePort]
     kernel_host: str
+    resource_spec: Mapping[str, Any]
+    attached_devices: Mapping[DeviceName, Sequence[DeviceModelInfo]]
+    repl_in_port: int
+    repl_out_port: int
+    stdin_port: int     # legacy
+    stdout_port: int    # legacy
 
 
 class KernelCreationConfig(TypedDict):
@@ -498,7 +535,7 @@ class KernelCreationConfig(TypedDict):
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     environ: Mapping[str, str]
     mounts: Sequence[str]              # list of mount expressions
-    idle_timeout: Union[int, float]
+    idle_timeout: int
 
 
 def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
