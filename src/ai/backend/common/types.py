@@ -5,15 +5,24 @@ import ipaddress
 import math
 import numbers
 from typing import (
-    Any, Mapping, Optional,
-    Sequence, Set,
-    NewType
+    Any, Optional, Union,
+    Tuple, Sequence,
+    Mapping,
+    NewType,
 )
+from typing_extensions import TypedDict
 
 import attr
 
 __all__ = (
     'aobject',
+    'DeviceId',
+    'ContainerId',
+    'KernelId',
+    'MetricKey',
+    'PID',
+    'HostPID',
+    'ContainerPID',
     'BinarySize',
     'HostPortPair',
     'DeviceId',
@@ -23,10 +32,7 @@ __all__ = (
     'ResourceAllocations',
     'ResourceSlot',
     'MountPermission',
-
-    # TODO: to be updated
-    'ShareRequest',
-    'SessionRequest',
+    'KernelCreationResult',
 )
 
 
@@ -51,6 +57,28 @@ class aobject(object):
         pass
 
 
+PID = NewType('PID', int)
+HostPID = NewType('HostPID', PID)
+ContainerPID = NewType('ContainerPID', PID)
+
+ContainerId = NewType('ContainerId', str)
+KernelId = NewType('KernelId', str)
+DeviceId = NewType('DeviceId', str)
+
+MetricKey = NewType('MetricKey', str)
+SlotType = NewType('SlotType', str)
+
+
+class MovingStatValues(TypedDict):
+    min: str
+    max: str
+    sum: str
+    avg: str
+    diff: str
+    rate: str
+    version: Optional[int]  # for legacy client compatibility
+
+
 class IntrinsicSlotTypes(str, enum.Enum):
     CPU = 'cpu'
     MEMORY = 'mem'
@@ -65,9 +93,6 @@ class HandlerForUnknownSlotType(str, enum.Enum):
     DROP = 'drop'
     ERROR = 'error'
 
-
-DeviceId = NewType('DeviceId', str)
-SlotType = NewType('SlotType', str)
 
 Quantum = Decimal('0.000')
 
@@ -86,10 +111,10 @@ class MountTypes(str, enum.Enum):
 
 class HostPortPair(namedtuple('HostPortPair', 'host port')):
 
-    def as_sockaddr(self):
+    def as_sockaddr(self) -> Tuple[str, int]:
         return str(self.host), self.port
 
-    def __str__(self):
+    def __str__(self) -> str:
         if isinstance(self.host, ipaddress.IPv6Address):
             return f'[{self.host}]:{self.port}'
         return f'{self.host}:{self.port}'
@@ -236,7 +261,7 @@ class ResourceSlot(UserDict):
 
     __slots__ = ('data', )
 
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
 
     def __add__(self, other):
@@ -321,7 +346,7 @@ class ResourceSlot(UserDict):
         return (not any(s < o for s, o in zip(self_values, other_values)) and
                 not (self_values == other_values))
 
-    def filter_slots(self, known_slots):
+    def filter_slots(self, known_slots) -> 'ResourceSlot':
         if isinstance(known_slots, Mapping):
             slots = {*known_slots.keys()}
         else:
@@ -367,7 +392,7 @@ class ResourceSlot(UserDict):
         return 'count'
 
     @classmethod
-    def from_policy(cls, policy: Mapping[str, Any], slot_types: Mapping):
+    def from_policy(cls, policy: Mapping[str, Any], slot_types: Mapping) -> 'ResourceSlot':
         try:
             data = {
                 k: cls._normalize_value(v, slot_types[k])
@@ -386,7 +411,7 @@ class ResourceSlot(UserDict):
         return cls(data)
 
     @classmethod
-    def from_user_input(cls, obj: Mapping[str, Any], slot_types: Optional[Mapping]):
+    def from_user_input(cls, obj: Mapping[str, Any], slot_types: Optional[Mapping]) -> 'ResourceSlot':
         try:
             if slot_types is None:
                 data = {
@@ -416,7 +441,7 @@ class ResourceSlot(UserDict):
             raise ValueError('unit unknown for slot', e.args[0])
 
     @classmethod
-    def from_json(cls, obj: Mapping[str, Any]):
+    def from_json(cls, obj: Mapping[str, Any]) -> 'ResourceSlot':
         data = {
             k: Decimal(v) for k, v in obj.items()
             if v is not None
@@ -431,29 +456,6 @@ class ResourceSlot(UserDict):
 
 
 @attr.s(auto_attribs=True, slots=True)
-class ShareRequest:
-    '''
-    Represents resource demands in "share" for a specific type of resource.
-
-    **share** is a relative value where its realization is responsible to
-    the specific resource type.  For example, "1.5 CUDA GPU" may be either
-    physically a fraction of one CUDA GPU or fractions spanning across two (or
-    more) CUDA GPUs depending on the actual GPU capacity detected/analyzed by
-    the CUDA accelerator plugin.
-
-    The version and feature set fields are optional -- they are considered
-    meaningful only when specified.  If specified, they indicate the minimum
-    compatible versions required to execute the given compute session.
-    '''
-    slot_type: SlotType
-    device_share: Decimal
-    feature_version: Optional[str] = None
-    feature_set: Set[str] = attr.Factory(set)
-    lib_version: Optional[str] = None
-    driver_version: Optional[str] = None
-
-
-@attr.s(auto_attribs=True, slots=True)
 class VFolderRequest:
     '''
     Represents vfolders for a new compute session request.
@@ -463,59 +465,57 @@ class VFolderRequest:
     permission: MountPermission
 
 
-@attr.s(auto_attribs=True, slots=True)
-class ResourceRequest:
-    '''
-    Represents resource demands for a new compute session request.
-
-    CPU and memory shares are relative values, but you may think
-    1 CPU-share is roughly equivalent to 1 CPU core and 1 memory-share is for 1
-    GiB of the main memory.  Note that this mapping may be changed in the
-    future depending the hardware performance changes.
-    '''
-    shares: Mapping[str, ShareRequest] = attr.Factory(dict)
-    vfolders: Sequence[VFolderRequest] = attr.Factory(list)
-    scratch_disk_size: Optional[BinarySize] = None
-    ignore_numa: bool = False
-    extra: str = ''
-
-    def to_json(self):
-        pass
-
-    @classmethod
-    def from_json(cls):
-        pass
+class ImageRegistry(TypedDict):
+    name: str
+    url: str
+    username: Optional[str]
+    password: Optional[str]
 
 
-@attr.s(auto_attribs=True, slots=True)
-class SessionRequest:
-    '''
-    Represents a new compute session request.
-    '''
-    scaling_group: str
-    cluster_size: int
-    master_image: str
-    master_resource_spec: ResourceRequest
-    # for multi-container sessions
-    worker_image: Optional[str] = None
-    worker_resource_spec: Optional[ResourceRequest] = None
+class ImageConfig(TypedDict):
+    canonical: str
+    digest: str
+    registry: ImageRegistry
+    labels: Mapping[str, str]
 
 
-def _stringify_number(v):
+class ServicePort(TypedDict):
+    name: str
+    protocol: str
+    container_port: int
+    host_port: Optional[int]
+
+
+class KernelCreationResult(TypedDict):
+    id: KernelId
+    container_id: ContainerId
+    service_ports: Sequence[ServicePort]
+    kernel_host: str
+
+
+class KernelCreationConfig(TypedDict):
+    image: ImageConfig
+    resource_slots: Mapping[str, str]  # json form of ResourceSlot
+    environ: Mapping[str, str]
+    mounts: Sequence[str]              # list of mount expressions
+    idle_timeout: Union[int, float]
+
+
+def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
     '''
     Stringify a number, preventing unwanted scientific notations.
     '''
     if isinstance(v, (float, Decimal)):
         if math.isinf(v) and v > 0:
-            v = 'Infinity'
+            result = 'Infinity'
         elif math.isinf(v) and v < 0:
-            v = '-Infinity'
+            result = '-Infinity'
         else:
-            v = '{:f}'.format(v)
+            result = '{:f}'.format(v)
     elif isinstance(v, BinarySize):
-        v = '{:d}'.format(int(v))
+        result = '{:d}'.format(int(v))
     elif isinstance(v, int):
-        v = '{:d}'.format(v)
+        result = '{:d}'.format(v)
     else:
-        v = str(v)
-    return v
+        result = str(v)
+    return result
