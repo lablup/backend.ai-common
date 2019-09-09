@@ -533,6 +533,7 @@ class KernelCreationResult(TypedDict):
 class KernelCreationConfig(TypedDict):
     image: ImageConfig
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
+    resource_opts: Mapping[str, str]  # json form of resource options
     environ: Mapping[str, str]
     mounts: Sequence[str]              # list of mount expressions
     idle_timeout: int
