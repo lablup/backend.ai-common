@@ -94,15 +94,32 @@ ContainerPID = NewType('ContainerPID', PID)
 
 ContainerId = NewType('ContainerId', str)
 KernelId = NewType('KernelId', str)
+SessionId = NewType('SessionId', str)
+
+AgentId = NewType('AgentId', str)
 DeviceName = NewType('DeviceName', str)
 DeviceId = NewType('DeviceId', str)
 SlotName = NewType('SlotName', str)
 MetricKey = NewType('MetricKey', str)
 
+AccessKey = NewType('AccessKey', str)
+SecretKey = NewType('SecretKey', str)
 
-class SlotTypes(str, enum.Enum):
+
+class SlotTypes(enum.Enum):
     COUNT = 'count'
     BYTES = 'bytes'
+
+
+class SessionTypes(enum.Enum):
+    INTERACTIVE = 'interactive'
+    BATCH = 'batch'
+
+
+class SessionResult(enum.Enum):
+    UNDEFINED = 0
+    SUCCESS = 1
+    FAILURE = 2
 
 
 class MovingStatValue(TypedDict):
@@ -139,7 +156,7 @@ class DefaultForUnspecified(enum.Enum):
     UNLIMITED = 1
 
 
-class HandlerForUnknownSlotName(str, enum.Enum):
+class HandlerForUnknownSlotName(enum.Enum):
     DROP = 'drop'
     ERROR = 'error'
 
