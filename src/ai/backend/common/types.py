@@ -106,20 +106,20 @@ AccessKey = NewType('AccessKey', str)
 SecretKey = NewType('SecretKey', str)
 
 
-class SlotTypes(enum.Enum):
+class SlotTypes(str, enum.Enum):
     COUNT = 'count'
     BYTES = 'bytes'
 
 
-class SessionTypes(enum.Enum):
+class SessionTypes(str, enum.Enum):
     INTERACTIVE = 'interactive'
     BATCH = 'batch'
 
 
-class SessionResult(enum.Enum):
-    UNDEFINED = 0
-    SUCCESS = 1
-    FAILURE = 2
+class SessionResult(str, enum.Enum):
+    UNDEFINED = 'undefined'
+    SUCCESS = 'success'
+    FAILURE = 'failure'
 
 
 class MovingStatValue(TypedDict):
@@ -151,12 +151,12 @@ class IntrinsicSlotNames(enum.Enum):
     MEMORY = SlotName('mem')
 
 
-class DefaultForUnspecified(enum.Enum):
-    LIMITED = 0
-    UNLIMITED = 1
+class DefaultForUnspecified(str, enum.Enum):
+    LIMITED = 'LIMITED'
+    UNLIMITED = 'UNLIMITED'
 
 
-class HandlerForUnknownSlotName(enum.Enum):
+class HandlerForUnknownSlotName(str, enum.Enum):
     DROP = 'drop'
     ERROR = 'error'
 
