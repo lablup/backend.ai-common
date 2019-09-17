@@ -3,11 +3,17 @@ An extension module to Trafaret which provides additional type checkers.
 '''
 
 import datetime
+import enum
 import ipaddress
 import os
 from pathlib import Path as _Path
 import re
-from typing import Any, List, Mapping, Optional, Sequence, Tuple
+from typing import (
+    Any, Optional,
+    List, Mapping, Sequence, Tuple,
+    TypeVar, Type,
+)
+from typing_extensions import Literal
 import uuid
 import pwd
 
@@ -23,13 +29,19 @@ from .types import (
 )
 
 __all__ = (
+    'AliasedKey',
+    'MultiKey',
     'BinarySize',
+    'Enum',
+    'IPNetwork',
+    'IPAddress',
     'HostPortPair',
     'Path',
     'PortRange',
     'UserID',
     'GroupID',
     'Slug',
+    'TimeZone',
 )
 
 
@@ -49,7 +61,7 @@ class AliasedKey(t.Key):
     or the renamed key set via ``to_name()`` method or the ``>>`` operator.
     '''
 
-    def __init__(self, names: Sequence[str], **kwargs):
+    def __init__(self, names: Sequence[str], **kwargs) -> None:
         super().__init__(names[0], **kwargs)
         self.names = names
 
@@ -106,9 +118,25 @@ class BinarySize(t.Trafaret):
             self._failure('value is not a valid binary size', value=value)
 
 
+T_enum = TypeVar('T_enum', bound=enum.Enum)
+
+
+class Enum(t.Trafaret):
+
+    def __init__(self, enum_cls: Type[T_enum]) -> None:
+        self.enum_cls = enum_cls
+
+    def check_and_return(self, value: Any) -> T_enum:
+        try:
+            return self.enum_cls(value)
+        except ValueError:
+            self._failure(f'value is not a valid member of {self.enum_cls.__name__}',
+                          value=value)
+
+
 class Path(t.Trafaret):
 
-    def __init__(self, *, type: str,
+    def __init__(self, *, type: Literal['dir', 'file'],
                  base_path: _Path = None,
                  auto_create: bool = False,
                  allow_nonexisting: bool = False,
@@ -166,7 +194,7 @@ class IPAddress(t.Trafaret):
 
 class HostPortPair(t.Trafaret):
 
-    def __init__(self, *, allow_blank_host: bool = False):
+    def __init__(self, *, allow_blank_host: bool = False) -> None:
         super().__init__()
         self._allow_blank_host = allow_blank_host
 
@@ -225,7 +253,7 @@ class PortRange(t.Trafaret):
 
 class UserID(t.Trafaret):
 
-    def __init__(self, *, default_uid: int = None):
+    def __init__(self, *, default_uid: int = None) -> None:
         super().__init__()
         self._default_uid = default_uid
 
@@ -260,7 +288,7 @@ class UserID(t.Trafaret):
 
 class GroupID(t.Trafaret):
 
-    def __init__(self, *, default_gid: int = None):
+    def __init__(self, *, default_gid: int = None) -> None:
         super().__init__()
         self._default_gid = default_gid
 
@@ -323,7 +351,7 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
     _rx_slug = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$')
 
     def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None,
-                 allow_dot: bool = False):
+                 allow_dot: bool = False) -> None:
         super().__init__()
         self._allow_dot = allow_dot
         if min_length is not None and min_length < 0:
