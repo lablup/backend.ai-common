@@ -11,6 +11,7 @@ from typing import (
     NewType, Type, TypeVar,
 )
 from typing_extensions import TypedDict
+import uuid
 
 import attr
 
@@ -93,7 +94,7 @@ HostPID = NewType('HostPID', PID)
 ContainerPID = NewType('ContainerPID', PID)
 
 ContainerId = NewType('ContainerId', str)
-KernelId = NewType('KernelId', str)
+KernelId = NewType('KernelId', uuid.UUID)
 SessionId = NewType('SessionId', str)
 
 AgentId = NewType('AgentId', str)
@@ -549,6 +550,7 @@ class KernelCreationResult(TypedDict):
 
 class KernelCreationConfig(TypedDict):
     image: ImageConfig
+    session_type: str  # value of SessionTypes
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]  # json form of resource options
     environ: Mapping[str, str]
