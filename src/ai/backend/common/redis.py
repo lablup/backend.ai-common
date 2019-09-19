@@ -1,15 +1,13 @@
 import asyncio
 import inspect
 import time
-from typing import Any, Callable, Coroutine, TypeVar, overload
+from typing import Any
 
 import aioredis
 
 __all__ = (
     'execute_with_retries',
 )
-
-_T_ret = TypeVar('_T_ret')
 
 
 async def connect_with_retries(
