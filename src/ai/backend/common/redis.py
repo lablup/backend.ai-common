@@ -47,19 +47,18 @@ async def execute_with_retries(
     while True:
         try:
             if inspect.iscoroutinefunction(func):
-                coro_or_pipe = await func()
+                aw_or_pipe = await func()
             elif callable(func):
-                coro_or_pipe = func()
+                aw_or_pipe = func()
             else:
                 raise TypeError('The func must be a function or a coroutinefunction '
                                 'with no arguments.')
-            if isinstance(coro_or_pipe, aioredis.commands.Pipeline):
-                return await coro_or_pipe.execute()
-            elif (inspect.iscoroutine(coro_or_pipe) or
-                  isinstance(coro_or_pipe, asyncio.Future)):
-                return await coro_or_pipe
+            if isinstance(aw_or_pipe, aioredis.commands.Pipeline):
+                return await aw_or_pipe.execute()
+            elif inspect.isawaitable(aw_or_pipe):
+                return await aw_or_pipe
             else:
-                raise TypeError('The return value must be a coroutine '
+                raise TypeError('The return value must be an awaitable'
                                 'or aioredis.commands.Pipeline object')
         except aioredis.errors.ConnectionForcedCloseError:
             # This happens when we shut down the connection/pool.
