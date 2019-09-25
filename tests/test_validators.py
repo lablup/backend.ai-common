@@ -1,5 +1,6 @@
 from ipaddress import IPv4Address
 
+import enum
 import multidict
 import pytest
 import trafaret as t
@@ -125,6 +126,29 @@ def test_binary_size():
 
     with pytest.raises(t.DataError):
         iv.check('XX')
+
+
+def test_enum():
+
+    class MyTypes(enum.Enum):
+        TYPE1 = 1
+        TYPE2 = 2
+
+    iv = tx.Enum(MyTypes)
+    assert iv.check(1) == MyTypes.TYPE1
+    assert iv.check(2) == MyTypes.TYPE2
+    with pytest.raises(t.DataError):
+        iv.check(3)
+    with pytest.raises(t.DataError):
+        iv.check('STRING')
+
+    iv = tx.Enum(MyTypes, use_name=True)
+    assert iv.check('TYPE1') == MyTypes.TYPE1
+    assert iv.check('TYPE2') == MyTypes.TYPE2
+    with pytest.raises(t.DataError):
+        iv.check('TYPE3')
+    with pytest.raises(t.DataError):
+        iv.check(0)
 
 
 def test_path():

@@ -123,13 +123,17 @@ T_enum = TypeVar('T_enum', bound=enum.Enum)
 
 class Enum(t.Trafaret):
 
-    def __init__(self, enum_cls: Type[T_enum]) -> None:
+    def __init__(self, enum_cls: Type[T_enum], *, use_name: bool = False) -> None:
         self.enum_cls = enum_cls
+        self.use_name = use_name
 
     def check_and_return(self, value: Any) -> T_enum:
         try:
-            return self.enum_cls(value)
-        except ValueError:
+            if self.use_name:
+                return self.enum_cls[value]
+            else:
+                return self.enum_cls(value)
+        except (KeyError, ValueError):
             self._failure(f'value is not a valid member of {self.enum_cls.__name__}',
                           value=value)
 
