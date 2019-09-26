@@ -4,7 +4,7 @@ import functools
 from importlib import import_module
 import re
 from types import FunctionType
-from typing import Optional, Union
+from typing import Any, Optional, Union, Type, cast
 
 import click
 
@@ -55,13 +55,13 @@ class LazyGroup(LazyClickMixin, click.Group):
 
 class EnumChoice(click.Choice):
 
-    enum: Enum
+    enum: Type[Enum]
 
-    def __init__(self, enum: Enum):
-        super().__init__([*enum._member_map_.keys()])
+    def __init__(self, enum: Type[Enum]):
+        super().__init__([*cast(Enum, enum)._member_map_.keys()])
         self.enum = enum
 
-    def convert(self, value, param, ctx):
+    def convert(self, value: Any, param, ctx):
         if isinstance(value, self.enum):
             # for default value, it is already the enum type.
             return next(e for e in self.enum if e == value)
