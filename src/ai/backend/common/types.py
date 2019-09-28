@@ -33,6 +33,7 @@ __all__ = (
     'IntrinsicSlotNames',
     'ResourceSlot',
     'MountPermission',
+    'KernelCreationConfig',
     'KernelCreationResult',
 )
 
@@ -550,12 +551,13 @@ class KernelCreationResult(TypedDict):
 
 class KernelCreationConfig(TypedDict):
     image: ImageConfig
-    session_type: str  # value of SessionTypes
+    session_type: str                  # value of SessionTypes
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
-    resource_opts: Mapping[str, str]  # json form of resource options
+    resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
     mounts: Sequence[str]              # list of mount expressions
     idle_timeout: int
+    startup_command: Optional[str]
 
 
 def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
