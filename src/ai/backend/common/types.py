@@ -527,8 +527,8 @@ class ImageConfig(TypedDict):
 class ServicePort(TypedDict):
     name: str
     protocol: str
-    container_port: int
-    host_port: Optional[int]
+    container_ports: Sequence[int]
+    host_ports: Sequence[Optional[int]]
 
 
 class DeviceModelInfo(TypedDict):
@@ -558,6 +558,7 @@ class KernelCreationConfig(TypedDict):
     mounts: Sequence[str]              # list of mount expressions
     idle_timeout: int
     startup_command: Optional[str]
+    internal_data: Optional[Mapping[str, Any]]
 
 
 def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
