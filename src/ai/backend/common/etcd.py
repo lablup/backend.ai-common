@@ -17,6 +17,7 @@ import time
 from typing import AsyncGenerator, Iterable, Mapping, Optional, Tuple
 from urllib.parse import quote as _quote, unquote
 
+from aiotools import aclosing
 import etcd3
 from etcd3 import etcdrpc
 from etcd3.client import EtcdTokenCallCredentials
@@ -34,6 +35,8 @@ __all__ = (
 Event = namedtuple('Event', 'key event value')
 
 log = BraceStyleAdapter(logging.getLogger(__name__))
+
+sentinel = object()
 
 
 class ConfigScopes(enum.Enum):
@@ -334,6 +337,13 @@ class AsyncEtcd:
             ev_type = 'put'
         elif isinstance(ev, etcd3.events.DeleteEvent):
             ev_type = 'delete'
+        elif isinstance(ev, grpc.RpcError):
+            if ev.code() == grpc.StatusCode.UNAVAILABLE:
+                # server restarting or terminated
+                self.loop.call_soon_threadsafe(queue.put_nowait, sentinel)
+                return
+            else:
+                raise RuntimeError(f'Unexpected RPC Error: {ev}')
         else:
             raise TypeError('Not recognized etcd event type.')
         # etcd3 library uses a separate thread for its watchers.
@@ -384,10 +394,18 @@ class AsyncEtcd:
         scope_prefix_len = len(f'{_slash(scope_prefix)}')
         key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         # NOTE: yield from in async-generator is not supported.
-        async for ev in self._watch_impl(key, ready_event):
-            yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
-            if once:
-                break
+        while True:
+            try:
+                async with aclosing(self._watch_impl(key, ready_event)) as agen:
+                    async for ev in agen:
+                        if ev is sentinel:
+                            log.debug('watch(): etcd connection closed, restarting watch')
+                            break
+                        yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
+                        if once:
+                            return
+            except asyncio.CancelledError:
+                return
 
     async def watch_prefix(self, key_prefix: str, *,
                            scope: ConfigScopes = ConfigScopes.GLOBAL,
@@ -399,7 +417,15 @@ class AsyncEtcd:
         scope_prefix_len = len(f'{_slash(scope_prefix)}')
         key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
         range_end = etcd3.utils.increment_last_byte(etcd3.utils.to_bytes(key_prefix))
-        async for ev in self._watch_impl(key_prefix, ready_event, range_end=range_end):
-            yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
-            if once:
-                break
+        while True:
+            try:
+                async with aclosing(self._watch_impl(key_prefix, ready_event, range_end=range_end)) as agen:
+                    async for ev in agen:
+                        if ev is sentinel:
+                            log.debug('watch_prefix(): etcd connection closed, restarting watch')
+                            break
+                        yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
+                        if once:
+                            return
+            except asyncio.CancelledError:
+                return
