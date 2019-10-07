@@ -379,7 +379,7 @@ class AsyncEtcd:
                 yield ev
                 queue.task_done()
         except asyncio.CancelledError:
-            pass
+            raise
         finally:
             await self._cancel_watch(watch_id)
             del queue
