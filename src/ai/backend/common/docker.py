@@ -88,7 +88,7 @@ async def login(
                     'Authorization': f'Bearer {token}'
                 }}
     raise RuntimeError('authentication for docker registry '
-                       'f{registry_url} failed')
+                       f'{registry_url} failed')
 
 
 async def get_known_registries(etcd: AsyncEtcd) -> Mapping[str, yarl.URL]:
