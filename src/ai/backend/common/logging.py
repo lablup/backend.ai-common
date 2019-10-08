@@ -296,12 +296,14 @@ class Logger():
         # block signals that may interrupt/corrupt logging
         stop_signals = {signal.SIGINT, signal.SIGTERM}
         signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
-        proc = mp.Process(target=log_worker, name='Logger',
-                          args=(self.daemon_config, os.getpid(), self.log_queue))
-        proc.start()
+        self.proc = mp.Process(
+            target=log_worker, name='Logger',
+            args=(self.daemon_config, os.getpid(), self.log_queue))
+        self.proc.start()
         signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
         # reset process counter
         mp.process._process_counter = itertools.count(0)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, *exc_info_args):
         self.log_queue.put(None)
+        self.proc.join()
