@@ -117,7 +117,7 @@ class AsyncEtcd:
                     password=credentials.get('password') if credentials else None)
                 break
             except grpc.RpcError as e:
-                if e.code() == grpc.StatusCode.UNAVAILABLE:
+                if e.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.UNKNOWN):
                     log.debug('etcd3 connection failed. retrying after 1 sec...')
                     time.sleep(1)
                     continue
@@ -338,7 +338,7 @@ class AsyncEtcd:
         elif isinstance(ev, etcd3.events.DeleteEvent):
             ev_type = 'delete'
         elif isinstance(ev, grpc.RpcError):
-            if ev.code() == grpc.StatusCode.UNAVAILABLE:
+            if ev.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.UNKNOWN):
                 # server restarting or terminated
                 self.loop.call_soon_threadsafe(queue.put_nowait, sentinel)
                 return
