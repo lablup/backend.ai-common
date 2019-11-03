@@ -14,7 +14,10 @@ import enum
 import functools
 import logging
 import time
-from typing import AsyncGenerator, Iterable, Mapping, Optional, Tuple
+from typing import (
+    Any, Awaitable, Callable, Iterable, Union,
+    AsyncGenerator, Mapping, Optional, Tuple,
+)
 from urllib.parse import quote as _quote, unquote
 
 from aiotools import aclosing
@@ -96,6 +99,36 @@ async def reauthenticate(etcd_sync, creds, executor):
         EtcdTokenCallCredentials(resp.token))
 
 
+def reconn_reauth_adaptor(meth: Callable[..., Awaitable[Any]]):
+    @functools.wraps(meth)
+    async def wrapped(self, *args, **kwargs):
+        num_reauth_tries = 0
+        num_reconn_tries = 0
+        while True:
+            try:
+                return await meth(self, *args, **kwargs)
+            except etcd3.exceptions.ConnectionFailedError:
+                if num_reconn_tries >= 30:
+                    log.warning('etcd3 connection failed more than %d times. retrying after 1 sec...',
+                                num_reconn_tries)
+                else:
+                    log.debug('etcd3 connection failed. retrying after 1 sec...')
+                await asyncio.sleep(1.0)
+                num_reconn_tries += 1
+                continue
+            except grpc.RpcError as e:
+                if e.code() == grpc.StatusCode.UNAUTHENTICATED and self._creds:
+                    if num_reauth_tries > 0:
+                        raise
+                    await reauthenticate(self.etcd_sync, self._creds, self.executor)
+                    log.debug('etcd3 reauthenticated due to auth token expiration.')
+                    num_reauth_tries += 1
+                    continue
+                else:
+                    raise
+    return wrapped
+
+
 class AsyncEtcd:
 
     def __init__(self, addr: HostPortPair, namespace: str,
@@ -126,12 +159,12 @@ class AsyncEtcd:
         log.info('using etcd cluster from {} with namespace "{}"', addr, namespace)
         self.encoding = encoding
 
-    def _mangle_key(self, k):
+    def _mangle_key(self, k: str) -> bytes:
         if k.startswith('/'):
             k = k[1:]
         return f'/sorna/{self.ns}/{k}'.encode(self.encoding)
 
-    def _demangle_key(self, k):
+    def _demangle_key(self, k: Union[bytes, str]) -> str:
         if isinstance(k, bytes):
             k = k.decode(self.encoding)
         prefix = f'/sorna/{self.ns}/'
@@ -139,45 +172,16 @@ class AsyncEtcd:
             k = k[len(prefix):]
         return k
 
-    def reconn_reauth_adaptor(meth):
-        @functools.wraps(meth)
-        async def wrapped(self, *args, **kwargs):
-            num_reauth_tries = 0
-            num_reconn_tries = 0
-            while True:
-                try:
-                    return await meth(self, *args, **kwargs)
-                except etcd3.exceptions.ConnectionFailedError:
-                    if num_reconn_tries >= 30:
-                        log.warning('etcd3 connection failed more than %d times. retrying after 1 sec...',
-                                    num_reconn_tries)
-                    else:
-                        log.debug('etcd3 connection failed. retrying after 1 sec...')
-                    await asyncio.sleep(1.0)
-                    num_reconn_tries += 1
-                    continue
-                except grpc.RpcError as e:
-                    if e.code() == grpc.StatusCode.UNAUTHENTICATED and self._creds:
-                        if num_reauth_tries > 0:
-                            raise
-                        await reauthenticate(self.etcd_sync, self._creds, self.executor)
-                        log.debug('etcd3 reauthenticated due to auth token expiration.')
-                        num_reauth_tries += 1
-                        continue
-                    else:
-                        raise
-        return wrapped
-
     @reconn_reauth_adaptor
     async def put(self, key: str, val: str, *,
                   scope: ConfigScopes = ConfigScopes.GLOBAL,
                   scope_prefix_map: Mapping[ConfigScopes, str] = None):
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
+        mangled_key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         return await self.loop.run_in_executor(
             self.executor,
-            lambda: self.etcd_sync.put(key, str(val).encode(self.encoding)))
+            lambda: self.etcd_sync.put(mangled_key, str(val).encode(self.encoding)))
 
     @reconn_reauth_adaptor
     async def put_dict(self, dict_obj: Mapping[str, str], *,
@@ -202,10 +206,10 @@ class AsyncEtcd:
                   -> Optional[str]:
 
         async def get_impl(key: str) -> Optional[str]:
-            key = self._mangle_key(key)
+            mangled_key = self._mangle_key(key)
             val, _ = await self.loop.run_in_executor(
                 self.executor,
-                lambda: self.etcd_sync.get(key))
+                lambda: self.etcd_sync.get(mangled_key))
             return val.decode(self.encoding) if val is not None else None
 
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
@@ -244,10 +248,10 @@ class AsyncEtcd:
                          -> Mapping[str, Optional[str]]:
 
         async def get_prefix_impl(key_prefix: str) -> Iterable[Tuple[str, str]]:
-            key_prefix = self._mangle_key(key_prefix)
+            mangled_key_prefix = self._mangle_key(key_prefix)
             results = await self.loop.run_in_executor(
                 self.executor,
-                lambda: self.etcd_sync.get_prefix(key_prefix))
+                lambda: self.etcd_sync.get_prefix(mangled_key_prefix))
             return ((self._demangle_key(t[1].key),
                      t[0].decode(self.encoding))
                     for t in results)
@@ -289,10 +293,10 @@ class AsyncEtcd:
                       scope_prefix_map: Mapping[ConfigScopes, str] = None) -> bool:
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
+        mangled_key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         success = await self.loop.run_in_executor(
             self.executor,
-            lambda: self.etcd_sync.replace(key, initial_val, new_val))
+            lambda: self.etcd_sync.replace(mangled_key, initial_val, new_val))
         return success
 
     @reconn_reauth_adaptor
@@ -301,10 +305,10 @@ class AsyncEtcd:
                      scope_prefix_map: Mapping[ConfigScopes, str] = None):
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
+        mangled_key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         return await self.loop.run_in_executor(
             self.executor,
-            lambda: self.etcd_sync.delete(key))
+            lambda: self.etcd_sync.delete(mangled_key))
 
     @reconn_reauth_adaptor
     async def delete_multi(self, keys: Iterable[str], *,
@@ -327,10 +331,10 @@ class AsyncEtcd:
                             scope_prefix_map: Mapping[ConfigScopes, str] = None):
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
-        key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
+        mangled_key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
         return await self.loop.run_in_executor(
             self.executor,
-            lambda: self.etcd_sync.delete_prefix(key_prefix))
+            lambda: self.etcd_sync.delete_prefix(mangled_key_prefix))
 
     def _watch_cb(self, queue: asyncio.Queue, ev: etcd3.events.Event) -> None:
         if isinstance(ev, etcd3.events.PutEvent):
@@ -355,7 +359,7 @@ class AsyncEtcd:
         self.loop.call_soon_threadsafe(queue.put_nowait, event)
 
     @reconn_reauth_adaptor
-    async def _add_watch_callback(self, raw_key, cb, **kwargs):
+    async def _add_watch_callback(self, raw_key: bytes, cb, **kwargs):
         return await self.loop.run_in_executor(
             self.executor,
             lambda: self.etcd_sync.add_watch_callback(raw_key, cb, **kwargs))
@@ -366,7 +370,7 @@ class AsyncEtcd:
             self.executor,
             lambda: self.etcd_sync.cancel_watch(watch_id))
 
-    async def _watch_impl(self, raw_key: str, ready_event: asyncio.Event = None, **kwargs) \
+    async def _watch_impl(self, raw_key: bytes, ready_event: asyncio.Event = None, **kwargs) \
                          -> AsyncGenerator[Event, None]:
         queue: asyncio.Queue = asyncio.Queue(loop=self.loop)
         cb = functools.partial(self._watch_cb, queue)
@@ -392,11 +396,11 @@ class AsyncEtcd:
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
         scope_prefix_len = len(f'{_slash(scope_prefix)}')
-        key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
+        mangled_key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         # NOTE: yield from in async-generator is not supported.
         while True:
             try:
-                async with aclosing(self._watch_impl(key, ready_event)) as agen:
+                async with aclosing(self._watch_impl(mangled_key, ready_event)) as agen:
                     async for ev in agen:
                         if ev is sentinel:
                             log.debug('watch(): etcd connection closed, restarting watch')
@@ -415,11 +419,11 @@ class AsyncEtcd:
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
         scope_prefix_len = len(f'{_slash(scope_prefix)}')
-        key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
-        range_end = etcd3.utils.increment_last_byte(etcd3.utils.to_bytes(key_prefix))
+        mangled_key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
+        range_end = etcd3.utils.increment_last_byte(etcd3.utils.to_bytes(mangled_key_prefix))
         while True:
             try:
-                async with aclosing(self._watch_impl(key_prefix, ready_event, range_end=range_end)) as agen:
+                async with aclosing(self._watch_impl(mangled_key_prefix, ready_event, range_end=range_end)) as agen:
                     async for ev in agen:
                         if ev is sentinel:
                             log.debug('watch_prefix(): etcd connection closed, restarting watch')
