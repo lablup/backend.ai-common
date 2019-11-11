@@ -124,6 +124,11 @@ class SessionResult(str, enum.Enum):
     FAILURE = 'failure'
 
 
+class ServicePortProtocols(str, enum.Enum):
+    HTTP = 'http'
+    TCP = 'tcp'
+
+
 class MovingStatValue(TypedDict):
     min: str
     max: str
@@ -526,7 +531,7 @@ class ImageConfig(TypedDict):
 
 class ServicePort(TypedDict):
     name: str
-    protocol: str
+    protocol: ServicePortProtocols
     container_ports: Sequence[int]
     host_ports: Sequence[Optional[int]]
 
