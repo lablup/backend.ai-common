@@ -35,6 +35,7 @@ __all__ = (
     'MountPermission',
     'KernelCreationConfig',
     'KernelCreationResult',
+    'ServicePortProtocols',
 )
 
 
@@ -133,11 +134,6 @@ class SessionResult(str, enum.Enum):
     UNDEFINED = 'undefined'
     SUCCESS = 'success'
     FAILURE = 'failure'
-
-
-class ServicePortProtocols(str, enum.Enum):
-    HTTP = 'http'
-    TCP = 'tcp'
 
 
 class MovingStatValue(TypedDict):
