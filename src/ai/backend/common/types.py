@@ -5,7 +5,7 @@ import ipaddress
 import math
 import numbers
 from typing import (
-    Any, Optional, Union,
+    Any, Optional, Union, Literal,
     Tuple, Sequence,
     Mapping,
     NewType, Type, TypeVar,
@@ -111,6 +111,17 @@ SecretKey = NewType('SecretKey', str)
 class SlotTypes(str, enum.Enum):
     COUNT = 'count'
     BYTES = 'bytes'
+
+
+class AutoPullBehavior(str, enum.Enum):
+    DIGEST = 'digest'
+    TAG = 'tag'
+    NONE = 'none'
+
+
+class ServicePortProtocols(str, enum.Enum):
+    HTTP = 'http'
+    TCP = 'tcp'
 
 
 class SessionTypes(str, enum.Enum):
@@ -526,7 +537,7 @@ class ImageConfig(TypedDict):
 
 class ServicePort(TypedDict):
     name: str
-    protocol: str
+    protocol: Literal['http', 'tcp']  # values of ServicePortProtocols
     container_ports: Sequence[int]
     host_ports: Sequence[Optional[int]]
 
@@ -551,7 +562,8 @@ class KernelCreationResult(TypedDict):
 
 class KernelCreationConfig(TypedDict):
     image: ImageConfig
-    session_type: str                  # value of SessionTypes
+    auto_pull: Literal['digest', 'tag', 'none']    # values of AutoPullBehavior
+    session_type: Literal['batch', 'interactive']  # values of SessionTypes
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
