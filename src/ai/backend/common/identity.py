@@ -7,7 +7,9 @@ import logging
 import os
 import socket
 import sys
-from typing import Iterable, Optional
+from typing import (
+    Awaitable, Callable, Iterable, Optional,
+)
 from pathlib import Path
 
 import aiodns
@@ -102,11 +104,11 @@ else:
     log.info(f'Detected environment: {current_provider} cloud')
     log.info('The agent node ID will follow the instance ID.')
 
-_defined = False
-get_instance_id = None
-get_instance_ip = None
-get_instance_type = None
-get_instance_region = None
+_defined: bool = False
+get_instance_id: Callable[[], Awaitable[str]]
+get_instance_ip: Callable[[], Awaitable[str]]
+get_instance_type: Callable[[], Awaitable[str]]
+get_instance_region: Callable[[], Awaitable[str]]
 
 
 def _define_functions():
