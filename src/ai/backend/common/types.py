@@ -5,7 +5,7 @@ import ipaddress
 import math
 import numbers
 from typing import (
-    Any, Optional, Union, Literal,
+    Any, Optional, Union,
     Tuple, Sequence,
     Mapping,
     NewType, Type, TypeVar,
@@ -563,8 +563,8 @@ class KernelCreationResult(TypedDict):
 
 class KernelCreationConfig(TypedDict):
     image: ImageConfig
-    auto_pull: Literal['digest', 'tag', 'none']    # values of AutoPullBehavior
-    session_type: Literal['batch', 'interactive']  # values of SessionTypes
+    auto_pull: AutoPullBehavior
+    session_type: SessionTypes
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
