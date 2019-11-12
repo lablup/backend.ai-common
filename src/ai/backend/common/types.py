@@ -35,6 +35,7 @@ __all__ = (
     'MountPermission',
     'KernelCreationConfig',
     'KernelCreationResult',
+    'ServicePortProtocols',
 )
 
 
@@ -113,6 +114,17 @@ class SlotTypes(str, enum.Enum):
     BYTES = 'bytes'
 
 
+class AutoPullBehavior(str, enum.Enum):
+    DIGEST = 'digest'
+    TAG = 'tag'
+    NONE = 'none'
+
+
+class ServicePortProtocols(str, enum.Enum):
+    HTTP = 'http'
+    TCP = 'tcp'
+
+
 class SessionTypes(str, enum.Enum):
     INTERACTIVE = 'interactive'
     BATCH = 'batch'
@@ -122,11 +134,6 @@ class SessionResult(str, enum.Enum):
     UNDEFINED = 'undefined'
     SUCCESS = 'success'
     FAILURE = 'failure'
-
-
-class ServicePortProtocols(str, enum.Enum):
-    HTTP = 'http'
-    TCP = 'tcp'
 
 
 class MovingStatValue(TypedDict):
@@ -556,7 +563,8 @@ class KernelCreationResult(TypedDict):
 
 class KernelCreationConfig(TypedDict):
     image: ImageConfig
-    session_type: str                  # value of SessionTypes
+    auto_pull: AutoPullBehavior
+    session_type: SessionTypes
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]

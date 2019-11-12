@@ -20,6 +20,16 @@ class UnknownImageReference(ValueError):
         return f'Unknown image reference: {self.args[0]}'
 
 
+class ImageNotAvailable(ValueError):
+    '''
+    Represents an error for unavailability of the image in agents.
+    The first argument of this exception should be the reference given by the user.
+    '''
+
+    def __str__(self):
+        return f'Unavailable image in the agent: {self.args[0]}'
+
+
 class UnknownImageRegistry(ValueError):
     '''
     Represents an error for invalid/unknown image registry.
