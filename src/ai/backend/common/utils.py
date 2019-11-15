@@ -2,10 +2,12 @@
 import asyncio
 import base64
 from collections import OrderedDict
+from contextlib import closing
 import enum
 from itertools import chain
 import numbers
 import sys
+import socket
 import uuid
 
 import aiohttp
@@ -56,6 +58,13 @@ def generate_uuid():
     u = uuid.uuid4()
     # Strip the last two padding characters because u always has fixed length.
     return base64.urlsafe_b64encode(u.bytes)[:-2].decode('ascii')
+
+
+def find_free_port(bind_addr: str = '127.0.0.1') -> int:
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind((bind_addr, 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 
 def nmget(o, key_path, def_val=None, path_delimiter='.', null_as_default=True):

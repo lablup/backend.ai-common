@@ -6,13 +6,20 @@ import logging, logging.config, logging.handlers
 import multiprocessing as mp
 import os
 from pathlib import Path
+import pickle
+from typing import (
+    Any,
+    Mapping, MutableMapping,
+)
 import signal
 import socket
 import ssl
+import sys
 
 from setproctitle import setproctitle
 from pythonjsonlogger.jsonlogger import JsonFormatter
 import trafaret as t
+from tblib import pickling_support
 import zmq
 
 from . import config
@@ -155,10 +162,46 @@ class CustomJsonFormatter(JsonFormatter):
             log_record['level'] = record.levelname
 
 
-def log_worker(daemon_config, parent_pid, log_queue):
+def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_port: int) -> None:
     setproctitle(f'backend.ai: logger pid({parent_pid})')
+    console_handler = None
     file_handler = None
     logstash_handler = None
+
+    log_formats = {
+        'simple': '%(levelname)s %(message)s',
+        'verbose': '%(asctime)s %(levelname)s %(name)s [%(process)d] %(message)s',
+    }
+
+    if 'console' in daemon_config['drivers']:
+        drv_config = daemon_config['console']
+        console_formatter: logging.Formatter
+        if drv_config['colored']:
+            import coloredlogs
+            console_formatter = coloredlogs.ColoredFormatter(
+                log_formats[drv_config['format']],
+                field_styles={'levelname': {'color': 248, 'bold': True},
+                              'name': {'color': 246, 'bold': False},
+                              'process': {'color': 'cyan'},
+                              'asctime': {'color': 240}},
+                level_styles={'debug': {'color': 'green'},
+                              'verbose': {'color': 'green', 'bright': True},
+                              'info': {'color': 'cyan', 'bright': True},
+                              'notice': {'color': 'cyan', 'bold': True},
+                              'warning': {'color': 'yellow'},
+                              'error': {'color': 'red', 'bright': True},
+                              'success': {'color': 77},
+                              'critical': {'background': 'red', 'color': 255, 'bold': True}},
+            )
+        else:
+            console_formatter = logging.Formatter(
+                log_formats[drv_config['format']],
+            )
+        console_handler = logging.StreamHandler(
+            stream=sys.stderr,
+        )
+        console_handler.setLevel(daemon_config['level'])
+        console_handler.setFormatter(console_formatter)
 
     if 'file' in daemon_config['drivers']:
         drv_config = daemon_config['file']
@@ -183,11 +226,20 @@ def log_worker(daemon_config, parent_pid, log_queue):
         )
         logstash_handler.setLevel(daemon_config['level'])
 
+    zctx = zmq.Context()
+    agg_sock = zctx.socket(zmq.PULL)
+    agg_sock.bind(f'tcp://127.0.0.1:{log_port}')
+    # The log worker must be terminated via explicit sentinel.
+    stop_signals = {signal.SIGINT, signal.SIGTERM}
+    signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
     try:
         while True:
-            rec = log_queue.get()
+            data = agg_sock.recv()
+            rec = pickle.loads(data)
             if rec is None:
                 break
+            if console_handler:
+                console_handler.emit(rec)
             if file_handler:
                 file_handler.emit(rec)
             if logstash_handler:
@@ -195,12 +247,44 @@ def log_worker(daemon_config, parent_pid, log_queue):
     finally:
         if logstash_handler:
             logstash_handler.cleanup()
+        agg_sock.close()
+        zctx.term()
+
+
+class RelayHandler(logging.Handler):
+
+    def __init__(self, *, port: int) -> None:
+        super().__init__()
+        self.endpoint = f'tcp://127.0.0.1:{port}'
+        self.port = port
+        self._zctx = zmq.Context()
+        self._sock = self._zctx.socket(zmq.PUSH)
+        self._sock.connect(self.endpoint)
+
+    def close(self) -> None:
+        self._sock.close()
+        self._zctx.term()
+
+    def emit(self, record):
+        try:
+            self._sock.send(pickle.dumps(record))
+        except zmq.ZMQError:
+            # fallback to default logging
+            print(logging._defaultFormatter.format(record), file=sys.stderr)
 
 
 class Logger():
 
-    def __init__(self, daemon_config):
+    is_master: bool
+    log_port: int
+    daemon_config: Mapping[str, Any]
+    log_config: MutableMapping[str, Any]
+    proc: mp.Process
+
+    def __init__(self, daemon_config: MutableMapping[str, Any], *,
+                 is_master: bool, log_port: int) -> None:
         legacy_logfile_path = os.environ.get('BACKEND_LOG_FILE')
+        pickling_support.install()  # enable pickling of tracebacks
         if legacy_logfile_path:
             p = Path(legacy_logfile_path)
             config.override_key(daemon_config, ('file', 'path'), p.parent)
@@ -221,16 +305,12 @@ class Logger():
         _check_driver_config_exists_if_activated(cfg, 'file')
         _check_driver_config_exists_if_activated(cfg, 'logstash')
 
+        self.is_master = is_master
+        self.log_port = log_port
         self.daemon_config = cfg
-        self.log_formats = {
-            'simple': '%(levelname)s %(message)s',
-            'verbose': '%(asctime)s %(levelname)s %(name)s [%(process)d] %(message)s',
-        }
         self.log_config = {
             'version': 1,
             'disable_existing_loggers': False,
-            'formatters': {
-            },
             'handlers': {
                 'null': {'class': 'logging.NullHandler'},
             },
@@ -241,69 +321,28 @@ class Logger():
         }
 
     def __enter__(self):
-        self.log_queue = mp.Queue()
-
-        if 'console' in self.daemon_config['drivers']:
-            drv_config = self.daemon_config['console']
-            if drv_config['colored']:
-                self.log_config['formatters']['console'] = {
-                    '()': 'coloredlogs.ColoredFormatter',
-                    'format': self.log_formats[drv_config['format']],
-                    'field_styles': {'levelname': {'color': 248, 'bold': True},
-                                     'name': {'color': 246, 'bold': False},
-                                     'process': {'color': 'cyan'},
-                                     'asctime': {'color': 240}},
-                    'level_styles': {'debug': {'color': 'green'},
-                                     'verbose': {'color': 'green', 'bright': True},
-                                     'info': {'color': 'cyan', 'bright': True},
-                                     'notice': {'color': 'cyan', 'bold': True},
-                                     'warning': {'color': 'yellow'},
-                                     'error': {'color': 'red', 'bright': True},
-                                     'success': {'color': 77},
-                                     'critical': {'background': 'red', 'color': 255, 'bold': True}},
-                }
-            else:
-                self.log_config['formatters']['console'] = {
-                    'class': 'logging.Formatter',
-                    'format': self.log_formats[drv_config['format']],
-                }
-            self.log_config['handlers']['console'] = {
-                'class': 'logging.StreamHandler',
-                'level': self.daemon_config['level'],
-                'formatter': 'console',
-                'stream': 'ext://sys.stderr',
-            }
-            for l in self.log_config['loggers'].values():
-                l['handlers'].append('console')
-
-        def _activate_aggregator():
-            if 'aggregator' not in self.log_config['handlers']:
-                self.log_config['handlers']['aggregator'] = {
-                    'class': 'logging.handlers.QueueHandler',
-                    'level': self.daemon_config['level'],
-                    'queue': self.log_queue,
-                }
-                for l in self.log_config['loggers'].values():
-                    l['handlers'].append('aggregator')
-
-        if 'file' in self.daemon_config['drivers']:
-            _activate_aggregator()
-
-        if 'logstash' in self.daemon_config['drivers']:
-            _activate_aggregator()
-
+        self.log_config['handlers']['aggregator'] = {
+            'class': 'ai.backend.common.logging.RelayHandler',
+            'level': self.daemon_config['level'],
+            'port': self.log_port,
+        }
+        for l in self.log_config['loggers'].values():
+            l['handlers'].append('aggregator')
         logging.config.dictConfig(self.log_config)
         # block signals that may interrupt/corrupt logging
-        stop_signals = {signal.SIGINT, signal.SIGTERM}
-        signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
-        self.proc = mp.Process(
-            target=log_worker, name='Logger',
-            args=(self.daemon_config, os.getpid(), self.log_queue))
-        self.proc.start()
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
-        # reset process counter
-        mp.process._process_counter = itertools.count(0)
+        if self.is_master:
+            stop_signals = {signal.SIGINT, signal.SIGTERM}
+            signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
+            self.proc = mp.Process(
+                target=log_worker, name='Logger',
+                args=(self.daemon_config, os.getpid(), self.log_port))
+            self.proc.start()
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
+            # reset process counter
+            mp.process._process_counter = itertools.count(0)
 
     def __exit__(self, *exc_info_args):
-        self.log_queue.put(None)
-        self.proc.join()
+        if self.is_master:
+            relay_handler = logging.getLogger('').handlers[0]
+            relay_handler.emit(None)
+            self.proc.join()
