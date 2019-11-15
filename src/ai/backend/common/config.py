@@ -8,6 +8,7 @@ from typing import (
 )
 
 import toml
+from toml.decoder import InlineTableDict
 import trafaret as t
 
 from . import validators as tx
@@ -37,6 +38,7 @@ etcd_config_iv = t.Dict({
 
 
 def read_from_file(toml_path: Optional[Union[Path, str]], daemon_name: str):
+    config: Mapping[str, Any]
     if toml_path is None:
         toml_path_from_env = os.environ.get('BACKEND_CONFIG_FILE', None)
         if not toml_path_from_env:
@@ -56,7 +58,9 @@ def read_from_file(toml_path: Optional[Union[Path, str]], daemon_name: str):
             toml_paths = [Path(toml_path_from_env)]
         for _path in toml_paths:
             if _path.is_file():
-                return toml.loads(_path.read_text()), _path
+                config = toml.loads(_path.read_text())
+                config = _sanitize_inline_dicts(config)
+                return config, _path
         else:
             searched_paths = ','.join(map(str, toml_paths))
             raise ConfigurationError({
@@ -66,6 +70,7 @@ def read_from_file(toml_path: Optional[Union[Path, str]], daemon_name: str):
         _path = Path(toml_path)
         try:
             config = toml.loads(_path.read_text())
+            config = _sanitize_inline_dicts(config)
         except IOError:
             raise ConfigurationError({
                 'read_from_file()': f"Could not read config from: {_path}",
@@ -81,7 +86,10 @@ async def read_from_etcd(etcd_config: Mapping[str, Any],
     raw_value = await etcd.get('daemon/config')
     if raw_value is None:
         return None
-    return toml.loads(raw_value)
+    config: Mapping[str, Any]
+    config = toml.loads(raw_value)
+    config = _sanitize_inline_dicts(config)
+    return config
 
 
 def override_key(table: MutableMapping[str, Any], key_path: Tuple[str, ...], value: Any):
@@ -115,6 +123,20 @@ def merge(table: Mapping[str, Any], updates: Mapping[str, Any]) -> Mapping[str, 
             orig = result.get(k, {})
             assert isinstance(orig, Mapping)
             result[k] = merge(orig, v)
+        else:
+            result[k] = v
+    return result
+
+
+def _sanitize_inline_dicts(table: Mapping[str, Any]) -> Mapping[str, Any]:
+    result: MutableMapping[str, Any] = {}
+    for k, v in table.items():
+        if isinstance(v, InlineTableDict):
+            # Since this function always returns a copied dict,
+            # this automatically converts InlineTableDict to dict.
+            result[k] = _sanitize_inline_dicts(v)
+        elif isinstance(v, Mapping):
+            result[k] = _sanitize_inline_dicts(v)
         else:
             result[k] = v
     return result
