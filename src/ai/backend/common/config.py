@@ -3,8 +3,9 @@ from pathlib import Path
 import sys
 from typing import (
     Any, Optional, Union,
-    Mapping, MutableMapping,
+    Dict, Mapping, MutableMapping,
     Tuple,
+    cast,
 )
 
 import toml
@@ -37,57 +38,60 @@ etcd_config_iv = t.Dict({
 }).allow_extra('*')
 
 
-def read_from_file(toml_path: Optional[Union[Path, str]], daemon_name: str):
-    config: Mapping[str, Any]
-    if toml_path is None:
-        toml_path_from_env = os.environ.get('BACKEND_CONFIG_FILE', None)
-        if not toml_path_from_env:
-            toml_paths = [
-                Path.cwd() / f'{daemon_name}.toml',
+def find_config_file(daemon_name: str) -> Path:
+    toml_path_from_env = os.environ.get('BACKEND_CONFIG_FILE', None)
+    if not toml_path_from_env:
+        toml_paths = [
+            Path.cwd() / f'{daemon_name}.toml',
+        ]
+        if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
+            toml_paths += [
+                Path.home() / '.config' / 'backend.ai' / f'{daemon_name}.toml',
+                Path(f'/etc/backend.ai/{daemon_name}.toml'),
             ]
-            if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
-                toml_paths += [
-                    Path.home() / '.config' / 'backend.ai' / f'{daemon_name}.toml',
-                    Path(f'/etc/backend.ai/{daemon_name}.toml'),
-                ]
-            else:
-                raise ConfigurationError({
-                    'read_from_file()': f"Unsupported platform for config path auto-discovery: {sys.platform}",
-                })
         else:
-            toml_paths = [Path(toml_path_from_env)]
-        for _path in toml_paths:
-            if _path.is_file():
-                config = toml.loads(_path.read_text())
-                config = _sanitize_inline_dicts(config)
-                return config, _path
-        else:
-            searched_paths = ','.join(map(str, toml_paths))
             raise ConfigurationError({
-                'read_from_file()': f"Could not read config from: {searched_paths}",
+                'read_from_file()': f"Unsupported platform for config path auto-discovery: {sys.platform}",
             })
     else:
-        _path = Path(toml_path)
-        try:
-            config = toml.loads(_path.read_text())
-            config = _sanitize_inline_dicts(config)
-        except IOError:
-            raise ConfigurationError({
-                'read_from_file()': f"Could not read config from: {_path}",
-            })
-        else:
-            return config, _path
+        toml_paths = [Path(toml_path_from_env)]
+    for _path in toml_paths:
+        if _path.is_file():
+            return _path
+    else:
+        searched_paths = ','.join(map(str, toml_paths))
+        raise ConfigurationError({
+            'find_config_file()': f"Could not read config from: {searched_paths}",
+        })
+
+
+def read_from_file(toml_path: Optional[Union[Path, str]], daemon_name: str) -> Tuple[Dict[str, Any], Path]:
+    config: Dict[str, Any]
+    discovered_path: Path
+    if toml_path is None:
+        discovered_path = find_config_file(daemon_name)
+    else:
+        discovered_path = Path(toml_path)
+    try:
+        config = cast(Dict[str, Any], toml.loads(discovered_path.read_text()))
+        config = _sanitize_inline_dicts(config)
+    except IOError:
+        raise ConfigurationError({
+            'read_from_file()': f"Could not read config from: {discovered_path}",
+        })
+    else:
+        return config, discovered_path
 
 
 async def read_from_etcd(etcd_config: Mapping[str, Any],
                          scope_prefix_map: Mapping[ConfigScopes, str]) \
-                        -> Optional[Mapping[str, Any]]:
+                        -> Optional[Dict[str, Any]]:
     etcd = AsyncEtcd(etcd_config['addr'], etcd_config['namespace'], scope_prefix_map)
     raw_value = await etcd.get('daemon/config')
     if raw_value is None:
         return None
-    config: Mapping[str, Any]
-    config = toml.loads(raw_value)
+    config: Dict[str, Any]
+    config = cast(Dict[str, Any], toml.loads(raw_value))
     config = _sanitize_inline_dicts(config)
     return config
 
@@ -128,14 +132,14 @@ def merge(table: Mapping[str, Any], updates: Mapping[str, Any]) -> Mapping[str, 
     return result
 
 
-def _sanitize_inline_dicts(table: Mapping[str, Any]) -> Mapping[str, Any]:
-    result: MutableMapping[str, Any] = {}
+def _sanitize_inline_dicts(table: Dict[str, Any]) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
     for k, v in table.items():
         if isinstance(v, InlineTableDict):
             # Since this function always returns a copied dict,
             # this automatically converts InlineTableDict to dict.
             result[k] = _sanitize_inline_dicts(v)
-        elif isinstance(v, Mapping):
+        elif isinstance(v, Dict):
             result[k] = _sanitize_inline_dicts(v)
         else:
             result[k] = v

@@ -162,7 +162,7 @@ class CustomJsonFormatter(JsonFormatter):
             log_record['level'] = record.levelname
 
 
-def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_port: int) -> None:
+def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: int) -> None:
     setproctitle(f'backend.ai: logger pid({parent_pid})')
     console_handler = None
     file_handler = None
@@ -228,7 +228,7 @@ def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_port: int)
 
     zctx = zmq.Context()
     agg_sock = zctx.socket(zmq.PULL)
-    agg_sock.bind(f'tcp://127.0.0.1:{log_port}')
+    agg_sock.bind(log_endpoint)
     # The log worker must be terminated via explicit sentinel.
     stop_signals = {signal.SIGINT, signal.SIGTERM}
     signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
@@ -253,36 +253,47 @@ def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_port: int)
 
 class RelayHandler(logging.Handler):
 
-    def __init__(self, *, port: int) -> None:
+    def __init__(self, *, endpoint: str) -> None:
         super().__init__()
-        self.endpoint = f'tcp://127.0.0.1:{port}'
-        self.port = port
+        self.endpoint = endpoint
         self._zctx = zmq.Context()
-        self._sock = self._zctx.socket(zmq.PUSH)
-        self._sock.connect(self.endpoint)
+        if endpoint:
+            self._sock = self._zctx.socket(zmq.PUSH)
+            self._sock.connect(self.endpoint)
+        else:
+            self._sock = None
 
     def close(self) -> None:
-        self._sock.close()
+        if self._sock is not None:
+            self._sock.close()
         self._zctx.term()
 
-    def emit(self, record):
+    def _fallback(self, record: logging.LogRecord) -> None:
+        if record is None:
+            return
+        formatter = logging._defaultFormatter  # type: ignore  # noqa
+        print(formatter.format(record), file=sys.stderr)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if self._sock is None:
+            self._fallback(record)
+            return
         try:
             self._sock.send(pickle.dumps(record))
         except zmq.ZMQError:
-            # fallback to default logging
-            print(logging._defaultFormatter.format(record), file=sys.stderr)
+            self._fallback(record)
 
 
 class Logger():
 
     is_master: bool
-    log_port: int
+    log_endpoint: str
     daemon_config: Mapping[str, Any]
     log_config: MutableMapping[str, Any]
     proc: mp.Process
 
     def __init__(self, daemon_config: MutableMapping[str, Any], *,
-                 is_master: bool, log_port: int) -> None:
+                 is_master: bool, log_endpoint: str) -> None:
         legacy_logfile_path = os.environ.get('BACKEND_LOG_FILE')
         pickling_support.install()  # enable pickling of tracebacks
         if legacy_logfile_path:
@@ -306,7 +317,7 @@ class Logger():
         _check_driver_config_exists_if_activated(cfg, 'logstash')
 
         self.is_master = is_master
-        self.log_port = log_port
+        self.log_endpoint = log_endpoint
         self.daemon_config = cfg
         self.log_config = {
             'version': 1,
@@ -321,28 +332,28 @@ class Logger():
         }
 
     def __enter__(self):
-        self.log_config['handlers']['aggregator'] = {
+        self.log_config['handlers']['relay'] = {
             'class': 'ai.backend.common.logging.RelayHandler',
             'level': self.daemon_config['level'],
-            'port': self.log_port,
+            'endpoint': self.log_endpoint,
         }
         for l in self.log_config['loggers'].values():
-            l['handlers'].append('aggregator')
+            l['handlers'].append('relay')
         logging.config.dictConfig(self.log_config)
         # block signals that may interrupt/corrupt logging
-        if self.is_master:
+        if self.is_master and self.log_endpoint:
             stop_signals = {signal.SIGINT, signal.SIGTERM}
             signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
             self.proc = mp.Process(
                 target=log_worker, name='Logger',
-                args=(self.daemon_config, os.getpid(), self.log_port))
+                args=(self.daemon_config, os.getpid(), self.log_endpoint))
             self.proc.start()
             signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
             # reset process counter
             mp.process._process_counter = itertools.count(0)
 
     def __exit__(self, *exc_info_args):
-        if self.is_master:
+        if self.is_master and self.log_endpoint:
             relay_handler = logging.getLogger('').handlers[0]
             relay_handler.emit(None)
             self.proc.join()
