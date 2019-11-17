@@ -340,6 +340,8 @@ class Logger():
         }
 
     def __enter__(self):
+        if is_active.get():
+            raise RuntimeError('You cannot activate two or more loggers at the same time.')
         self.log_config['handlers']['relay'] = {
             'class': 'ai.backend.common.logging.RelayHandler',
             'level': self.daemon_config['level'],
