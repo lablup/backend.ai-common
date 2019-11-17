@@ -361,10 +361,10 @@ class Logger():
             signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
             # reset process counter
             mp.process._process_counter = itertools.count(0)
-        is_active.set(True)
+        self._is_active_token = is_active.set(True)
 
     def __exit__(self, *exc_info_args):
-        is_active.set(False)
+        is_active.reset(self._is_active_token)
         if self.is_master and self.log_endpoint:
             self.relay_handler.emit(None)
             self.proc.join()
