@@ -342,6 +342,8 @@ class Logger():
         logging.config.dictConfig(self.log_config)
         # block signals that may interrupt/corrupt logging
         if self.is_master and self.log_endpoint:
+            self.relay_handler = logging.getLogger('').handlers[0]
+            assert isinstance(self.relay_handler, RelayHandler)
             stop_signals = {signal.SIGINT, signal.SIGTERM}
             signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
             self.proc = mp.Process(
@@ -354,6 +356,5 @@ class Logger():
 
     def __exit__(self, *exc_info_args):
         if self.is_master and self.log_endpoint:
-            relay_handler = logging.getLogger('').handlers[0]
-            relay_handler.emit(None)
+            self.relay_handler.emit(None)
             self.proc.join()
