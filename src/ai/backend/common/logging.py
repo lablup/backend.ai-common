@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from contextvars import ContextVar
 from datetime import datetime
 import itertools
 import json
@@ -27,8 +28,15 @@ from . import validators as tx
 from .logging_utils import BraceStyleAdapter
 from .exception import ConfigurationError
 
-__all__ = ('Logger', 'BraceStyleAdapter')
+# public APIs of this module
+__all__ = (
+    'Logger',
+    'BraceStyleAdapter',
+    'LogstashHandler',
+    'is_active',
+)
 
+is_active: ContextVar[bool] = ContextVar('is_active', default=False)
 
 loglevel_iv = t.Enum('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'NOTSET')
 logformat_iv = t.Enum('simple', 'verbose')
@@ -353,8 +361,10 @@ class Logger():
             signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
             # reset process counter
             mp.process._process_counter = itertools.count(0)
+        is_active.set(True)
 
     def __exit__(self, *exc_info_args):
+        is_active.set(False)
         if self.is_master and self.log_endpoint:
             self.relay_handler.emit(None)
             self.proc.join()
