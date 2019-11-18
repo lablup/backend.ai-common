@@ -350,6 +350,7 @@ class Logger():
         for l in self.log_config['loggers'].values():
             l['handlers'].append('relay')
         logging.config.dictConfig(self.log_config)
+        self._is_active_token = is_active.set(True)
         # block signals that may interrupt/corrupt logging
         if self.is_master and self.log_endpoint:
             self.relay_handler = logging.getLogger('').handlers[0]
@@ -363,10 +364,13 @@ class Logger():
             signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
             # reset process counter
             mp.process._process_counter = itertools.count(0)
-        self._is_active_token = is_active.set(True)
 
     def __exit__(self, *exc_info_args):
-        is_active.reset(self._is_active_token)
+        # Resetting generates "different context" errors.
+        # Since practically we only need to check activeness in alembic scripts
+        # and it should be active until the program terminates,
+        # just leave it as-is.
+        # FIXME: is_active.reset(self._is_active_token)
         if self.is_master and self.log_endpoint:
             self.relay_handler.emit(None)
             self.proc.join()
