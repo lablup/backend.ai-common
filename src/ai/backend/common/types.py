@@ -569,6 +569,7 @@ class KernelCreationConfig(TypedDict):
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
     mounts: Sequence[str]              # list of mount expressions
+    mount_map: Mapping[str, str]       # Mapping of vfolder custom mount path
     idle_timeout: int
     startup_command: Optional[str]
     internal_data: Optional[Mapping[str, Any]]
