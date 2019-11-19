@@ -1,6 +1,10 @@
 from unittest import mock
-
-import asynctest
+try:
+    # Since Python 3.8, AsyncMock is now part of the stdlib.
+    # Python 3.8 also adds magic-mocking async iterators and async context managers.
+    from unittest.mock import AsyncMock  # type: ignore
+except ImportError:
+    from asynctest import CoroutineMock as AsyncMock  # noqa
 
 
 def mock_corofunc(return_value):
@@ -21,7 +25,7 @@ async def mock_awaitable(**kwargs):
     An awaitable can be a native coroutine object "returned from" a native
     coroutine function.
     """
-    return asynctest.CoroutineMock(**kwargs)
+    return AsyncMock(**kwargs)
 
 
 class AsyncContextManagerMock:
@@ -39,7 +43,7 @@ class AsyncContextManagerMock:
             setattr(self, k, v)
 
     async def __aenter__(self):
-        return asynctest.CoroutineMock(**self.context)
+        return AsyncMock(**self.context)
 
     async def __aexit__(self, exc_type, exc_value, exc_tb):
         pass
