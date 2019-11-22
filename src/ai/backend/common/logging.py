@@ -171,7 +171,7 @@ class CustomJsonFormatter(JsonFormatter):
             log_record['level'] = record.levelname
 
 
-def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: int) -> None:
+def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: str) -> None:
     setproctitle(f'backend.ai: logger pid({parent_pid})')
     console_handler = None
     file_handler = None
@@ -240,7 +240,7 @@ def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: 
     agg_sock.bind(log_endpoint)
     ep_url = yarl.URL(log_endpoint)
     if ep_url.scheme.lower() == 'ipc':
-        os.chmod(log_endpoint.path, 0o777)
+        os.chmod(ep_url.path, 0o777)
     # The log worker must be terminated via explicit sentinel.
     stop_signals = {signal.SIGINT, signal.SIGTERM}
     signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
