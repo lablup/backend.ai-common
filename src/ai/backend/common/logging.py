@@ -21,6 +21,7 @@ from setproctitle import setproctitle
 from pythonjsonlogger.jsonlogger import JsonFormatter
 import trafaret as t
 from tblib import pickling_support
+import yarl
 import zmq
 
 from . import config
@@ -237,6 +238,9 @@ def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: 
     zctx = zmq.Context()
     agg_sock = zctx.socket(zmq.PULL)
     agg_sock.bind(log_endpoint)
+    ep_url = yarl.URL(log_endpoint)
+    if ep_url.scheme.lower() == 'ipc':
+        os.chmod(log_endpoint.path, 0o777)
     # The log worker must be terminated via explicit sentinel.
     stop_signals = {signal.SIGINT, signal.SIGTERM}
     signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
