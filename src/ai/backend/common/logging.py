@@ -374,7 +374,7 @@ class Logger():
         # Since practically we only need to check activeness in alembic scripts
         # and it should be active until the program terminates,
         # just leave it as-is.
-        # FIXME: is_active.reset(self._is_active_token)
+        is_active.reset(self._is_active_token)
         if self.is_master and self.log_endpoint:
             self.relay_handler.emit(None)
             self.proc.join()
