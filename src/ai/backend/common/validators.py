@@ -226,7 +226,7 @@ class HostPortPair(t.Trafaret):
         if not self._allow_blank_host and not host:
             self._failure('value has empty host', value=value)
         try:
-            port = t.Int[1:65535].check(port)
+            port = t.ToInt[1:65535].check(port)
         except t.DataError:
             self._failure('port number must be between 1 and 65535', value=value)
         return _HostPortPair(host, port)
