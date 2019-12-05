@@ -135,7 +135,6 @@ class TestAsyncBarrier:
         barrier = AsyncBarrier(num_parties=5)
 
         assert barrier.num_parties == 5
-        assert barrier.loop is not None  # default event loop
         assert barrier.cond is not None  # default condition
 
     @pytest.mark.asyncio

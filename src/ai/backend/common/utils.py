@@ -1,4 +1,3 @@
-#! /usr/bin/env python3
 import asyncio
 import base64
 from collections import OrderedDict
@@ -180,15 +179,13 @@ class AsyncBarrier:
     This class provides a simplified asyncio-version of threading.Barrier class.
     '''
 
-    num_parties = 1
-    loop = None
-    cond = None
+    num_parties: int = 1
+    cond: asyncio.Condition
 
-    def __init__(self, num_parties, loop=None):
+    def __init__(self, num_parties: int):
         self.num_parties = num_parties
         self.count = 0
-        self.loop = loop if loop else asyncio.get_event_loop()
-        self.cond = asyncio.Condition(loop=self.loop)
+        self.cond = asyncio.Condition()
 
     async def wait(self):
         async with self.cond:

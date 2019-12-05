@@ -133,13 +133,13 @@ class AsyncEtcd:
 
     def __init__(self, addr: HostPortPair, namespace: str,
                  scope_prefix_map: Mapping[ConfigScopes, str], *,
-                 credentials=None, encoding='utf8', loop=None):
-        self.loop = loop if loop else asyncio.get_event_loop()
+                 credentials=None, encoding='utf8'):
         self.scope_prefix_map = t.Dict({
             t.Key(ConfigScopes.GLOBAL): t.String(allow_blank=True),
             t.Key(ConfigScopes.SGROUP, optional=True): t.String,
             t.Key(ConfigScopes.NODE, optional=True): t.String,
         }).check(scope_prefix_map)
+        self.loop = asyncio.get_running_loop()
         self.executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='etcd')
         self._creds = credentials
         while True:
@@ -372,7 +372,7 @@ class AsyncEtcd:
 
     async def _watch_impl(self, raw_key: bytes, ready_event: asyncio.Event = None, **kwargs) \
                          -> AsyncGenerator[Event, None]:
-        queue: asyncio.Queue = asyncio.Queue(loop=self.loop)
+        queue: asyncio.Queue = asyncio.Queue()
         cb = functools.partial(self._watch_cb, queue)
         watch_id = await self._add_watch_callback(raw_key, cb, **kwargs)
         if ready_event is not None:
