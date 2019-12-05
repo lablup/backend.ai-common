@@ -4,7 +4,7 @@ try:
     # Python 3.8 also adds magic-mocking async iterators and async context managers.
     from unittest.mock import AsyncMock  # type: ignore
 except ImportError:
-    from asynctest import CoroutineMock as AsyncMock  # noqa
+    from asynctest import CoroutineMock as AsyncMock  # type: ignore
 
 
 def mock_corofunc(return_value):
