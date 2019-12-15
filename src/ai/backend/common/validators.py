@@ -144,7 +144,8 @@ class Path(t.Trafaret):
                  base_path: _Path = None,
                  auto_create: bool = False,
                  allow_nonexisting: bool = False,
-                 allow_devnull: bool = False):
+                 allow_devnull: bool = False,
+                 resolve: bool = True):
         super().__init__()
         self._type = type
         if auto_create and type != 'dir':
@@ -153,15 +154,17 @@ class Path(t.Trafaret):
         self._auto_create = auto_create
         self._allow_nonexisting = allow_nonexisting
         self._allow_devnull = allow_devnull
+        self._resolve = resolve
 
     def check_and_return(self, value: Any) -> _Path:
         try:
-            p = _Path(value).resolve()
+            p = _Path(value).resolve() if self._resolve else _Path(value)
         except (TypeError, ValueError):
             self._failure('cannot parse value as a path', value=value)
         if self._base_path is not None:
             try:
-                p.relative_to(self._base_path.resolve())
+                _base_path = self._base_path.resolve() if self._resolve else self._base_path
+                p.relative_to(_base_path)
             except ValueError:
                 self._failure('value is not in the base path', value=value)
         if self._type == 'dir':
