@@ -5,7 +5,10 @@ import logging
 from packaging import version
 import re
 from typing import (
-    Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
+    Any, Optional, Union,
+    Dict, Mapping,
+    Iterable,
+    Tuple, Sequence,
 )
 
 import aiohttp
@@ -26,12 +29,17 @@ __all__ = (
     'get_known_registries',
     'is_known_registry',
     'get_registry_info',
+    'MIN_KERNELSPEC',
+    'MAX_KERNELSPEC',
 )
 
 log = BraceStyleAdapter(logging.Logger('ai.backend.common.docker'))
 
 default_registry = 'index.docker.io'
 default_repository = 'lablup'
+
+MIN_KERNELSPEC = 1
+MAX_KERNELSPEC = 1
 
 
 async def login(
