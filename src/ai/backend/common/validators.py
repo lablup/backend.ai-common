@@ -332,6 +332,8 @@ class UUID(t.Trafaret):
 
     def check_and_return(self, value: Any) -> uuid.UUID:
         try:
+            if isinstance(value, uuid.UUID):
+                return value
             if isinstance(value, str):
                 return uuid.UUID(value)
             elif isinstance(value, bytes):
