@@ -44,7 +44,7 @@ __all__ = (
 
 T_aobj = TypeVar('T_aobj', bound='aobject')
 
-current_resource_slots: ContextVar[Mapping[str, SlotTypes]] = ContextVar('current_resource_slots')
+current_resource_slots: ContextVar[Mapping[SlotName, SlotTypes]] = ContextVar('current_resource_slots')
 
 
 class aobject(object):
