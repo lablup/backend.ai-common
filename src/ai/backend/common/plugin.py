@@ -110,7 +110,7 @@ def install_plugins(plugins, app, install_type, config):
                 setattr(app, plugin_name, registry)
             elif install_type == 'dict':
                 assert isinstance(app, typing.MutableMapping), \
-                    (f"app must be an instance of MutableMapping "
+                    ("app must be an instance of MutableMapping "
                      f"for 'dict' install_type.")
                 app[plugin_name] = registry
             else:
