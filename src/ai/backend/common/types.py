@@ -326,8 +326,8 @@ class ResourceSlot(UserDict):
         super().__init__(*args, **kwargs)
 
     def sync_keys(self, other):
-        self_only_keys = set(self.data.keys()) - set(other.data.keys())
-        other_only_keys = set(other.data.keys()) - set(self.data.keys())
+        self_only_keys = self.data.keys() - other.data.keys()
+        other_only_keys = other.data.keys() - self.data.keys()
         for k in self_only_keys:
             other.data[k] = Decimal(0)
         for k in other_only_keys:
@@ -363,19 +363,19 @@ class ResourceSlot(UserDict):
 
     def eq_contains(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
-        self.sync_keys(other)
         common_keys = sorted(other.keys() & self.keys())
+        only_other_keys = other.keys() - self.keys()
         self_values = [self.data[k] for k in common_keys]
         other_values = [other.data[k] for k in common_keys]
-        return self_values == other_values
+        return self_values == other_values and all(other[k] == 0 for k in only_other_keys)
 
     def eq_contained(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
-        self.sync_keys(other)
         common_keys = sorted(other.keys() & self.keys())
+        only_self_keys = self.keys() - other.keys()
         self_values = [self.data[k] for k in common_keys]
         other_values = [other.data[k] for k in common_keys]
-        return self_values == other_values
+        return self_values == other_values and all(self[k] == 0 for k in only_self_keys)
 
     def __le__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
@@ -409,8 +409,8 @@ class ResourceSlot(UserDict):
 
     def normalize_slots(self, *, ignore_unknown: bool) -> ResourceSlot:
         known_slots = current_resource_slots.get()
-        unset_slots = set(known_slots.keys()) - set(self.data.keys())
-        if not ignore_unknown and (unknown_slots := set(self.data.keys()) - set(known_slots.keys())):  # noqa
+        unset_slots = known_slots.keys() - self.data.keys()
+        if not ignore_unknown and (unknown_slots := self.data.keys() - known_slots.keys()):  # noqa
             raise ValueError('Unknown slots', unknown_slots)
         data = {
             k: v for k, v in self.data.items()
