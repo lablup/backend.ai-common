@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from collections import UserDict, namedtuple
+from contextvars import ContextVar
 from decimal import Decimal
 import enum
 import ipaddress
@@ -40,6 +43,8 @@ __all__ = (
 
 
 T_aobj = TypeVar('T_aobj', bound='aobject')
+
+current_resource_slots: ContextVar[Mapping[SlotName, SlotTypes]] = ContextVar('current_resource_slots')
 
 
 class aobject(object):
@@ -317,11 +322,20 @@ class ResourceSlot(UserDict):
 
     __slots__ = ('data', )
 
-    def __init__(self, *args) -> None:
-        super().__init__(*args)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def sync_keys(self, other):
+        self_only_keys = self.data.keys() - other.data.keys()
+        other_only_keys = other.data.keys() - self.data.keys()
+        for k in self_only_keys:
+            other.data[k] = Decimal(0)
+        for k in other_only_keys:
+            self.data[k] = Decimal(0)
 
     def __add__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can add ResourceSlot to ResourceSlot.'
+        self.sync_keys(other)
         return type(self)({
             k: self.get(k, 0) + other.get(k, 0)
             for k in (self.keys() | other.keys())
@@ -329,8 +343,7 @@ class ResourceSlot(UserDict):
 
     def __sub__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can subtract ResourceSlot from ResourceSlot.'
-        if other.keys() > self.keys():
-            raise ValueError('Cannot subtract resource slot with more keys!')
+        self.sync_keys(other)
         return type(self)({
             k: self.data[k] - other.get(k, 0)
             for k in self.keys()
@@ -338,48 +351,42 @@ class ResourceSlot(UserDict):
 
     def __eq__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
-        if self.keys() != other.keys():
-            return False
+        self.sync_keys(other)
         self_values = [self.data[k] for k in sorted(self.data.keys())]
         other_values = [other.data[k] for k in sorted(other.data.keys())]
         return self_values == other_values
 
     def __ne__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
-        if self.keys() != other.keys():
-            return True
+        self.sync_keys(other)
         return not self.__eq__(other)
 
     def eq_contains(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
-        if self.keys() < other.keys():
-            raise ValueError('Slots with less keys cannot contain other.')
         common_keys = sorted(other.keys() & self.keys())
+        only_other_keys = other.keys() - self.keys()
         self_values = [self.data[k] for k in common_keys]
         other_values = [other.data[k] for k in common_keys]
-        return self_values == other_values
+        return self_values == other_values and all(other[k] == 0 for k in only_other_keys)
 
     def eq_contained(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
-        if self.keys() > other.keys():
-            raise ValueError('Slots with more keys cannot be contained in other.')
         common_keys = sorted(other.keys() & self.keys())
+        only_self_keys = self.keys() - other.keys()
         self_values = [self.data[k] for k in common_keys]
         other_values = [other.data[k] for k in common_keys]
-        return self_values == other_values
+        return self_values == other_values and all(self[k] == 0 for k in only_self_keys)
 
     def __le__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
-        if self.keys() > other.keys():
-            raise ValueError('Slots with more keys cannot be smaller than other.')
+        self.sync_keys(other)
         self_values = [self.data[k] for k in self.keys()]
         other_values = [other.data[k] for k in self.keys()]
         return not any(s > o for s, o in zip(self_values, other_values))
 
     def __lt__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
-        if self.keys() > other.keys():
-            raise ValueError('Slots with more keys cannot be smaller than other.')
+        self.sync_keys(other)
         self_values = [self.data[k] for k in self.keys()]
         other_values = [other.data[k] for k in self.keys()]
         return (not any(s > o for s, o in zip(self_values, other_values)) and
@@ -387,30 +394,30 @@ class ResourceSlot(UserDict):
 
     def __ge__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
-        if self.keys() < other.keys():
-            raise ValueError('Slots with less keys cannot be larger than other.')
+        self.sync_keys(other)
         self_values = [self.data[k] for k in other.keys()]
         other_values = [other.data[k] for k in other.keys()]
         return not any(s < o for s, o in zip(self_values, other_values))
 
     def __gt__(self, other):
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
-        if self.keys() < other.keys():
-            raise ValueError('Slots with less keys cannot be larger than other.')
+        self.sync_keys(other)
         self_values = [self.data[k] for k in other.keys()]
         other_values = [other.data[k] for k in other.keys()]
         return (not any(s < o for s, o in zip(self_values, other_values)) and
                 not (self_values == other_values))
 
-    def filter_slots(self, known_slots) -> 'ResourceSlot':
-        if isinstance(known_slots, Mapping):
-            slots = {*known_slots.keys()}
-        else:
-            slots = {*known_slots}
+    def normalize_slots(self, *, ignore_unknown: bool) -> ResourceSlot:
+        known_slots = current_resource_slots.get()
+        unset_slots = known_slots.keys() - self.data.keys()
+        if not ignore_unknown and (unknown_slots := self.data.keys() - known_slots.keys()):
+            raise ValueError('Unknown slots', unknown_slots)
         data = {
             k: v for k, v in self.data.items()
-            if k in slots
+            if k in known_slots
         }
+        for k in unset_slots:
+            data[k] = Decimal(0)
         return type(self)(data)
 
     @classmethod

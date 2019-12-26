@@ -351,8 +351,8 @@ class Logger():
             'level': self.daemon_config['level'],
             'endpoint': self.log_endpoint,
         }
-        for l in self.log_config['loggers'].values():
-            l['handlers'].append('relay')
+        for _logger in self.log_config['loggers'].values():
+            _logger['handlers'].append('relay')
         logging.config.dictConfig(self.log_config)
         self._is_active_token = is_active.set(True)
         # block signals that may interrupt/corrupt logging

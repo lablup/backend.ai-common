@@ -185,46 +185,53 @@ def test_resource_slot_serialization_typeless():
     assert r1['cuda.smp'].is_infinite()
 
 
-def test_resource_slot_comparison():
+def test_resource_slot_comparison_simple_equality():
     r1 = ResourceSlot.from_json({'a': '3', 'b': '200'})
     r2 = ResourceSlot.from_json({'a': '4', 'b': '100'})
     r3 = ResourceSlot.from_json({'a': '2'})
     r4 = ResourceSlot.from_json({'a': '1'})
     r5 = ResourceSlot.from_json({'b': '100', 'a': '4'})
-
     assert r1 != r2
     assert r1 != r3
     assert r2 != r3
     assert r3 != r4
     assert r2 == r5
 
+
+def test_resource_slot_comparison_ordering():
+    r1 = ResourceSlot.from_json({'a': '3', 'b': '200'})
+    r2 = ResourceSlot.from_json({'a': '4', 'b': '100'})
+    r3 = ResourceSlot.from_json({'a': '2'})
+    r4 = ResourceSlot.from_json({'a': '1'})
     assert not r2 < r1
     assert not r2 <= r1
     assert r4 < r1
     assert r4 <= r1
+    assert r4['b'] == 0  # auto-sync of slots
     assert r3 < r1
     assert r3 <= r1
-    with pytest.raises(ValueError):
-        r3 > r1
-    with pytest.raises(ValueError):
-        r3 >= r1
+    assert r3['b'] == 0  # auto-sync of slots
 
+
+def test_resource_slot_comparison_ordering_reverse():
+    r1 = ResourceSlot.from_json({'a': '3', 'b': '200'})
+    r2 = ResourceSlot.from_json({'a': '4', 'b': '100'})
+    r3 = ResourceSlot.from_json({'a': '2'})
+    r4 = ResourceSlot.from_json({'a': '1'})
     assert not r2 > r1
     assert not r2 >= r1
     assert r1 > r3
     assert r1 >= r3
+    assert r3['b'] == 0  # auto-sync of slots
     assert r1 > r4
     assert r1 >= r4
-    with pytest.raises(ValueError):
-        r1 < r3
-    with pytest.raises(ValueError):
-        r1 <= r3
+    assert r4['b'] == 0  # auto-sync of slots
 
+
+def test_resource_slot_comparison_subset():
     r1 = ResourceSlot.from_json({'a': '3', 'b': '200'})
     r3 = ResourceSlot.from_json({'a': '3'})
     assert r3.eq_contained(r1)
-    with pytest.raises(ValueError):
-        r3.eq_contains(r1)
-    with pytest.raises(ValueError):
-        r1.eq_contained(r3)
+    assert not r3.eq_contains(r1)
+    assert not r1.eq_contained(r3)
     assert r1.eq_contains(r3)
