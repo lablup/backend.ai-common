@@ -292,6 +292,8 @@ class RelayHandler(logging.Handler):
             return
         try:
             self._sock.send(pickle.dumps(record))
+        except TypeError:  # pickle error
+            self._fallback(record)
         except zmq.ZMQError:
             self._fallback(record)
 
