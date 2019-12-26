@@ -410,7 +410,7 @@ class ResourceSlot(UserDict):
     def normalize_slots(self, *, ignore_unknown: bool) -> ResourceSlot:
         known_slots = current_resource_slots.get()
         unset_slots = known_slots.keys() - self.data.keys()
-        if not ignore_unknown and (unknown_slots := self.data.keys() - known_slots.keys()):  # noqa
+        if not ignore_unknown and (unknown_slots := self.data.keys() - known_slots.keys()):
             raise ValueError('Unknown slots', unknown_slots)
         data = {
             k: v for k, v in self.data.items()
