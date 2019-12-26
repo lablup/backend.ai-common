@@ -44,7 +44,7 @@ script:
   - python -m flake8 src tests
   - python -m mypy src/ai/backend
   - python -m pytest --cov=src -v
-after_success:
+after_script:
   - codecov
 
 # stage def.
