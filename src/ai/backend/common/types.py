@@ -325,7 +325,7 @@ class ResourceSlot(UserDict):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def sync_keys(self, other):
+    def sync_keys(self, other: ResourceSlot) -> None:
         self_only_keys = self.data.keys() - other.data.keys()
         other_only_keys = other.data.keys() - self.data.keys()
         for k in self_only_keys:
@@ -333,7 +333,7 @@ class ResourceSlot(UserDict):
         for k in other_only_keys:
             self.data[k] = Decimal(0)
 
-    def __add__(self, other):
+    def __add__(self, other: ResourceSlot) -> ResourceSlot:
         assert isinstance(other, ResourceSlot), 'Only can add ResourceSlot to ResourceSlot.'
         self.sync_keys(other)
         return type(self)({
@@ -341,7 +341,7 @@ class ResourceSlot(UserDict):
             for k in (self.keys() | other.keys())
         })
 
-    def __sub__(self, other):
+    def __sub__(self, other: ResourceSlot) -> ResourceSlot:
         assert isinstance(other, ResourceSlot), 'Only can subtract ResourceSlot from ResourceSlot.'
         self.sync_keys(other)
         return type(self)({
@@ -349,19 +349,21 @@ class ResourceSlot(UserDict):
             for k in self.keys()
         })
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        if other is self:
+            return True
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         self.sync_keys(other)
         self_values = [self.data[k] for k in sorted(self.data.keys())]
         other_values = [other.data[k] for k in sorted(other.data.keys())]
         return self_values == other_values
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         self.sync_keys(other)
         return not self.__eq__(other)
 
-    def eq_contains(self, other):
+    def eq_contains(self, other: ResourceSlot) -> bool:
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         common_keys = sorted(other.keys() & self.keys())
         only_other_keys = other.keys() - self.keys()
@@ -369,7 +371,7 @@ class ResourceSlot(UserDict):
         other_values = [other.data[k] for k in common_keys]
         return self_values == other_values and all(other[k] == 0 for k in only_other_keys)
 
-    def eq_contained(self, other):
+    def eq_contained(self, other: ResourceSlot) -> bool:
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         common_keys = sorted(other.keys() & self.keys())
         only_self_keys = self.keys() - other.keys()
@@ -377,14 +379,14 @@ class ResourceSlot(UserDict):
         other_values = [other.data[k] for k in common_keys]
         return self_values == other_values and all(self[k] == 0 for k in only_self_keys)
 
-    def __le__(self, other):
+    def __le__(self, other: ResourceSlot) -> bool:
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         self.sync_keys(other)
         self_values = [self.data[k] for k in self.keys()]
         other_values = [other.data[k] for k in self.keys()]
         return not any(s > o for s, o in zip(self_values, other_values))
 
-    def __lt__(self, other):
+    def __lt__(self, other: ResourceSlot) -> bool:
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         self.sync_keys(other)
         self_values = [self.data[k] for k in self.keys()]
@@ -392,14 +394,14 @@ class ResourceSlot(UserDict):
         return (not any(s > o for s, o in zip(self_values, other_values)) and
                 not (self_values == other_values))
 
-    def __ge__(self, other):
+    def __ge__(self, other: ResourceSlot) -> bool:
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         self.sync_keys(other)
         self_values = [self.data[k] for k in other.keys()]
         other_values = [other.data[k] for k in other.keys()]
         return not any(s < o for s, o in zip(self_values, other_values))
 
-    def __gt__(self, other):
+    def __gt__(self, other: ResourceSlot) -> bool:
         assert isinstance(other, ResourceSlot), 'Only can compare ResourceSlot objects.'
         self.sync_keys(other)
         self_values = [self.data[k] for k in other.keys()]
