@@ -12,8 +12,8 @@ from typing import (
     Tuple, Sequence,
     Mapping,
     NewType, Type, TypeVar,
+    TypedDict,
 )
-from typing_extensions import TypedDict
 import uuid
 
 import attr

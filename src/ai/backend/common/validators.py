@@ -9,11 +9,10 @@ import os
 from pathlib import Path as _Path
 import re
 from typing import (
-    Any, Optional,
+    Any, Optional, Literal,
     List, Mapping, Sequence, Tuple,
     TypeVar, Type,
 )
-from typing_extensions import Literal
 import uuid
 import pwd
 

@@ -159,6 +159,11 @@ class AsyncEtcd:
         log.info('using etcd cluster from {} with namespace "{}"', addr, namespace)
         self.encoding = encoding
 
+    async def close(self):
+        return await self.loop.run_in_executor(
+            self.executor,
+            lambda: self.etcd_sync.close())
+
     def _mangle_key(self, k: str) -> bytes:
         if k.startswith('/'):
             k = k[1:]
@@ -336,27 +341,28 @@ class AsyncEtcd:
             self.executor,
             lambda: self.etcd_sync.delete_prefix(mangled_key_prefix))
 
-    def _watch_cb(self, queue: asyncio.Queue, ev: etcd3.events.Event) -> None:
-        if isinstance(ev, etcd3.events.PutEvent):
-            ev_type = 'put'
-        elif isinstance(ev, etcd3.events.DeleteEvent):
-            ev_type = 'delete'
-        elif isinstance(ev, grpc.RpcError):
-            if ev.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.UNKNOWN):
+    def _watch_cb(self, queue: asyncio.Queue, resp: etcd3.watch.WatchResponse) -> None:
+        if isinstance(resp, grpc.RpcError):
+            if resp.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.UNKNOWN):
                 # server restarting or terminated
                 self.loop.call_soon_threadsafe(queue.put_nowait, sentinel)
                 return
             else:
-                raise RuntimeError(f'Unexpected RPC Error: {ev}')
-        else:
-            raise TypeError('Not recognized etcd event type.')
-        # etcd3 library uses a separate thread for its watchers.
-        event = Event(
-            self._demangle_key(ev.key),
-            ev_type,
-            ev.value.decode(self.encoding),
-        )
-        self.loop.call_soon_threadsafe(queue.put_nowait, event)
+                raise RuntimeError(f'Unexpected RPC Error: {resp}')
+        for ev in resp.events:
+            if isinstance(ev, etcd3.events.PutEvent):
+                ev_type = 'put'
+            elif isinstance(ev, etcd3.events.DeleteEvent):
+                ev_type = 'delete'
+            else:
+                raise TypeError('Not recognized etcd event type.')
+            # etcd3 library uses a separate thread for its watchers.
+            event = Event(
+                self._demangle_key(ev.key),
+                ev_type,
+                ev.value.decode(self.encoding),
+            )
+            self.loop.call_soon_threadsafe(queue.put_nowait, event)
 
     @reconn_reauth_adaptor
     async def _add_watch_callback(self, raw_key: bytes, cb, **kwargs):
@@ -365,16 +371,30 @@ class AsyncEtcd:
             lambda: self.etcd_sync.add_watch_callback(raw_key, cb, **kwargs))
 
     @reconn_reauth_adaptor
+    async def _add_watch_prefix_callback(self, raw_key: bytes, cb, **kwargs):
+        return await self.loop.run_in_executor(
+            self.executor,
+            lambda: self.etcd_sync.add_watch_prefix_callback(raw_key, cb, **kwargs))
+
+    @reconn_reauth_adaptor
     async def _cancel_watch(self, watch_id):
         return await self.loop.run_in_executor(
             self.executor,
             lambda: self.etcd_sync.cancel_watch(watch_id))
 
-    async def _watch_impl(self, raw_key: bytes, ready_event: asyncio.Event = None, **kwargs) \
-                         -> AsyncGenerator[Event, None]:
+    async def _watch_impl(
+        self,
+        raw_key: bytes,
+        ready_event: asyncio.Event = None,
+        prefix: bool = False,
+        **kwargs,
+    ) -> AsyncGenerator[Event, None]:
         queue: asyncio.Queue = asyncio.Queue()
         cb = functools.partial(self._watch_cb, queue)
-        watch_id = await self._add_watch_callback(raw_key, cb, **kwargs)
+        if prefix:
+            watch_id = await self._add_watch_prefix_callback(raw_key, cb, **kwargs)
+        else:
+            watch_id = await self._add_watch_callback(raw_key, cb, **kwargs)
         if ready_event is not None:
             ready_event.set()
         try:
@@ -420,10 +440,9 @@ class AsyncEtcd:
         scope_prefix = scope_prefix_map[scope]
         scope_prefix_len = len(f'{_slash(scope_prefix)}')
         mangled_key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
-        range_end = etcd3.utils.increment_last_byte(etcd3.utils.to_bytes(mangled_key_prefix))
         while True:
             try:
-                async with aclosing(self._watch_impl(mangled_key_prefix, ready_event, range_end=range_end)) as agen:
+                async with aclosing(self._watch_impl(mangled_key_prefix, ready_event, prefix=True)) as agen:
                     async for ev in agen:
                         if ev is sentinel:
                             log.debug('watch_prefix(): etcd connection closed, restarting watch')

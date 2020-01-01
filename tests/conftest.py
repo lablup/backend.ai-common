@@ -36,6 +36,7 @@ async def etcd(etcd_addr, test_ns):
         await etcd.delete_prefix('', scope=ConfigScopes.GLOBAL)
         await etcd.delete_prefix('', scope=ConfigScopes.SGROUP)
         await etcd.delete_prefix('', scope=ConfigScopes.NODE)
+        await etcd.close()
         del etcd
 
 
