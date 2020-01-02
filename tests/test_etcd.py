@@ -133,7 +133,7 @@ async def test_multi(etcd):
 
 
 @pytest.mark.asyncio
-async def test_watch(etcd, event_loop):
+async def test_watch(etcd):
 
     records = []
     records_prefix = []
@@ -154,8 +154,8 @@ async def test_watch(etcd, event_loop):
         except asyncio.CancelledError:
             pass
 
-    t1 = event_loop.create_task(_record())
-    t2 = event_loop.create_task(_record_prefix())
+    t1 = asyncio.create_task(_record())
+    t2 = asyncio.create_task(_record_prefix())
 
     await r_ready.wait()
     await rp_ready.wait()
@@ -195,7 +195,7 @@ async def test_watch(etcd, event_loop):
 
 
 @pytest.mark.asyncio
-async def test_watch_once(etcd, event_loop):
+async def test_watch_once(etcd):
 
     records = []
     records_prefix = []
@@ -216,8 +216,8 @@ async def test_watch_once(etcd, event_loop):
         except asyncio.CancelledError:
             pass
 
-    t1 = event_loop.create_task(_record())
-    t2 = event_loop.create_task(_record_prefix())
+    t1 = asyncio.create_task(_record())
+    t2 = asyncio.create_task(_record_prefix())
     await r_ready.wait()
     await rp_ready.wait()
 
