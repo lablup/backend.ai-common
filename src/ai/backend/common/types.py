@@ -574,6 +574,7 @@ class KernelCreationConfig(TypedDict):
     image: ImageConfig
     auto_pull: AutoPullBehavior
     session_type: SessionTypes
+    cluster: dict
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
@@ -583,6 +584,15 @@ class KernelCreationConfig(TypedDict):
     bootstrap_script: Optional[str]
     startup_command: Optional[str]
     internal_data: Optional[Mapping[str, Any]]
+
+
+class KernelEnqueueingConfig(TypedDict):
+    image_ref: ImageRef
+    cluster_role: str
+    idx: int
+    creation_config: dict
+    bootstrap_script: str
+    startup_command: str = None
 
 
 def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
