@@ -14,6 +14,7 @@ from typing import (
     NewType, Type, TypeVar,
     TypedDict,
 )
+from .docker import ImageRef
 import uuid
 
 import attr
