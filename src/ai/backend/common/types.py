@@ -129,6 +129,7 @@ class AutoPullBehavior(str, enum.Enum):
 class ServicePortProtocols(str, enum.Enum):
     HTTP = 'http'
     TCP = 'tcp'
+    PREOPEN = 'preopen'
 
 
 class SessionTypes(str, enum.Enum):
