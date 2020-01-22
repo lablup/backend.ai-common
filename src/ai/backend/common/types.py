@@ -13,6 +13,7 @@ from typing import (
     Mapping,
     NewType, Type, TypeVar,
     TypedDict,
+    TYPE_CHECKING,
 )
 import uuid
 
@@ -40,6 +41,9 @@ __all__ = (
     'KernelCreationResult',
     'ServicePortProtocols',
 )
+
+if TYPE_CHECKING:
+    from .docker import ImageRef
 
 
 T_aobj = TypeVar('T_aobj', bound='aobject')
@@ -592,7 +596,7 @@ class KernelEnqueueingConfig(TypedDict):
     idx: int
     creation_config: dict
     bootstrap_script: str
-    startup_command: str = None
+    startup_command: str
 
 
 def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
