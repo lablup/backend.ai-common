@@ -15,8 +15,10 @@ import functools
 import logging
 import time
 from typing import (
-    Any, Awaitable, Callable, Iterable, Union,
-    AsyncGenerator, Mapping, Optional, Tuple,
+    Any, Awaitable, Callable, Iterable, Optional, Union,
+    AsyncGenerator,
+    Dict, Mapping,
+    Tuple,
 )
 from urllib.parse import quote as _quote, unquote
 
@@ -182,6 +184,15 @@ class AsyncEtcd:
     async def put(self, key: str, val: str, *,
                   scope: ConfigScopes = ConfigScopes.GLOBAL,
                   scope_prefix_map: Mapping[ConfigScopes, str] = None):
+        """
+        Put a single key-value pair to the etcd.
+
+        :param key: The key. This must be quoted by the caller as needed.
+        :param val: The value.
+        :param scope: The config scope for putting the values.
+        :param scope_prefix_map: The scope map used to mangle the prefix for the config scope.
+        :return:
+        """
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
         mangled_key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
@@ -190,9 +201,60 @@ class AsyncEtcd:
             lambda: self.etcd_sync.put(mangled_key, str(val).encode(self.encoding)))
 
     @reconn_reauth_adaptor
+    async def put_prefix(self, key: str, dict_obj: Mapping[str, str], *,
+                         scope: ConfigScopes = ConfigScopes.GLOBAL,
+                         scope_prefix_map: Mapping[ConfigScopes, str] = None):
+        """
+        Put a nested dict object under the given key prefix.
+        All keys in the dict object are automatically quoted to avoid conflicts with the path separator.
+
+        :param key: Prefix to put the given data. This must be quoted by the caller as needed.
+        :param dict_obj: Nested dictionary representing the data.
+        :param scope: The config scope for putting the values.
+        :param scope_prefix_map: The scope map used to mangle the prefix for the config scope.
+        :return:
+        """
+        scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
+        scope_prefix = scope_prefix_map[scope]
+        flattened_dict: Dict[str, str] = {}
+
+        def _flatten(prefix: str, inner_dict: Mapping[str, str]) -> None:
+            for k, v in inner_dict.items():
+                if k == '':
+                    flattened_key = prefix
+                else:
+                    flattened_key = prefix + '/' + quote(k)
+                if isinstance(v, dict):
+                    _flatten(flattened_key, v)
+                else:
+                    flattened_dict[flattened_key] = v
+
+        _flatten(key, dict_obj)
+
+        return await self.loop.run_in_executor(
+            self.executor,
+            lambda: self.etcd_sync.transaction(
+                [],
+                [self.etcd_sync.transactions.put(
+                    self._mangle_key(f'{_slash(scope_prefix)}{k}'), str(v).encode(self.encoding))
+                    for k, v in flattened_dict.items()],
+                []
+            ))
+
+    @reconn_reauth_adaptor
     async def put_dict(self, dict_obj: Mapping[str, str], *,
                        scope: ConfigScopes = ConfigScopes.GLOBAL,
                        scope_prefix_map: Mapping[ConfigScopes, str] = None):
+        """
+        Put a flattened key-value pairs into the etcd.
+        Since the given dict must be a flattened one, its keys must be quoted as needed by the caller.
+        For new codes, ``put_prefix()`` is recommended.
+
+        :param dict_obj: Flattened key-value pairs to put.
+        :param scope: The config scope for putting the values.
+        :param scope_prefix_map: The scope map used to mangle the prefix for the config scope.
+        :return:
+        """
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
         return await self.loop.run_in_executor(
@@ -210,6 +272,16 @@ class AsyncEtcd:
                   scope: ConfigScopes = ConfigScopes.MERGED,
                   scope_prefix_map: Mapping[ConfigScopes, str] = None) \
                   -> Optional[str]:
+        """
+        Get a single key from the etcd.
+        Returns ``None`` if the key does not exist.
+        The returned value may be an empty string if the value is a zero-length string.
+
+        :param key: The key. This must be quoted by the caller as needed.
+        :param scope: The config scope to get the value.
+        :param scope_prefix_map: The scope map used to mangle the prefix for the config scope.
+        :return:
+        """
 
         async def get_impl(key: str) -> Optional[str]:
             mangled_key = self._mangle_key(key)
@@ -252,6 +324,40 @@ class AsyncEtcd:
                          scope: ConfigScopes = ConfigScopes.MERGED,
                          scope_prefix_map: Mapping[ConfigScopes, str] = None) \
                          -> Mapping[str, Optional[str]]:
+        """
+        Retrieves all key-value pairs under the given key prefix as a nested dictionary.
+        All dictionary keys are automatically unquoted.
+        If a key has a value while it is also used as path prefix for other keys,
+        the value directly referenced by the key itself is included as a value in a dictionary
+        with the empty-string key.
+
+        For instance, when the etcd database has the following key-value pairs:
+
+        .. code-block::
+
+           myprefix/mydata = abc
+           myprefix/mydata/x = 1
+           myprefix/mydata/y = 2
+           myprefix/mykey = def
+
+        ``get_prefix("myprefix")`` returns the following dictionary:
+
+        .. code-block::
+
+           {
+             "mydata": {
+               "": "abc",
+               "x": "1",
+               "y": "2",
+             },
+             "mykey": "def",
+           }
+
+        :param key_prefix: The key. This must be quoted by the caller as needed.
+        :param scope: The config scope to get the value.
+        :param scope_prefix_map: The scope map used to mangle the prefix for the config scope.
+        :return:
+        """
 
         async def get_prefix_impl(key_prefix: str) -> Iterable[Tuple[str, str]]:
             mangled_key_prefix = self._mangle_key(key_prefix)

@@ -32,7 +32,32 @@ async def test_basic_crud(etcd):
 
 
 @pytest.mark.asyncio
-async def test_unquote_for_prefix_dict(etcd):
+async def test_quote_for_put_prefix(etcd):
+    await etcd.put_prefix('data', {
+        'aa:bb': {
+            'option1': 'value1',
+            'option2': 'value2',
+            'myhost/path': 'this',
+        },
+        'aa:cc': 'wow',
+        'aa:dd': {
+            '': 'oops',
+        },
+    }, scope=ConfigScopes.GLOBAL)
+    v = await etcd.get('data/aa%3Abb/option1')
+    assert v == 'value1'
+    v = await etcd.get('data/aa%3Abb/option2')
+    assert v == 'value2'
+    v = await etcd.get('data/aa%3Abb/myhost%2Fpath')
+    assert v == 'this'
+    v = await etcd.get('data/aa%3Acc')
+    assert v == 'wow'
+    v = await etcd.get('data/aa%3Add')
+    assert v == 'oops'
+
+
+@pytest.mark.asyncio
+async def test_unquote_for_get_prefix(etcd):
     await etcd.put('obj/aa%3Abb/option1', 'value1')
     await etcd.put('obj/aa%3Abb/option2', 'value2')
     await etcd.put('obj/aa%3Abb/myhost%2Fpath', 'this')
