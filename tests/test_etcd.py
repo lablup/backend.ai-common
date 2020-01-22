@@ -32,6 +32,59 @@ async def test_basic_crud(etcd):
 
 
 @pytest.mark.asyncio
+async def test_quote_for_put_prefix(etcd):
+    await etcd.put_prefix('data', {
+        'aa:bb': {
+            'option1': 'value1',
+            'option2': 'value2',
+            'myhost/path': 'this',
+        },
+        'aa:cc': 'wow',
+        'aa:dd': {
+            '': 'oops',
+        },
+    }, scope=ConfigScopes.GLOBAL)
+    v = await etcd.get('data/aa%3Abb/option1')
+    assert v == 'value1'
+    v = await etcd.get('data/aa%3Abb/option2')
+    assert v == 'value2'
+    v = await etcd.get('data/aa%3Abb/myhost%2Fpath')
+    assert v == 'this'
+    v = await etcd.get('data/aa%3Acc')
+    assert v == 'wow'
+    v = await etcd.get('data/aa%3Add')
+    assert v == 'oops'
+
+
+@pytest.mark.asyncio
+async def test_unquote_for_get_prefix(etcd):
+    await etcd.put('obj/aa%3Abb/option1', 'value1')
+    await etcd.put('obj/aa%3Abb/option2', 'value2')
+    await etcd.put('obj/aa%3Abb/myhost%2Fpath', 'this')
+    await etcd.put('obj/aa%3Acc', 'wow')
+
+    v = await etcd.get_prefix('obj')
+    assert dict(v) == {
+        'aa:bb': {
+            'option1': 'value1',
+            'option2': 'value2',
+            'myhost/path': 'this',
+        },
+        'aa:cc': 'wow',
+    }
+
+    v = await etcd.get_prefix('obj/aa%3Abb')
+    assert dict(v) == {
+        'option1': 'value1',
+        'option2': 'value2',
+        'myhost/path': 'this',
+    }
+
+    v = await etcd.get_prefix('obj/aa%3Acc')
+    assert dict(v) == {'': 'wow'}
+
+
+@pytest.mark.asyncio
 async def test_scope_empty_prefix(gateway_etcd):
     # This test case is to ensure compatibility with the legacy managers.
     # gateway_etcd is created with a scope prefix map that contains
