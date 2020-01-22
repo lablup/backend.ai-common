@@ -22,7 +22,7 @@ python:
 
 install:
   - pip install -U pip setuptools
-  - pip install -U -r requirements-ci.txt
+  - pip install -U -r requirements-test.txt
 before_script:
   - mkdir -p /tmp/etcd
   - docker run -d -p 2379:2379 -p 2380:2380
@@ -41,8 +41,6 @@ before_script:
      --initial-cluster-state new
      --auto-compaction-retention 1
 script:
-  - python -m flake8 src tests
-  - python -m mypy src/ai/backend
   - python -m pytest --cov=src -v
 after_script:
   - codecov
