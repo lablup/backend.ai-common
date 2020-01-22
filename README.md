@@ -19,5 +19,5 @@ $ pip install backend.ai-common
 
 ```console
 $ pip install -U pip setuptools
-$ pip install -U -e '.[dev,build,test]'
+$ pip install -U -r requirements/dev.txt
 ```

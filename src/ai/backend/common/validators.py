@@ -252,7 +252,7 @@ class PortRange(t.Trafaret):
             min_port = t.Int[1:65535].check(value[0])
             max_port = t.Int[1:65535].check(value[1])
         except t.DataError:
-            self._failure('each value must be a valid port number')
+            self._failure('each value must be a valid port number', value=value)
         if not (min_port < max_port):
             self._failure('first value must be less than second value', value=value)
         return min_port, max_port
