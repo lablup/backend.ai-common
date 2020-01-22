@@ -3,7 +3,7 @@ name: Type check with mypy
 on: [push]
 
 jobs:
-  build:
+  typecheck:
 
     runs-on: ubuntu-latest
 
