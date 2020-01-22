@@ -19,4 +19,4 @@ jobs:
         python -m pip install -U -r requirements-lint.txt
     - name: Lint with flake8
       run: |
-        python -m flake8 src tests --count --exit-zero --max-complexity=10 --statistics
+        python -m flake8 src/ai/backend tests --count --exit-zero --max-complexity=10 --statistics
