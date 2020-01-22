@@ -68,13 +68,14 @@ def make_dict_from_pairs(key_prefix, pairs, path_sep='/'):
         path_components = subkey.split('/')
         parent = result
         for p in path_components[:-1]:
+            p = unquote(p)
             if p not in parent:
                 parent[p] = {}
             if p in parent and not isinstance(parent[p], dict):
                 root = parent[p]
                 parent[p] = {'': root}
             parent = parent[p]
-        parent[path_components[-1]] = v
+        parent[unquote(path_components[-1])] = v
     return result
 
 

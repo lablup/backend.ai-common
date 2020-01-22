@@ -32,6 +32,34 @@ async def test_basic_crud(etcd):
 
 
 @pytest.mark.asyncio
+async def test_unquote_for_prefix_dict(etcd):
+    await etcd.put('obj/aa%3Abb/option1', 'value1')
+    await etcd.put('obj/aa%3Abb/option2', 'value2')
+    await etcd.put('obj/aa%3Abb/myhost%2Fpath', 'this')
+    await etcd.put('obj/aa%3Acc', 'wow')
+
+    v = await etcd.get_prefix('obj')
+    assert dict(v) == {
+        'aa:bb': {
+            'option1': 'value1',
+            'option2': 'value2',
+            'myhost/path': 'this',
+        },
+        'aa:cc': 'wow',
+    }
+
+    v = await etcd.get_prefix('obj/aa%3Abb')
+    assert dict(v) == {
+        'option1': 'value1',
+        'option2': 'value2',
+        'myhost/path': 'this',
+    }
+
+    v = await etcd.get_prefix('obj/aa%3Acc')
+    assert dict(v) == {'': 'wow'}
+
+
+@pytest.mark.asyncio
 async def test_scope_empty_prefix(gateway_etcd):
     # This test case is to ensure compatibility with the legacy managers.
     # gateway_etcd is created with a scope prefix map that contains
