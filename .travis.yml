@@ -22,7 +22,7 @@ python:
 
 install:
   - pip install -U pip setuptools
-  - pip install -U -r requirements-test.txt
+  - pip install -U -r requirements/test.txt
 before_script:
   - mkdir -p /tmp/etcd
   - docker run -d -p 2379:2379 -p 2380:2380
@@ -54,7 +54,7 @@ jobs:
       python: "3.8"
       install:
         - pip install -U pip setuptools
-        - pip install -U -r requirements-build.txt
+        - pip install -U -r requirements/build.txt
       before_script: skip
       script: skip
       deploy:
