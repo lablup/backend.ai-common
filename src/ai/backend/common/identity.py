@@ -77,8 +77,6 @@ def detect_cloud() -> Optional[str]:
             # but it requires sudo privilege.
         except IOError:
             pass
-    else:
-        log.warning('Cloud detection is implemented for Linux only yet.')
     return None
 
 

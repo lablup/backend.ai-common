@@ -1,3 +1,4 @@
+import asyncio
 import os
 import secrets
 
@@ -37,6 +38,7 @@ async def etcd(etcd_addr, test_ns):
         await etcd.delete_prefix('', scope=ConfigScopes.SGROUP)
         await etcd.delete_prefix('', scope=ConfigScopes.NODE)
         await etcd.close()
+        await asyncio.sleep(0.1)  # we need a grace period to shutdown watch callbacks
         del etcd
 
 
