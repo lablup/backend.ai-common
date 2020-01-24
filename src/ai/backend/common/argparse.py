@@ -1,3 +1,4 @@
+import collections  # intended flake8 error test
 import argparse
 import ipaddress
 import pathlib
