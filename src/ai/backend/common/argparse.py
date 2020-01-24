@@ -7,6 +7,10 @@ from typing import cast, Tuple
 from .types import HostPortPair
 
 
+def x() -> None:
+    return 123   # intended mypy error test
+
+
 def port_no(s: str) -> int:
     try:
         port = int(s)

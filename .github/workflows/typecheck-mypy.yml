@@ -19,4 +19,5 @@ jobs:
         python -m pip install -U -r requirements/typecheck.txt
     - name: Type check with mypy
       run: |
-        python -m mypy src/ai/backend
+        echo "::add-matcher::.github/workflows/mypy-matcher.json"
+        python -m mypy --no-color-output src/ai/backend
