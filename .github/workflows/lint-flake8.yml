@@ -18,6 +18,6 @@ jobs:
         python -m pip install -U pip setuptools
         python -m pip install -U -r requirements/lint.txt
     - name: Lint with flake8
-      uses: TrueBrain/actions-flake8@master
-      with:
-        path: src/ai/backend tests
+      run: |
+        echo "::add-matcher::.github/workflows/flake8-matcher.json"
+        python -m flake8 src/ai/backend tests --count --statistics
