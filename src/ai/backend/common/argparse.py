@@ -1,14 +1,9 @@
-import collections  # intended flake8 error test
 import argparse
 import ipaddress
 import pathlib
 from typing import cast, Tuple
 
 from .types import HostPortPair
-
-
-def x() -> None:
-    return 123   # intended mypy error test
 
 
 def port_no(s: str) -> int:
