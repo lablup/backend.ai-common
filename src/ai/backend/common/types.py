@@ -18,8 +18,6 @@ from typing import (
 import uuid
 
 import attr
-if TYPE_CHECKING:
-    from .docker import ImageRef
 
 __all__ = (
     'aobject',
