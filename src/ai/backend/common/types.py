@@ -12,13 +12,13 @@ from typing import (
     Tuple, Sequence,
     Mapping,
     NewType, Type, TypeVar,
-    TypedDict,
+    TypedDict, TYPE_CHECKING
 )
 import uuid
 
 import attr
-
-from .docker import ImageRef
+if TYPE_CHECKING:
+    from .docker import ImageRef
 
 __all__ = (
     'aobject',
@@ -595,7 +595,7 @@ class KernelEnqueueingConfig(TypedDict):
     idx: int
     creation_config: dict
     bootstrap_script: str
-    startup_command: str = None
+    startup_command: str
 
 
 def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
