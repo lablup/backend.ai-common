@@ -18,6 +18,8 @@ import uuid
 
 import attr
 
+from .docker import ImageRef
+
 __all__ = (
     'aobject',
     'DeviceId',
