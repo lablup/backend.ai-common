@@ -12,7 +12,8 @@ from typing import (
     Tuple, Sequence,
     Mapping,
     NewType, Type, TypeVar,
-    TypedDict, TYPE_CHECKING
+    TypedDict,
+    TYPE_CHECKING,
 )
 import uuid
 
@@ -42,6 +43,9 @@ __all__ = (
     'KernelCreationResult',
     'ServicePortProtocols',
 )
+
+if TYPE_CHECKING:
+    from .docker import ImageRef
 
 
 T_aobj = TypeVar('T_aobj', bound='aobject')
