@@ -31,6 +31,7 @@ __all__ = (
     'get_registry_info',
     'MIN_KERNELSPEC',
     'MAX_KERNELSPEC',
+    'ImageRef'
 )
 
 log = BraceStyleAdapter(logging.Logger('ai.backend.common.docker'))

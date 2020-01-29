@@ -585,6 +585,7 @@ class KernelCreationConfig(TypedDict):
     environ: Mapping[str, str]
     mounts: Sequence[str]              # list of mount expressions
     mount_map: Mapping[str, str]       # Mapping of vfolder custom mount path
+    package_directory: Sequence[str]
     idle_timeout: int
     bootstrap_script: Optional[str]
     startup_command: Optional[str]
