@@ -590,7 +590,7 @@ class KernelCreationConfig(TypedDict):
     bootstrap_script: Optional[str]
     startup_command: Optional[str]
     internal_data: Optional[Mapping[str, Any]]
-    preopen_ports: Optional[List[int]]
+    preopen_ports: List[int]
 
 
 class KernelEnqueueingConfig(TypedDict):
