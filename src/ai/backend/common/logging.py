@@ -265,10 +265,14 @@ def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: 
                 break
             if console_handler:
                 console_handler.emit(rec)
-            if file_handler:
-                file_handler.emit(rec)
-            if logstash_handler:
-                logstash_handler.emit(rec)
+            try:
+                if file_handler:
+                    file_handler.emit(rec)
+                if logstash_handler:
+                    logstash_handler.emit(rec)
+            except OSError:
+                # don't terminate the log worker.
+                continue
     finally:
         if logstash_handler:
             logstash_handler.cleanup()
@@ -305,18 +309,20 @@ class RelayHandler(logging.Handler):
             self._fallback(record)
             return
         try:
-            self._sock.send(pickle.dumps(record))
+            pickled_rec = pickle.dumps(record)
         except TypeError:
             # We have a pickling error.
             # Change it into a self-created picklable log record with exception info.
             record = logging.makeLogRecord({
-                    'name': __name__,
-                    'msg': 'Cannot pickle the log record',
-                    'levelno': logging.ERROR,
-                    'levelname': 'error',
-                    'exc_info': sys.exc_info(),
+                'name': __name__,
+                'msg': 'Cannot pickle the log record',
+                'levelno': logging.ERROR,
+                'levelname': 'error',
+                'exc_info': sys.exc_info(),
             })
-            self._sock.send(pickle.dumps(record))
+            pickled_rec = pickle.dumps(record)
+        try:
+            self._sock.send(pickled_rec)
         except zmq.ZMQError:
             self._fallback(record)
 
