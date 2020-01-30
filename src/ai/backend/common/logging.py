@@ -247,7 +247,18 @@ def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: 
     try:
         while True:
             data = agg_sock.recv()
-            rec = pickle.loads(data)
+            try:
+                rec = pickle.loads(data)
+            except TypeError:
+                # We have an unpickling error
+                rec = logging.makeLogRecord({
+                    'name': __name__,
+                    'msg': 'Unpickling the log record failed (raw data: %r)',
+                    'levelno': logging.ERROR,
+                    'levelname': 'error',
+                    'args': (data,),  # attach the original data for inspection
+                    'exc_info': sys.exc_info(),
+                })
             if rec is None:
                 break
             if console_handler:
