@@ -250,7 +250,7 @@ def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: 
             data = agg_sock.recv()
             try:
                 rec = pickle.loads(data)
-            except TypeError:
+            except (pickle.PickleError, TypeError):
                 # We have an unpickling error.
                 # Change into a self-created log record with exception info.
                 rec = logging.makeLogRecord({
@@ -310,7 +310,7 @@ class RelayHandler(logging.Handler):
             return
         try:
             pickled_rec = pickle.dumps(record)
-        except TypeError:
+        except (pickle.PickleError, TypeError):
             # We have a pickling error.
             # Change it into a self-created picklable log record with exception info.
             record = logging.makeLogRecord({
