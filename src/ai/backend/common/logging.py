@@ -391,3 +391,6 @@ class Logger():
         if self.is_master and self.log_endpoint:
             self.relay_handler.emit(None)
             self.proc.join()
+            ep_url = yarl.URL(self.log_endpoint)
+            if ep_url.scheme.lower() == 'ipc':
+                os.unlink(ep_url.path)

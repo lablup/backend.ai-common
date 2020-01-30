@@ -14,7 +14,7 @@ test_log_config = {
     }
 }
 
-test_log_path = Path(f'/tmp/backend.ai/ipc/manager-logger-{os.getpid()}.sock')
+test_log_path = Path(f'/tmp/backend.ai/testing/ipc/agent-logger-{os.getpid()}.sock')
 
 log = BraceStyleAdapter(logging.getLogger('ai.backend.common.testing'))
 
@@ -25,6 +25,7 @@ def test_logger():
     logger = Logger(test_log_config, is_master=True, log_endpoint=log_endpoint)
     with logger:
         log.warning('blizard warning {}', 123)
+    assert not test_log_path.exists()
 
 
 class NotPicklableClass:
@@ -51,6 +52,7 @@ def test_logger_not_picklable():
     logger = Logger(test_log_config, is_master=True, log_endpoint=log_endpoint)
     with logger:
         log.warning('blizard warning {}', NotPicklableClass())
+    assert not test_log_path.exists()
 
 
 def test_logger_not_unpicklable():
@@ -59,3 +61,4 @@ def test_logger_not_unpicklable():
     logger = Logger(test_log_config, is_master=True, log_endpoint=log_endpoint)
     with logger:
         log.warning('blizard warning {}', NotUnpicklableClass(0))
+    assert not test_log_path.exists()
