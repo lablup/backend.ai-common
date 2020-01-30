@@ -237,6 +237,7 @@ def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: 
 
     zctx = zmq.Context()
     agg_sock = zctx.socket(zmq.PULL)
+    agg_sock.setsockopt(zmq.LINGER, 100)
     agg_sock.bind(log_endpoint)
     ep_url = yarl.URL(log_endpoint)
     if ep_url.scheme.lower() == 'ipc':
@@ -283,6 +284,7 @@ class RelayHandler(logging.Handler):
         self._zctx = zmq.Context()
         if endpoint:
             self._sock = self._zctx.socket(zmq.PUSH)
+            self._sock.setsockopt(zmq.LINGER, 100)
             self._sock.connect(self.endpoint)
         else:
             self._sock = None
