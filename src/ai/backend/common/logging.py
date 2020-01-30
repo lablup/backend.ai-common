@@ -250,10 +250,11 @@ def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: 
             try:
                 rec = pickle.loads(data)
             except TypeError:
-                # We have an unpickling error
+                # We have an unpickling error.
+                # Change into a self-created log record with exception info.
                 rec = logging.makeLogRecord({
                     'name': __name__,
-                    'msg': 'Unpickling the log record failed (raw data: %r)',
+                    'msg': 'Cannot unpickle the log record (raw data: %r)',
                     'levelno': logging.ERROR,
                     'levelname': 'error',
                     'args': (data,),  # attach the original data for inspection
@@ -303,8 +304,17 @@ class RelayHandler(logging.Handler):
             return
         try:
             self._sock.send(pickle.dumps(record))
-        except TypeError:  # pickle error
-            self._fallback(record)
+        except TypeError:
+            # We have a pickling error.
+            # Change it into a self-created picklable log record with exception info.
+            record = logging.makeLogRecord({
+                    'name': __name__,
+                    'msg': 'Cannot pickle the log record',
+                    'levelno': logging.ERROR,
+                    'levelname': 'error',
+                    'exc_info': sys.exc_info(),
+            })
+            self._sock.send(pickle.dumps(record))
         except zmq.ZMQError:
             self._fallback(record)
 
