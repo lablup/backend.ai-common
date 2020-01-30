@@ -33,6 +33,7 @@ def test_logger(unused_tcp_port):
     log_endpoint = f'ipc://{test_log_path}'
     logger = Logger(test_log_config, is_master=True, log_endpoint=log_endpoint)
     with logger:
+        assert test_log_path.exists()
         log.warning('blizzard warning {}', 123)
         assert get_logger_thread() is not None
     assert not test_log_path.exists()
@@ -62,9 +63,8 @@ def test_logger_not_picklable():
     log_endpoint = f'ipc://{test_log_path}'
     logger = Logger(test_log_config, is_master=True, log_endpoint=log_endpoint)
     with logger:
+        # The following line should not throw an error.
         log.warning('blizzard warning {}', NotPicklableClass())
-        time.sleep(1.0)
-        assert get_logger_thread() is not None
     assert not test_log_path.exists()
     assert get_logger_thread() is None
 
