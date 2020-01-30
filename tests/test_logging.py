@@ -1,6 +1,8 @@
 import logging
 import os
 from pathlib import Path
+import threading
+import time
 
 from ai.backend.common.logging import Logger, BraceStyleAdapter
 
@@ -14,18 +16,27 @@ test_log_config = {
     }
 }
 
-test_log_path = Path(f'/tmp/backend.ai/testing/ipc/agent-logger-{os.getpid()}.sock')
+test_log_path = Path(f'/tmp/bai-testing-agent-logger-{os.getpid()}.sock')
 
 log = BraceStyleAdapter(logging.getLogger('ai.backend.common.testing'))
 
 
-def test_logger():
+def get_logger_thread():
+    for t in threading.enumerate():
+        if t.name == 'Logger':
+            return t
+    return None
+
+
+def test_logger(unused_tcp_port):
     test_log_path.parent.mkdir(parents=True, exist_ok=True)
     log_endpoint = f'ipc://{test_log_path}'
     logger = Logger(test_log_config, is_master=True, log_endpoint=log_endpoint)
     with logger:
-        log.warning('blizard warning {}', 123)
+        log.warning('blizzard warning {}', 123)
+        assert get_logger_thread() is not None
     assert not test_log_path.exists()
+    assert get_logger_thread() is None
 
 
 class NotPicklableClass:
@@ -51,8 +62,11 @@ def test_logger_not_picklable():
     log_endpoint = f'ipc://{test_log_path}'
     logger = Logger(test_log_config, is_master=True, log_endpoint=log_endpoint)
     with logger:
-        log.warning('blizard warning {}', NotPicklableClass())
+        log.warning('blizzard warning {}', NotPicklableClass())
+        time.sleep(1.0)
+        assert get_logger_thread() is not None
     assert not test_log_path.exists()
+    assert get_logger_thread() is None
 
 
 def test_logger_not_unpicklable():
@@ -60,5 +74,8 @@ def test_logger_not_unpicklable():
     log_endpoint = f'ipc://{test_log_path}'
     logger = Logger(test_log_config, is_master=True, log_endpoint=log_endpoint)
     with logger:
-        log.warning('blizard warning {}', NotUnpicklableClass(0))
+        log.warning('blizzard warning {}', NotUnpicklableClass(0))
+        time.sleep(1.0)
+        assert get_logger_thread() is not None, 'logger thread must be alive'
     assert not test_log_path.exists()
+    assert get_logger_thread() is None

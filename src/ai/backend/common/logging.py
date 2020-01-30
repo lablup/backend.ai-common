@@ -1,23 +1,20 @@
 from collections import OrderedDict
 from contextvars import ContextVar
 from datetime import datetime
-import itertools
 import json
 import logging, logging.config, logging.handlers
-import multiprocessing as mp
+import threading
 import os
 from pathlib import Path
 import pickle
 from typing import (
-    Any,
+    Any, Optional,
     Mapping, MutableMapping,
 )
-import signal
 import socket
 import ssl
 import sys
 
-from setproctitle import setproctitle
 from pythonjsonlogger.jsonlogger import JsonFormatter
 import trafaret as t
 from tblib import pickling_support
@@ -171,8 +168,12 @@ class CustomJsonFormatter(JsonFormatter):
             log_record['level'] = record.levelname
 
 
-def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: str) -> None:
-    setproctitle(f'backend.ai: logger pid({parent_pid})')
+def log_worker(
+    daemon_config: Mapping[str, Any],
+    parent_pid: int,
+    log_endpoint: str,
+    ready_event: threading.Event,
+) -> None:
     console_handler = None
     file_handler = None
     logstash_handler = None
@@ -237,17 +238,16 @@ def log_worker(daemon_config: Mapping[str, Any], parent_pid: int, log_endpoint: 
 
     zctx = zmq.Context()
     agg_sock = zctx.socket(zmq.PULL)
-    agg_sock.setsockopt(zmq.LINGER, 100)
     agg_sock.bind(log_endpoint)
     ep_url = yarl.URL(log_endpoint)
     if ep_url.scheme.lower() == 'ipc':
         os.chmod(ep_url.path, 0o777)
-    # The log worker must be terminated via explicit sentinel.
-    stop_signals = {signal.SIGINT, signal.SIGTERM}
-    signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
     try:
+        ready_event.set()
         while True:
             data = agg_sock.recv()
+            if not data:
+                return
             try:
                 rec = pickle.loads(data)
             except (pickle.PickleError, TypeError):
@@ -286,6 +286,8 @@ class RelayHandler(logging.Handler):
         super().__init__()
         self.endpoint = endpoint
         self._zctx = zmq.Context()
+        # We should use PUSH-PULL socket pairs to avoid
+        # lost of synchronization sentinel messages.
         if endpoint:
             self._sock = self._zctx.socket(zmq.PUSH)
             self._sock.setsockopt(zmq.LINGER, 100)
@@ -298,13 +300,13 @@ class RelayHandler(logging.Handler):
             self._sock.close()
         self._zctx.term()
 
-    def _fallback(self, record: logging.LogRecord) -> None:
+    def _fallback(self, record: Optional[logging.LogRecord]) -> None:
         if record is None:
             return
         formatter = logging._defaultFormatter  # type: ignore  # noqa
         print(formatter.format(record), file=sys.stderr)
 
-    def emit(self, record: logging.LogRecord) -> None:
+    def emit(self, record: Optional[logging.LogRecord]) -> None:
         if self._sock is None:
             self._fallback(record)
             return
@@ -333,7 +335,7 @@ class Logger():
     log_endpoint: str
     daemon_config: Mapping[str, Any]
     log_config: MutableMapping[str, Any]
-    proc: mp.Process
+    log_worker: threading.Thread
 
     def __init__(self, daemon_config: MutableMapping[str, Any], *,
                  is_master: bool, log_endpoint: str) -> None:
@@ -386,19 +388,15 @@ class Logger():
             _logger['handlers'].append('relay')
         logging.config.dictConfig(self.log_config)
         self._is_active_token = is_active.set(True)
-        # block signals that may interrupt/corrupt logging
         if self.is_master and self.log_endpoint:
             self.relay_handler = logging.getLogger('').handlers[0]
+            self.ready_event = threading.Event()
             assert isinstance(self.relay_handler, RelayHandler)
-            stop_signals = {signal.SIGINT, signal.SIGTERM}
-            signal.pthread_sigmask(signal.SIG_BLOCK, stop_signals)
-            self.proc = mp.Process(
+            self.log_worker = threading.Thread(
                 target=log_worker, name='Logger',
-                args=(self.daemon_config, os.getpid(), self.log_endpoint))
-            self.proc.start()
-            signal.pthread_sigmask(signal.SIG_UNBLOCK, stop_signals)
-            # reset process counter
-            mp.process._process_counter = itertools.count(0)
+                args=(self.daemon_config, os.getpid(), self.log_endpoint, self.ready_event))
+            self.log_worker.start()
+            self.ready_event.wait()
 
     def __exit__(self, *exc_info_args):
         # Resetting generates "different context" errors.
@@ -408,7 +406,8 @@ class Logger():
         is_active.reset(self._is_active_token)
         if self.is_master and self.log_endpoint:
             self.relay_handler.emit(None)
-            self.proc.join()
+            self.log_worker.join()
+            self.relay_handler.close()
             ep_url = yarl.URL(self.log_endpoint)
             if ep_url.scheme.lower() == 'ipc':
                 os.unlink(ep_url.path)
