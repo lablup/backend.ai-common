@@ -49,6 +49,7 @@ after_success:
 # stage def.
 jobs:
   include:
+    - stage: test
     - stage: deploy
       python: "3.6"
       install:
@@ -61,8 +62,8 @@ jobs:
           tags: true
         provider: pypi
         distributions: sdist bdist_wheel
-        skip_upload_docs: true
-        user: "__token__"
+        upload_docs: false
+        username: "__token__"
         password:
           secure: "In0bo0VEhjdhajkhw15TqNuDmRf3/flHTxso8Xp0ajqtuYTV3tjDn0B405FJ2JH6XX72gHWYSz2l5TnZzvWxt7XgD32aGxsyHd5E0VYq1ARSogA56PcCgJq0wU5SibzJV9EhV4nHhwDL20zIxIkeXmE1ao85URFYmvQryP1NmAPGDd/823mRDgb6G7z/Z8LStp+/L/YAoMgDN7APiEWQCI45DGJ2lwFwY2rsOAFvikHO8fT4Tq03IL9uFYRD52D0WYvvfumss9Hfvjd8rX+aaDkeyxung16zLdi9pFSn4lLk3zAfM1D4cDv4o3eTfp8EeoknSMXcbv6M10MjfYpLRVjxjf0NTG9YXFwd3oGm2GFjvkI0UKLpQp9/fdF/lXS6t56teD2e91AMZxJYU4SOffMWQCuoYGzNdRL6txsB2U79ciUZaW4mbVi7njPcWTWS0kzI7YRbSEOhGxDh2UIanH8znlcJHarQa8UWiYDXQc+4icU5V3FBInhJkVK8nsGQNf1pTtVqjJJW6kGIJVv8SHbLlaXe7BOvO+/0CNvh3fPQuIKS4j4gxSU5KwKsXw0qqTfEebFXEEUmnswMSyZLNzsPc7/FropYaEIWRmhP5PAEu0MTY73JTwtWcenIk1OkRqED92UTh1qE3Mlydwva1G1MskUMQh9oCCDtl3Jo6i8="
 
