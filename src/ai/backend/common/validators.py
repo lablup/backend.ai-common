@@ -5,6 +5,7 @@ An extension module to Trafaret which provides additional type checkers.
 import datetime
 import enum
 import ipaddress
+import json
 import os
 from pathlib import Path as _Path
 import re
@@ -135,6 +136,15 @@ class Enum(t.Trafaret):
         except (KeyError, ValueError):
             self._failure(f'value is not a valid member of {self.enum_cls.__name__}',
                           value=value)
+
+
+class JSONString(t.Trafaret):
+
+    def check_and_return(self, value: Any) -> dict:
+        try:
+            return json.loads(value)
+        except (KeyError, ValueError):
+            self._failure(f'value is not a valid JSON string', value=value)
 
 
 class Path(t.Trafaret):
@@ -352,6 +362,25 @@ class TimeZone(t.Trafaret):
         if tz is None:
             self._failure('value is not a known timezone', value=value)
         return tz
+
+
+class TimeDuration(t.Trafaret):
+
+    def check_and_return(self, value: Any) -> datetime.timedelta:
+        if not isinstance(value, str):
+            self._failure('value must be string', value=value)
+        if value[-1] not in ['d', 'h', 'm']:
+            self._failure('value is not a known time duration', value=value)
+        try:
+            t = int(value[:-1])
+            if value[-1] == 'd':
+                return datetime.timedelta(days=t)
+            elif value[-1] == 'h':
+                return datetime.timedelta(hours=t)
+            elif value[-1] == 'm':
+                return datetime.timedelta(days=t * 30)
+        except ValueError:
+            self._failure(f'invalid literal for int with base 10: {value[:-1]}', value=value)
 
 
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
