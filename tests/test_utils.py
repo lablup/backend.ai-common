@@ -6,7 +6,7 @@ import aiohttp
 import pytest
 
 from ai.backend.common.utils import (
-    odict, dict2kvlist, generate_uuid, nmget, readable_size_to_bytes,
+    odict, dict2kvlist, generate_uuid, get_random_seq, nmget, readable_size_to_bytes,
     curl, StringSetFlag, AsyncBarrier
 )
 from ai.backend.common.testutils import (
@@ -27,6 +27,22 @@ def test_generate_uuid():
     u = generate_uuid()
     assert len(u) == 22
     assert isinstance(u, str)
+
+
+def test_random_seq():
+    assert [*get_random_seq(10, 11, 1)] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    assert [*get_random_seq(10, 6, 2)] == [0, 2, 4, 6, 8, 10]
+    with pytest.raises(AssertionError):
+        [*get_random_seq(10, 12, 1)]
+    with pytest.raises(AssertionError):
+        [*get_random_seq(10, 7, 2)]
+    for _ in range(30):
+        result = [*get_random_seq(10, 9, 1)]
+        assert result[0] >= 0
+        assert result[-1] <= 10
+        last_x = result[0]
+        for x in result[1:]:
+            assert x > last_x + 1
 
 
 def test_nmget():
