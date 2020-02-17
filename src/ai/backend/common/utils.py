@@ -81,7 +81,7 @@ def get_random_seq(length: float, num_points: int, min_distance: float) -> Itera
     sum_ro = sum(ro)
     rn = [extra * r / sum_ro for r in ro[0:num_points]]
     spacing = [min_distance + rn[i] for i in range(num_points)]
-    cumulative_sum = 0
+    cumulative_sum = 0.0
     for s in spacing:
         cumulative_sum += s
         yield cumulative_sum - min_distance
