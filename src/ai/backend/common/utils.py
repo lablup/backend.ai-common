@@ -5,8 +5,12 @@ from contextlib import closing
 import enum
 from itertools import chain
 import numbers
+import random
 import sys
 import socket
+from typing import (
+    Iterator,
+)
 import uuid
 
 import aiohttp
@@ -53,10 +57,34 @@ def dict2kvlist(o):
     return chain.from_iterable((k, v) for k, v in o.items())
 
 
-def generate_uuid():
+def generate_uuid() -> str:
     u = uuid.uuid4()
     # Strip the last two padding characters because u always has fixed length.
     return base64.urlsafe_b64encode(u.bytes)[:-2].decode('ascii')
+
+
+def get_random_seq(length: float, num_points: int, min_distance: float) -> Iterator[float]:
+    """
+    Generate a random sequence of numbers within the range [0, length]
+    with the given number of points and the minimum distance between the points.
+
+    Note that X ( = the minimum distance d x the number of points N) must be equivalent to or smaller than
+    the length L + d to guarantee the the minimum distance between the points.
+    If X == L + d, the points are always equally spaced with d.
+
+    :return: An iterator over the generated sequence
+    """
+    assert num_points * min_distance <= length + min_distance, \
+           'There are too many points or it has a too large distance which cannot be fit into the given length.'
+    extra = length - (num_points - 1) * min_distance
+    ro = [random.uniform(0, 1) for _ in range(num_points + 1)]
+    sum_ro = sum(ro)
+    rn = [extra * r / sum_ro for r in ro[0:num_points]]
+    spacing = [min_distance + rn[i] for i in range(num_points)]
+    cumulative_sum = 0
+    for s in spacing:
+        cumulative_sum += s
+        yield cumulative_sum - min_distance
 
 
 def find_free_port(bind_addr: str = '127.0.0.1') -> int:
