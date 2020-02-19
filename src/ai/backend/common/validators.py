@@ -144,7 +144,7 @@ class JSONString(t.Trafaret):
         try:
             return json.loads(value)
         except (KeyError, ValueError):
-            self._failure(f'value is not a valid JSON string', value=value)
+            self._failure('value is not a valid JSON string', value=value)
 
 
 class Path(t.Trafaret):
