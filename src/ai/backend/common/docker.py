@@ -9,6 +9,7 @@ from typing import (
     Dict, Mapping,
     Iterable,
     Tuple, Sequence,
+    MutableMapping,
 )
 
 import aiohttp
@@ -102,10 +103,13 @@ async def login(
 
 async def get_known_registries(etcd: AsyncEtcd) -> Mapping[str, yarl.URL]:
     data = await etcd.get_prefix('config/docker/registry/')
-    results = {}
+    results: MutableMapping[str, yarl.URL] = {}
     for key, value in data.items():
         name = etcd_unquote(key)
-        results[name] = value
+        if isinstance(value, str):
+            results[name] = yarl.URL(value)
+        else:
+            results[name] = yarl.URL(value[''])
     return results
 
 
