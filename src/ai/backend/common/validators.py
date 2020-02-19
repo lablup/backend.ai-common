@@ -190,6 +190,23 @@ class Path(t.Trafaret):
         return p
 
 
+class IntFromStr(t.Trafaret):
+    def __init__(self, lt=None):
+        self.lt = lt
+
+    def check_and_return(self, value: Any) -> int:
+        _v = 0
+        if type(value) == int:
+            _v = value
+        try:
+            _v = int(value)
+        except ValueError:
+            self._failure('value is not a valid int', value=value)
+        if self.lt is not None and _v >= self.lt:
+            self._failure('value exceeds lt')
+        return _v
+
+
 class IPNetwork(t.Trafaret):
 
     def check_and_return(self, value: Any) -> ipaddress._BaseNetwork:
