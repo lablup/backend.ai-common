@@ -6,6 +6,7 @@ import enum
 from itertools import chain
 import janus
 import numbers
+from pathlib import Path
 import random
 import sys
 import socket
@@ -344,14 +345,14 @@ class AsyncFileWriter:
     '''
     def __init__(
             self,
-            loop,
-            target_filename,
+            loop: asyncio.AbstractEventLoop,
+            target_filename: Union[str, Path],
             access_mode: str,
-            decode=None,
-            maxsize=None):
-        if maxsize is None:
-            maxsize = 0
-        self._q: janus.Queue[Union[bytes, str, Sentinel]] = janus.Queue(maxsize=maxsize)
+            decode: Callable[[str], bytes] = None,
+            max_chunks: int = None) -> None:
+        if max_chunks is None:
+            max_chunks = 0
+        self._q: janus.Queue[Union[bytes, str, Sentinel]] = janus.Queue(maxsize=max_chunks)
         self._loop = loop
         self._target_filename = target_filename
         self._access_mode = access_mode

@@ -1,4 +1,3 @@
-import aiofiles
 import asyncio
 import codecs
 from collections import OrderedDict
@@ -186,35 +185,28 @@ class TestAsyncBarrier:
         assert barrier.count == 0
 
 
-class TestAsyncFileWriter:
-    def get_random_string_of_length(self, size):
-        return (''.join(choice(ascii_uppercase) for i in range(size)))
+@pytest.mark.asyncio
+async def test_encoded_text_write():
+    # 1. Get temporary filename
+    with NamedTemporaryFile() as temp_file:
+        file_name = temp_file.name
 
-    @pytest.mark.asyncio
-    async def test_encoded_text_write(self):
-        # 1. Get temporary filename
-        with NamedTemporaryFile() as temp_file:
-            file_name = temp_file.name
+    # 2. Generate random string
+    init_str = (''.join(choice(ascii_uppercase) for i in range(100)))
 
-        # 2. Generate random string
-        init_str = self.get_random_string_of_length(100)
-
-        # 3. Write chuncked decoded string into file
-        async with AsyncFileWriter(
+    # 3. Write chuncked decoded string into file
+    async with AsyncFileWriter(
             current_loop(),
             file_name,
             access_mode='w+',
             decode=codecs.decode) as file_writer:
-            for i in range(0, 100, 20):
-                await file_writer.write(codecs.encode(init_str[i:i+20]))
-            
-        # 4. Read string from the file and close it
-        async with aiofiles.open(file_name, mode='r') as f:
-            final_str = await f.read()
-        Path(file_name).unlink()
-        
-        # 5. Check initial and final strings
-        assert init_str == final_str
+        for i in range(0, 100, 20):
+            await file_writer.write(codecs.encode(init_str[i:i + 20]))
 
+    # 4. Read string from the file and close it
+    with open(file_name, mode='r') as f:
+        final_str = f.read()
+    Path(file_name).unlink()
 
-
+    # 5. Check initial and final strings
+    assert init_str == final_str
