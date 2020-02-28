@@ -1,5 +1,10 @@
 import asyncio
+import codecs
 from collections import OrderedDict
+from pathlib import Path
+from random import choice
+from string import ascii_uppercase
+from tempfile import NamedTemporaryFile
 from unittest import mock
 
 import aiohttp
@@ -7,7 +12,7 @@ import pytest
 
 from ai.backend.common.utils import (
     odict, dict2kvlist, generate_uuid, get_random_seq, nmget, readable_size_to_bytes,
-    curl, StringSetFlag, AsyncBarrier
+    current_loop, curl, StringSetFlag, AsyncBarrier, AsyncFileWriter
 )
 from ai.backend.common.testutils import (
     mock_corofunc, mock_awaitable, AsyncContextManagerMock
@@ -178,3 +183,31 @@ class TestAsyncBarrier:
         assert barrier.count == 5
         barrier.reset()
         assert barrier.count == 0
+
+
+@pytest.mark.asyncio
+async def test_encoded_text_write():
+    # 1. Get temporary filename
+    with NamedTemporaryFile() as temp_file:
+        file_name = temp_file.name
+
+    # 2. Generate random string
+    init_str = (''.join(choice(ascii_uppercase) for i in range(100)))
+
+    # 3. Write chuncked decoded string into file
+    async with AsyncFileWriter(
+            loop=current_loop(),
+            target_filename=file_name,
+            access_mode='w',
+            decode=codecs.decode,
+            max_chunks=1) as file_writer:
+        for i in range(0, 100, 20):
+            await file_writer.write(codecs.encode(init_str[i:i + 20]))
+
+    # 4. Read string from the file and close it
+    with open(file_name, 'r') as f:
+        final_str = f.read()
+    Path(file_name).unlink()
+
+    # 5. Check initial and final strings
+    assert init_str == final_str
