@@ -5,13 +5,20 @@ from collections import OrderedDict
 import enum
 from itertools import chain
 import numbers
+from pathlib import Path
 import sys
+from typing import (
+    Union, Callable
+)
 import uuid
 
 import aiohttp
 from async_timeout import timeout as _timeout
+import janus
 
-from .types import BinarySize
+from .types import BinarySize, Sentinel
+
+eof_sentinel = Sentinel()
 
 
 def env_info():
@@ -291,3 +298,57 @@ class Fstab:
         if entry:
             return await self.remove_entry(entry)
         return False
+
+
+current_loop: Callable[[], asyncio.AbstractEventLoop]
+if hasattr(asyncio, 'get_running_loop'):
+    current_loop = asyncio.get_running_loop  # type: ignore
+else:
+    current_loop = asyncio.get_event_loop    # type: ignore
+
+
+class AsyncFileWriter:
+    '''
+    This class provides a context manager for making sequential async
+    writes using janus queue.
+    '''
+    def __init__(
+            self,
+            loop: asyncio.AbstractEventLoop,
+            target_filename: Union[str, Path],
+            access_mode: str,
+            decode: Callable[[str], bytes] = None,
+            max_chunks: int = None) -> None:
+        if max_chunks is None:
+            max_chunks = 0
+        self._q: janus.Queue[Union[bytes, str, Sentinel]] = janus.Queue(maxsize=max_chunks)
+        self._loop = loop
+        self._target_filename = target_filename
+        self._access_mode = access_mode
+        self._decode = decode
+
+    async def __aenter__(self):
+        self._fut = self._loop.run_in_executor(None, self._write)
+        return self
+
+    def _write(self):
+        with open(self._target_filename, self._access_mode) as f:
+            while True:
+                item = self._q.sync_q.get()
+                if item == eof_sentinel:
+                    break
+                if self._decode is not None:
+                    item = self._decode(item)
+                f.write(item)
+                self._q.sync_q.task_done()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._q.async_q.put(eof_sentinel)
+        try:
+            await self._fut
+        finally:
+            self._q.close()
+            await self._q.wait_closed()
+
+    async def write(self, item):
+        await self._q.async_q.put(item)

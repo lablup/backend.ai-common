@@ -579,3 +579,7 @@ def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
     else:
         result = str(v)
     return result
+
+
+class Sentinel(object):
+    pass
