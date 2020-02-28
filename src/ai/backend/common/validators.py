@@ -369,18 +369,22 @@ class TimeDuration(t.Trafaret):
     def check_and_return(self, value: Any) -> datetime.timedelta:
         if not isinstance(value, str):
             self._failure('value must be string', value=value)
-        if value[-1] not in ['d', 'h', 'm']:
+        if value[-1] not in ['w', 'd', 'h', 'm']:
             self._failure('value is not a known time duration', value=value)
         try:
-            t = int(value[:-1])
-            if value[-1] == 'd':
+            t = float(value[:-1])
+            if value[-1] == 'w':
+                return datetime.timedelta(weeks=t)
+            elif value[-1] == 'd':
                 return datetime.timedelta(days=t)
             elif value[-1] == 'h':
                 return datetime.timedelta(hours=t)
             elif value[-1] == 'm':
-                return datetime.timedelta(days=t * 30)
+                return datetime.timedelta(minutes=t)
+            # otherwise, it's seconds.
+            return datetime.timedelta(seconds=t)
         except ValueError:
-            self._failure(f'invalid literal for int with base 10: {value[:-1]}', value=value)
+            self._failure(f'invalid numeric literal: {value[:-1]}', value=value)
 
 
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
