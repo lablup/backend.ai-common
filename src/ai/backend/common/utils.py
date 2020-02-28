@@ -350,6 +350,7 @@ class AsyncFileWriter:
             access_mode: str,
             decode: Callable[[str], bytes] = None,
             max_chunks: int = None) -> None:
+        self._max_chunks = max_chunks
         if max_chunks is None:
             max_chunks = 0
         self._q: janus.Queue[Union[bytes, str, Sentinel]] = janus.Queue(maxsize=max_chunks)

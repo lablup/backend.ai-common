@@ -200,8 +200,13 @@ async def test_encoded_text_write():
             file_name,
             access_mode='w+',
             decode=codecs.decode) as file_writer:
-        for i in range(0, 100, 20):
-            await file_writer.write(codecs.encode(init_str[i:i + 20]))
+        size = 300
+        if file_writer._max_chunks is None or file_writer._max_chunks >= 5:
+            step = 60
+        else:
+            step = 300 / file_writer._max_chunks
+        for i in range(0, size, step):
+            await file_writer.write(codecs.encode(init_str[i:i + step]))
 
     # 4. Read string from the file and close it
     with open(file_name, mode='r') as f:
