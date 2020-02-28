@@ -366,23 +366,35 @@ class TimeZone(t.Trafaret):
 
 class TimeDuration(t.Trafaret):
 
+    def __init__(self, *, allow_negative: bool = False):
+        self._allow_negative = allow_negative
+
     def check_and_return(self, value: Any) -> datetime.timedelta:
         if not isinstance(value, str):
             self._failure('value must be string', value=value)
-        if value[-1] not in ['w', 'd', 'h', 'm']:
-            self._failure('value is not a known time duration', value=value)
+        if len(value) == 0:
+            self._failure('value must not be empty', value=value)
         try:
-            t = float(value[:-1])
-            if value[-1] == 'w':
-                return datetime.timedelta(weeks=t)
-            elif value[-1] == 'd':
-                return datetime.timedelta(days=t)
-            elif value[-1] == 'h':
-                return datetime.timedelta(hours=t)
-            elif value[-1] == 'm':
-                return datetime.timedelta(minutes=t)
-            # otherwise, it's seconds.
-            return datetime.timedelta(seconds=t)
+            unit = value[-1]
+            if unit.isdigit():
+                t = float(value)
+                if not self._allow_negative and t < 0:
+                    self._failure('value must be positive', value=value)
+                return datetime.timedelta(seconds=t)
+            else:
+                t = float(value[:-1])
+                if not self._allow_negative and t < 0:
+                    self._failure('value must be positive', value=value)
+                if value[-1] == 'w':
+                    return datetime.timedelta(weeks=t)
+                elif value[-1] == 'd':
+                    return datetime.timedelta(days=t)
+                elif value[-1] == 'h':
+                    return datetime.timedelta(hours=t)
+                elif value[-1] == 'm':
+                    return datetime.timedelta(minutes=t)
+                else:
+                    self._failure('value is not a known time duration', value=value)
         except ValueError:
             self._failure(f'invalid numeric literal: {value[:-1]}', value=value)
 
