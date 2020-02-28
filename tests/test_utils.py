@@ -196,20 +196,16 @@ async def test_encoded_text_write():
 
     # 3. Write chuncked decoded string into file
     async with AsyncFileWriter(
-            current_loop(),
-            file_name,
-            access_mode='w+',
-            decode=codecs.decode) as file_writer:
-        size = 300
-        if file_writer._max_chunks is None or file_writer._max_chunks >= 5:
-            step = 60
-        else:
-            step = 300 / file_writer._max_chunks
-        for i in range(0, size, step):
-            await file_writer.write(codecs.encode(init_str[i:i + step]))
+            loop=current_loop(),
+            target_filename=file_name,
+            access_mode='w',
+            decode=codecs.decode,
+            max_chunks=1) as file_writer:
+        for i in range(0, 100, 20):
+            await file_writer.write(codecs.encode(init_str[i:i + 20]))
 
     # 4. Read string from the file and close it
-    with open(file_name, mode='r') as f:
+    with open(file_name, 'r') as f:
         final_str = f.read()
     Path(file_name).unlink()
 

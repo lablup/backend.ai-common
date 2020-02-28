@@ -350,7 +350,6 @@ class AsyncFileWriter:
             access_mode: str,
             decode: Callable[[str], bytes] = None,
             max_chunks: int = None) -> None:
-        self._max_chunks = max_chunks
         if max_chunks is None:
             max_chunks = 0
         self._q: janus.Queue[Union[bytes, str, Sentinel]] = janus.Queue(maxsize=max_chunks)
@@ -360,9 +359,10 @@ class AsyncFileWriter:
         self._decode = decode
 
     async def __aenter__(self):
+        self._fut = self._loop.run_in_executor(None, self._write)
         return self
 
-    async def _write(self):
+    def _write(self):
         with open(self._target_filename, self._access_mode) as f:
             while True:
                 item = self._q.sync_q.get()
@@ -374,10 +374,9 @@ class AsyncFileWriter:
                 self._q.sync_q.task_done()
 
     async def __aexit__(self, exc_type, exc, tb):
-        fut = await self._loop.run_in_executor(None, self._write)
         await self._q.async_q.put(eof_sentinel)
         try:
-            await fut
+            await self._fut
         finally:
             self._q.close()
             await self._q.wait_closed()
