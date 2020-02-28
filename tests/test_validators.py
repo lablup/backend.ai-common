@@ -1,5 +1,6 @@
 from ipaddress import IPv4Address
 
+from datetime import timedelta
 import enum
 import multidict
 import pytest
@@ -309,3 +310,46 @@ def test_slug():
         tx.Slug[-1:]
     with pytest.raises(TypeError):
         tx.Slug[:-1]
+
+
+def test_json_string():
+    iv = tx.JSONString()
+    iv.check('{}') == {}
+    iv.check('{"a":123}') == {'a': 123}
+    iv.check('[]') == []
+    with pytest.raises(ValueError):
+        iv.check('x')
+
+
+def test_time_duration():
+    iv = tx.TimeDuration()
+    with pytest.raises(t.DataError):
+        iv.check('')
+    iv.check('1w') == timedelta(weeks=1)
+    iv.check('1d') == timedelta(days=1)
+    iv.check('0.5d') == timedelta(hours=12)
+    iv.check('1h') == timedelta(hours=1)
+    iv.check('1m') == timedelta(minutes=1)
+    iv.check('1') == timedelta(seconds=1)
+    iv.check('0.5h') == timedelta(minutes=30)
+    iv.check('0.001') == timedelta(milliseconds=1)
+    with pytest.raises(t.DataError):
+        iv.check('-1')
+    with pytest.raises(t.DataError):
+        iv.check('a')
+    with pytest.raises(t.DataError):
+        iv.check('xxh')
+
+
+def test_time_duration_negative():
+    iv = tx.TimeDuration(allow_negative=True)
+    with pytest.raises(t.DataError):
+        iv.check('')
+    iv.check('0.5h') == timedelta(minutes=30)
+    iv.check('0.001') == timedelta(milliseconds=1)
+    iv.check('-1') == timedelta(seconds=-1)
+    iv.check('-3d') == timedelta(days=-3)
+    with pytest.raises(t.DataError):
+        iv.check('-a')
+    with pytest.raises(t.DataError):
+        iv.check('-xxh')

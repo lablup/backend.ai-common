@@ -310,6 +310,7 @@ class RelayHandler(logging.Handler):
         if self._sock is None:
             self._fallback(record)
             return
+        # record may be None to signal shutdown.
         try:
             pickled_rec = pickle.dumps(record)
         except (pickle.PickleError, TypeError):

@@ -20,6 +20,7 @@ env:
 python:
   - "3.8"
 
+# the default test stage
 install:
   - pip install -U pip setuptools
   - pip install -U -r requirements/test.txt
@@ -49,7 +50,6 @@ after_script:
 jobs:
   include:
     - stage: test
-      python: "3.8"
     - stage: deploy
       python: "3.8"
       install:

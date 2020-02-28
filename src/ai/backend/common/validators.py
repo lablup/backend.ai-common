@@ -5,6 +5,7 @@ An extension module to Trafaret which provides additional type checkers.
 import datetime
 import enum
 import ipaddress
+import json
 import os
 from pathlib import Path as _Path
 import re
@@ -135,6 +136,15 @@ class Enum(t.Trafaret):
         except (KeyError, ValueError):
             self._failure(f'value is not a valid member of {self.enum_cls.__name__}',
                           value=value)
+
+
+class JSONString(t.Trafaret):
+
+    def check_and_return(self, value: Any) -> dict:
+        try:
+            return json.loads(value)
+        except (KeyError, ValueError):
+            self._failure('value is not a valid JSON string', value=value)
 
 
 class Path(t.Trafaret):
@@ -352,6 +362,41 @@ class TimeZone(t.Trafaret):
         if tz is None:
             self._failure('value is not a known timezone', value=value)
         return tz
+
+
+class TimeDuration(t.Trafaret):
+
+    def __init__(self, *, allow_negative: bool = False):
+        self._allow_negative = allow_negative
+
+    def check_and_return(self, value: Any) -> datetime.timedelta:
+        if not isinstance(value, str):
+            self._failure('value must be string', value=value)
+        if len(value) == 0:
+            self._failure('value must not be empty', value=value)
+        try:
+            unit = value[-1]
+            if unit.isdigit():
+                t = float(value)
+                if not self._allow_negative and t < 0:
+                    self._failure('value must be positive', value=value)
+                return datetime.timedelta(seconds=t)
+            else:
+                t = float(value[:-1])
+                if not self._allow_negative and t < 0:
+                    self._failure('value must be positive', value=value)
+                if value[-1] == 'w':
+                    return datetime.timedelta(weeks=t)
+                elif value[-1] == 'd':
+                    return datetime.timedelta(days=t)
+                elif value[-1] == 'h':
+                    return datetime.timedelta(hours=t)
+                elif value[-1] == 'm':
+                    return datetime.timedelta(minutes=t)
+                else:
+                    self._failure('value is not a known time duration', value=value)
+        except ValueError:
+            self._failure(f'invalid numeric literal: {value[:-1]}', value=value)
 
 
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
