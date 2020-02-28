@@ -49,6 +49,7 @@ after_script:
 # stage def.
 jobs:
   include:
+    - stgae: test
     - stage: deploy
       python: "3.8"
       install:
