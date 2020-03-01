@@ -17,6 +17,11 @@ def test_trafaret_dataerror_pickling():
         iv = t.Int()
         iv.check('x')
 
+    # Remove the already installed monkey-patch.
+    # (e.g., when running the whole test suite)
+    if hasattr(t.DataError, '__reduce__'):
+        delattr(t.DataError, '__reduce__')
+
     with pytest.raises(RuntimeError):
         try:
             iv = t.Int()
