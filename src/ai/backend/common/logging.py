@@ -341,7 +341,6 @@ class Logger():
     def __init__(self, daemon_config: MutableMapping[str, Any], *,
                  is_master: bool, log_endpoint: str) -> None:
         legacy_logfile_path = os.environ.get('BACKEND_LOG_FILE')
-        pickling_support.install()  # enable pickling of tracebacks
         if legacy_logfile_path:
             p = Path(legacy_logfile_path)
             config.override_key(daemon_config, ('file', 'path'), p.parent)
@@ -380,6 +379,8 @@ class Logger():
     def __enter__(self):
         if is_active.get():
             raise RuntimeError('You cannot activate two or more loggers at the same time.')
+        tx.fix_trafaret_pickle_support()  # monkey-patch for pickling trafaret.DataError
+        pickling_support.install()        # enable pickling of tracebacks
         self.log_config['handlers']['relay'] = {
             'class': 'ai.backend.common.logging.RelayHandler',
             'level': self.daemon_config['level'],
