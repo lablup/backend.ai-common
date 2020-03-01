@@ -3,10 +3,44 @@ from ipaddress import IPv4Address
 from datetime import timedelta
 import enum
 import multidict
+import pickle
+
 import pytest
 import trafaret as t
 
 from ai.backend.common import validators as tx
+
+
+def test_trafaret_dataerror_pickling():
+
+    with pytest.raises(t.DataError):
+        iv = t.Int()
+        iv.check('x')
+
+    # Remove the already installed monkey-patch.
+    # (e.g., when running the whole test suite)
+    if hasattr(t.DataError, '__reduce__'):
+        delattr(t.DataError, '__reduce__')
+
+    with pytest.raises(RuntimeError):
+        try:
+            iv = t.Int()
+            iv.check('x')
+        except t.DataError as e:
+            bindata = pickle.dumps(e)
+            pickle.loads(bindata)
+
+    tx.fix_trafaret_pickle_support()
+
+    try:
+        iv = t.Int()
+        iv.check('x')
+    except t.DataError as e:
+        bindata = pickle.dumps(e)
+        unpacked = pickle.loads(bindata)
+        assert unpacked.error == e.error
+        assert unpacked.name == e.name
+        assert unpacked.value == e.value
 
 
 def test_aliased_key():
