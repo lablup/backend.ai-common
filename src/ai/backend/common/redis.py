@@ -16,32 +16,35 @@ async def connect_with_retries(
         max_retry_delay: float = 60.0,
         **kwargs) -> aioredis.abc.AbcPool:
     '''
-    Execute the given coroutine with multiple retries, assuming
-    that the coro is a connection to a Redis server.
-    The coro must be a call to ``aioredis.create_redis()`` or
-    ``aioredis.create_redis_pool()``
+    Create a Redis connection pool with multiple retries.
     '''
     begin = time.monotonic()
     while True:
         try:
             return await aioredis.create_redis_pool(*args, **kwargs)
+        except asyncio.CancelledError:
+            raise
         except ConnectionRefusedError:
-            if time.monotonic() - begin >= max_retry_delay:
-                raise
+            if max_retry_delay > 0 and time.monotonic() - begin >= max_retry_delay:
+                raise asyncio.TimeoutError('Too much delayed for making connection')
             await asyncio.sleep(retry_delay)
             continue
 
 
 async def execute_with_retries(
-        func: Any,
-        retry_delay: float = 0.5,
-        max_retry_delay: float = 60.0) -> Any:
+    func: Any,
+    retry_delay: float = 0.5,
+    max_retry_delay: float = 60.0,
+    max_retries: int = 0,
+    suppress_force_closed: bool = True,
+) -> Any:
     '''
     Execute the given Redis commands with multiple retries.
     The Redis commands must be generated as a ``aioredis.commands.Pipeline`` object
     or as a coroutine to execute single-shot aioredis commands by *func*.
     '''
     begin = time.monotonic()
+    num_retries = 0
     while True:
         try:
             if inspect.iscoroutinefunction(func):
@@ -58,15 +61,23 @@ async def execute_with_retries(
             else:
                 raise TypeError('The return value must be an awaitable'
                                 'or aioredis.commands.Pipeline object')
+        except asyncio.CancelledError:
+            raise
         except aioredis.errors.ConnectionForcedCloseError:
             # This happens when we shut down the connection/pool.
-            raise
+            if suppress_force_closed:
+                return None
+            else:
+                raise
         except (ConnectionResetError,
                 ConnectionRefusedError,
                 aioredis.errors.ConnectionClosedError,
                 aioredis.errors.PipelineError):
             # Other cases mean server disconnection.
-            if time.monotonic() - begin >= max_retry_delay:
-                raise
+            if max_retries > 0 and num_retries >= max_retries:
+                raise asyncio.TimeoutError('Exceeded the maximum retry count')
+            if max_retry_delay > 0 and time.monotonic() - begin >= max_retry_delay:
+                raise asyncio.TimeoutError('Too much delayed for retries')
             await asyncio.sleep(retry_delay)
+            num_retries += 1
             continue
