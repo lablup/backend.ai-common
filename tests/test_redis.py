@@ -1,4 +1,5 @@
 import asyncio
+from decimal import Decimal
 try:
     from unittest import AsyncMock  # type: ignore
 except ImportError:
@@ -13,25 +14,27 @@ from ai.backend.common import redis
 
 @pytest.fixture
 def mock_time(mocker):
-    total_delay = 0.0
+    total_delay = Decimal(0)
     call_count = 0
     base_time = time.monotonic()
-    accum_time = 0.0
+    accum_time = Decimal(0)
+    q = Decimal('.000000')
 
-    async def _mock_async_sleep(delay) -> None:
-        nonlocal total_delay, call_count, accum_time
+    async def _mock_async_sleep(delay: float) -> None:
+        nonlocal total_delay, call_count, accum_time, q
         call_count += 1
-        accum_time += delay
-        total_delay += delay
+        quantized_delay = Decimal(delay).quantize(q)
+        accum_time += quantized_delay
+        total_delay += quantized_delay
 
     def _reset() -> None:
         nonlocal total_delay, call_count
-        total_delay = 0.0
+        total_delay = Decimal(0)
         call_count = 0
 
     def _get_total_delay() -> float:
         nonlocal total_delay
-        return total_delay
+        return float(total_delay)
 
     def _get_call_count() -> int:
         nonlocal call_count
@@ -39,7 +42,7 @@ def mock_time(mocker):
 
     def _mock_time_monotonic() -> float:
         nonlocal accum_time
-        return base_time + accum_time
+        return base_time + float(accum_time)
 
     _mock_async_sleep.reset = _reset
     _mock_async_sleep.get_total_delay = _get_total_delay
