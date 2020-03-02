@@ -4,7 +4,6 @@ from collections import OrderedDict
 from contextlib import closing
 import enum
 from itertools import chain
-import janus
 import numbers
 from pathlib import Path
 import random
@@ -17,6 +16,7 @@ import uuid
 
 import aiohttp
 from async_timeout import timeout as _timeout
+import janus
 
 from .types import BinarySize, Sentinel
 
