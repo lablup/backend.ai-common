@@ -1,8 +1,8 @@
 import asyncio
 try:
-    from unittest import AsyncMock  # type: ignore
+    from unittest.mock import AsyncMock  # type: ignore
 except ImportError:
-    from asynctest import CoroutineMock as AsyncMock
+    from asynctest import CoroutineMock as AsyncMock  # type: ignore
 
 import aioredis
 import pytest
