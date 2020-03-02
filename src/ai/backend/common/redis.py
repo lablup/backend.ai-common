@@ -20,7 +20,7 @@ def _calc_delay_exp_backoff(initial_delay: float, retry_count: float, time_limit
 async def connect_with_retries(
     *args,
     retry_delay: float = 0.5,
-    timeout: float = 60.0,
+    retry_timeout: float = 60.0,
     max_retries: int = 0,
     exponential_backoff: bool = True,
     **kwargs,
@@ -38,10 +38,10 @@ async def connect_with_retries(
         except ConnectionRefusedError:
             if max_retries > 0 and num_retries >= max_retries:
                 raise asyncio.TimeoutError('Exceeded the maximum retry count')
-            if timeout > 0 and time.monotonic() - begin >= timeout:
+            if retry_timeout > 0 and time.monotonic() - begin >= retry_timeout:
                 raise asyncio.TimeoutError('Too much delayed for retries')
             delay = _calc_delay_exp_backoff(
-                retry_delay, num_retries, timeout,
+                retry_delay, num_retries, retry_timeout,
             ) if exponential_backoff else retry_delay
             await asyncio.sleep(delay)
             num_retries += 1
@@ -51,7 +51,7 @@ async def connect_with_retries(
 async def execute_with_retries(
     func: Any,
     retry_delay: float = 0.5,
-    timeout: float = 60.0,
+    retry_timeout: float = 60.0,
     max_retries: int = 0,
     exponential_backoff: bool = True,
     suppress_force_closed: bool = True,
@@ -94,10 +94,10 @@ async def execute_with_retries(
             # Other cases mean server disconnection.
             if max_retries > 0 and num_retries >= max_retries:
                 raise asyncio.TimeoutError('Exceeded the maximum retry count')
-            if timeout > 0 and time.monotonic() - begin >= timeout:
+            if retry_timeout > 0 and time.monotonic() - begin >= retry_timeout:
                 raise asyncio.TimeoutError('Too much delayed for retries')
             delay = _calc_delay_exp_backoff(
-                retry_delay, num_retries, timeout,
+                retry_delay, num_retries, retry_timeout,
             ) if exponential_backoff else retry_delay
             await asyncio.sleep(delay)
             num_retries += 1
