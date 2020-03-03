@@ -162,6 +162,7 @@ class Path(t.Trafaret):
                  auto_create: bool = False,
                  allow_nonexisting: bool = False,
                  allow_devnull: bool = False,
+                 relative_only: bool = False,
                  resolve: bool = True):
         super().__init__()
         self._type = type
@@ -171,6 +172,7 @@ class Path(t.Trafaret):
         self._auto_create = auto_create
         self._allow_nonexisting = allow_nonexisting
         self._allow_devnull = allow_devnull
+        self._relative_only = relative_only
         self._resolve = resolve
 
     def check_and_return(self, value: Any) -> _Path:
@@ -178,6 +180,8 @@ class Path(t.Trafaret):
             p = _Path(value).resolve() if self._resolve else _Path(value)
         except (TypeError, ValueError):
             self._failure('cannot parse value as a path', value=value)
+        if self._relative_only and p.is_absolute():
+            self._failure('expected relative path but the value is absolute', value=value)
         if self._base_path is not None:
             try:
                 _base_path = self._base_path.resolve() if self._resolve else self._base_path

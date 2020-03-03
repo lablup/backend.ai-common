@@ -19,6 +19,8 @@ from .exception import ConfigurationError
 __all__ = (
     'ConfigurationError',
     'etcd_config_iv',
+    'redis_config_iv',
+    'vfolder_config_iv',
     'read_from_file',
     'read_from_etcd',
     'override_key',
@@ -35,6 +37,17 @@ etcd_config_iv = t.Dict({
         t.Key('user', default=''): t.Null | t.String(allow_blank=True),
         t.Key('password', default=''): t.Null | t.String(allow_blank=True),
     }).allow_extra('*'),
+}).allow_extra('*')
+
+redis_config_iv = t.Dict({
+    t.Key('addr', default=('127.0.0.1', 6379)): tx.HostPortPair,
+    t.Key('password', default=None): t.Null | t.String,
+}).allow_extra('*')
+
+vfolder_config_iv = t.Dict({
+    tx.AliasedKey(['mount', '_mount'], default='/mnt'): tx.Path(type='dir'),
+    tx.AliasedKey(['fsprefix', '_fsprefix'], default=''):
+        tx.Path(type='dir', resolve=False, relative_only=True, allow_nonexisting=True),
 }).allow_extra('*')
 
 
