@@ -59,12 +59,6 @@ class aobject(object):
     The latter is supported to avoid type checking errors (currently confirmed in mypy 0.720+).
     '''
 
-    async def __new__(cls: Type[T_aobj], *args, **kwargs) -> T_aobj:  # type: ignore
-        instance = super().__new__(cls)
-        instance.__init__(*args, **kwargs)
-        await instance.__ainit__()
-        return instance
-
     @classmethod
     async def new(cls: Type[T_aobj], *args, **kwargs) -> T_aobj:
         '''
