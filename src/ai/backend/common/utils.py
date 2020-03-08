@@ -8,7 +8,10 @@ import numbers
 from pathlib import Path
 import sys
 from typing import (
-    Union, Callable
+    cast,
+    Any, Union, Type,
+    Callable, Awaitable,
+    Tuple,
 )
 import uuid
 
@@ -22,9 +25,9 @@ eof_sentinel = Sentinel()
 
 
 def env_info():
-    '''
+    """
     Returns a string that contains the Python version and runtime path.
-    '''
+    """
     v = sys.version_info
     pyver = f'Python {v.major}.{v.minor}.{v.micro}'
     if v.releaselevel == 'alpha':
@@ -39,23 +42,23 @@ def env_info():
 
 
 def odict(*args):
-    '''
+    """
     A short-hand for the constructor of OrderedDict.
     :code:`odict(('a',1), ('b',2))` is equivalent to
     :code:`OrderedDict([('a',1), ('b',2)])`.
-    '''
+    """
     return OrderedDict(args)
 
 
 def dict2kvlist(o):
-    '''
+    """
     Serializes a dict-like object into a generator of the flatten list of
     repeating key-value pairs.  It is useful when using HMSET method in Redis.
 
     Example:
     >>> list(dict2kvlist({'a': 1, 'b': 2}))
     ['a', 1, 'b', 2]
-    '''
+    """
     return chain.from_iterable((k, v) for k, v in o.items())
 
 
@@ -66,7 +69,7 @@ def generate_uuid():
 
 
 def nmget(o, key_path, def_val=None, path_delimiter='.', null_as_default=True):
-    '''
+    """
     A short-hand for retrieving a value from nested mappings
     ("nested-mapping-get"). At each level it checks if the given "path"
     component in the given key exists and return the default value whenever
@@ -86,7 +89,7 @@ def nmget(o, key_path, def_val=None, path_delimiter='.', null_as_default=True):
     0
     >>> nmget(o, 'x', 0, null_as_default=False)
     None
-    '''
+    """
     pieces = key_path.split(path_delimiter)
     while pieces:
         p = pieces.pop(0)
@@ -174,9 +177,9 @@ class StringSetFlag(enum.Flag):
 
 
 class AsyncBarrier:
-    '''
+    """
     This class provides a simplified asyncio-version of threading.Barrier class.
-    '''
+    """
 
     num_parties = 1
     loop = None
@@ -307,11 +310,53 @@ else:
     current_loop = asyncio.get_event_loop    # type: ignore
 
 
+async def run_through(
+    *aws: Awaitable[None],
+    ignored_exceptions: Tuple[Type[Exception], ...],
+) -> None:
+    """
+    A syntactic sugar to simplify the code patterns like:
+
+    .. code-block:: python3
+
+       try:
+           await do1()
+       except MyError:
+           pass
+       try:
+           await do2()
+       except MyError:
+           pass
+       try:
+           await do3()
+       except MyError:
+           pass
+
+    Using ``run_through()``, it becomes:
+
+    .. code-block:: python3
+
+       await run_through(
+           do1(),
+           do2(),
+           do3(),
+           ignored_exceptions=(MyError,),
+       )
+    """
+    for aw in aws:
+        try:
+            await aw
+        except Exception as e:
+            if isinstance(e, cast(Tuple[Any, ...], ignored_exceptions)):
+                continue
+            raise
+
+
 class AsyncFileWriter:
-    '''
+    """
     This class provides a context manager for making sequential async
     writes using janus queue.
-    '''
+    """
     def __init__(
             self,
             loop: asyncio.AbstractEventLoop,
