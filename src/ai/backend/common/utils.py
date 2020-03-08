@@ -3,6 +3,7 @@ import asyncio
 import base64
 from collections import OrderedDict
 import enum
+import inspect
 from itertools import chain
 import numbers
 from pathlib import Path
@@ -311,7 +312,7 @@ else:
 
 
 async def run_through(
-    *aws: Awaitable[None],
+    *awaitable_or_callables: Union[Callable[[], None], Awaitable[None]],
     ignored_exceptions: Tuple[Type[Exception], ...],
 ) -> None:
     """
@@ -343,9 +344,14 @@ async def run_through(
            ignored_exceptions=(MyError,),
        )
     """
-    for aw in aws:
+    for f in awaitable_or_callables:
         try:
-            await aw
+            if inspect.iscoroutinefunction(f):
+                await f()  # type: ignore
+            elif inspect.isawaitable(f):
+                await f  # type: ignore
+            else:
+                f()  # type: ignore
         except Exception as e:
             if isinstance(e, cast(Tuple[Any, ...], ignored_exceptions)):
                 continue

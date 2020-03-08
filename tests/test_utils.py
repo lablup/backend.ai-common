@@ -185,6 +185,11 @@ async def test_run_through():
         i += 1
         raise ZeroDivisionError
 
+    def do_sync():
+        nonlocal i
+        i += 1
+        raise ZeroDivisionError
+
     await run_through(
         do(),
         do(),
@@ -202,6 +207,15 @@ async def test_run_through():
         )
     # only the addition is executed.
     assert i == 4
+
+    await run_through(
+        do,                 # coroutine-function
+        do_sync,            # function
+        lambda: do_sync(),  # function wrapped with lambda
+        do(),               # coroutine
+        ignored_exceptions=(ZeroDivisionError,),
+    )
+    assert i == 8
 
 
 @pytest.mark.asyncio
