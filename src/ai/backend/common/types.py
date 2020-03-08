@@ -56,24 +56,12 @@ class aobject(object):
     An "asynchronous" object which guarantees to invoke both ``def __init__(self, ...)`` and
     ``async def __ainit(self)__`` to ensure asynchronous initialization of the object.
 
-    You can create an instance of subclasses of aboject in two ways:
-
-    .. code-block:: python
-
-       o = await SomeAObj(...)
+    You can create an instance of subclasses of aboject in the following way:
 
     .. code-block:: python
 
        o = await SomeAObj.new(...)
-
-    The latter is supported to avoid type checking errors (currently confirmed in mypy 0.720+).
     '''
-
-    async def __new__(cls: Type[T_aobj], *args, **kwargs) -> T_aobj:  # type: ignore
-        instance = super().__new__(cls)
-        instance.__init__(*args, **kwargs)
-        await instance.__ainit__()
-        return instance
 
     @classmethod
     async def new(cls: Type[T_aobj], *args, **kwargs) -> T_aobj:

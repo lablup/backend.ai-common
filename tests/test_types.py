@@ -41,14 +41,14 @@ async def test_aobject():
 
     init_count = 0
     ainit_count = 0
-    o = await MyBase(1)
+    o = await MyBase.new(1)
     assert o.x == 1
     assert init_count == 1
     assert ainit_count == 1
 
     init_count = 0
     ainit_count = 0
-    o = await MyDerived(2, 3)
+    o = await MyDerived.new(2, 3)
     assert o.x == 2
     assert o.y == 3
     assert init_count == 2

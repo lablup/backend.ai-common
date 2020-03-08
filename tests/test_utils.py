@@ -11,8 +11,13 @@ import aiohttp
 import pytest
 
 from ai.backend.common.utils import (
-    odict, dict2kvlist, generate_uuid, get_random_seq, nmget, readable_size_to_bytes,
-    current_loop, curl, StringSetFlag, AsyncBarrier, AsyncFileWriter
+    odict, dict2kvlist, nmget,
+    generate_uuid, get_random_seq,
+    readable_size_to_bytes,
+    current_loop, curl,
+    run_through,
+    StringSetFlag,
+    AsyncBarrier, AsyncFileWriter
 )
 from ai.backend.common.testutils import (
     mock_corofunc, mock_awaitable, AsyncContextManagerMock
@@ -183,6 +188,49 @@ class TestAsyncBarrier:
         assert barrier.count == 5
         barrier.reset()
         assert barrier.count == 0
+
+
+@pytest.mark.asyncio
+async def test_run_through():
+
+    i = 0
+
+    async def do():
+        nonlocal i
+        i += 1
+        raise ZeroDivisionError
+
+    def do_sync():
+        nonlocal i
+        i += 1
+        raise ZeroDivisionError
+
+    await run_through(
+        do(),
+        do(),
+        do(),
+        ignored_exceptions=(ZeroDivisionError,),
+    )
+    assert i == 3
+
+    with pytest.raises(ZeroDivisionError):
+        await run_through(
+            do(),
+            do(),
+            do(),
+            ignored_exceptions=(KeyError,),
+        )
+    # only the addition is executed.
+    assert i == 4
+
+    await run_through(
+        do,                 # coroutine-function
+        do_sync,            # function
+        lambda: do_sync(),  # function wrapped with lambda
+        do(),               # coroutine
+        ignored_exceptions=(ZeroDivisionError,),
+    )
+    assert i == 8
 
 
 @pytest.mark.asyncio
