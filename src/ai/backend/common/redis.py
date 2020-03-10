@@ -1,7 +1,11 @@
 import asyncio
 import inspect
 import time
-from typing import Any
+from typing import (
+    Any,
+    Sequence,
+    Dict,
+)
 
 import aioredis
 
@@ -9,6 +13,8 @@ __all__ = (
     'connect_with_retries',
     'execute_with_retries',
 )
+
+_scripts: Dict[str, str] = {}
 
 
 def _calc_delay_exp_backoff(initial_delay: float, retry_count: float, time_limit: float) -> float:
@@ -102,3 +108,43 @@ async def execute_with_retries(
             await asyncio.sleep(delay)
             num_retries += 1
             continue
+
+
+async def execute_script(
+    conn: aioredis.Redis,
+    script_id: str,
+    script: str,
+    keys: Sequence[str],
+    args: Sequence[str],
+) -> Any:
+    """
+    Auto-load and execute the given script.
+    It uses the hash keys for scripts so that it does not send the whole
+    script every time but only at the first time.
+
+    Args:
+        conn: A Redis connection or pool with the commands mixin.
+        script_id: A human-readable identifier for the script.
+            This can be arbitrary string but must be unique for each script.
+        script: The script content.
+        keys: The Redis keys that will be passed to the script.
+        args: The arguments that will be passed to the script.
+    """
+    script_hash = _scripts.get(script_id, 'x')
+    while True:
+        try:
+            ret = await execute_with_retries(lambda: conn.evalsha(
+                script_hash,
+                keys=keys,
+                args=args,
+            ))
+            break
+        except aioredis.errors.ReplyError as e:
+            if 'NOSCRIPT' in e.args[0]:
+                # Redis may have been restarted.
+                script_hash = await conn.script_load(script)
+                _scripts[script_id] = script_hash
+            else:
+                raise
+            continue
+    return ret

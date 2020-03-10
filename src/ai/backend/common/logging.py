@@ -314,6 +314,7 @@ class RelayHandler(logging.Handler):
         try:
             pickled_rec = pickle.dumps(record)
         except (pickle.PickleError, TypeError):
+            self._fallback(record)
             # We have a pickling error.
             # Change it into a self-created picklable log record with exception info.
             record = logging.makeLogRecord({
