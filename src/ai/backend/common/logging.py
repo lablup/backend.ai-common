@@ -7,6 +7,7 @@ import threading
 import os
 from pathlib import Path
 import pickle
+import pprint
 from typing import (
     Any, Optional,
     Mapping, MutableMapping,
@@ -32,6 +33,7 @@ __all__ = (
     'BraceStyleAdapter',
     'LogstashHandler',
     'is_active',
+    'pretty',
 )
 
 is_active: ContextVar[bool] = ContextVar('is_active', default=False)
@@ -166,6 +168,16 @@ class CustomJsonFormatter(JsonFormatter):
             log_record['level'] = log_record['level'].upper()
         else:
             log_record['level'] = record.levelname
+
+
+class pretty:
+    """A simple object wrapper to pretty-format it when formatting the log record."""
+
+    def __init__(self, obj: Any) -> None:
+        self.obj = obj
+
+    def __repr__(self) -> str:
+        return pprint.pformat(self.obj)
 
 
 def log_worker(
