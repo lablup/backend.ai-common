@@ -235,3 +235,20 @@ def test_resource_slot_comparison_subset():
     assert not r3.eq_contains(r1)
     assert not r1.eq_contained(r3)
     assert r1.eq_contains(r3)
+
+
+def test_resource_slot_calc_with_infinity():
+    r1 = ResourceSlot.from_json({'a': 'Infinity'})
+    r2 = ResourceSlot.from_json({'a': '3'})
+    r3 = r1 - r2
+    assert r3['a'] == Decimal('Infinity')
+    r3 = r1 + r2
+    assert r3['a'] == Decimal('Infinity')
+
+    r4 = ResourceSlot.from_json({'b': '5'})
+    r5 = r1 - r4
+    assert r5['a'] == Decimal('Infinity')
+    assert r5['b'] == -5
+    r5 = r1 + r4
+    assert r5['a'] == Decimal('Infinity')
+    assert r5['b'] == 5
