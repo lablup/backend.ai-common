@@ -437,7 +437,7 @@ class ResourceSlot(UserDict):
         if unit == 'bytes':
             try:
                 result = '{:s}'.format(BinarySize(value))
-            except ValueError:
+            except (OverflowError, ValueError):
                 result = _stringify_number(value)
         else:
             result = _stringify_number(value)
