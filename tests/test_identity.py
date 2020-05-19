@@ -84,7 +84,7 @@ async def test_get_instance_id(mocker, provider):
         elif provider is None:
             with patch('socket.gethostname', return_value='myname'):
                 ret = await ai.backend.common.identity.get_instance_id()
-                assert ret == f'i-myname'
+                assert ret == 'i-myname'
 
 
 @pytest.mark.skip

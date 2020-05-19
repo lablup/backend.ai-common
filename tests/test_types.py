@@ -82,11 +82,11 @@ def test_binary_size():
     assert 524288 == BinarySize.from_str('0.5m')
     assert 524288 == BinarySize.from_str('512k')
     assert '{: }'.format(BinarySize(930)) == '930'
-    assert '{:k}'.format(BinarySize(1024)) == '1k'
-    assert '{:k}'.format(BinarySize(524288)) == '512k'
-    assert '{:k}'.format(BinarySize(1048576)) == '1024k'
-    assert '{:m}'.format(BinarySize(524288)) == '0.5m'
-    assert '{:m}'.format(BinarySize(1048576)) == '1m'
+    assert '{:k}'.format(BinarySize(1024)) == '1k'        # type: ignore
+    assert '{:k}'.format(BinarySize(524288)) == '512k'    # type: ignore
+    assert '{:k}'.format(BinarySize(1048576)) == '1024k'  # type: ignore
+    assert '{:m}'.format(BinarySize(524288)) == '0.5m'    # type: ignore
+    assert '{:m}'.format(BinarySize(1048576)) == '1m'     # type: ignore
     assert '{:g}'.format(BinarySize(2 ** 30)) == '1g'
     with pytest.raises(ValueError):
         '{:x}'.format(BinarySize(1))
