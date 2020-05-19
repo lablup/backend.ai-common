@@ -82,11 +82,11 @@ def test_binary_size():
     assert 524288 == BinarySize.from_str('0.5m')
     assert 524288 == BinarySize.from_str('512k')
     assert '{: }'.format(BinarySize(930)) == '930'
-    assert '{:k}'.format(BinarySize(1024)) == '1k'
-    assert '{:k}'.format(BinarySize(524288)) == '512k'
-    assert '{:k}'.format(BinarySize(1048576)) == '1024k'
-    assert '{:m}'.format(BinarySize(524288)) == '0.5m'
-    assert '{:m}'.format(BinarySize(1048576)) == '1m'
+    assert '{:k}'.format(BinarySize(1024)) == '1k'        # type: ignore
+    assert '{:k}'.format(BinarySize(524288)) == '512k'    # type: ignore
+    assert '{:k}'.format(BinarySize(1048576)) == '1024k'  # type: ignore
+    assert '{:m}'.format(BinarySize(524288)) == '0.5m'    # type: ignore
+    assert '{:m}'.format(BinarySize(1048576)) == '1m'     # type: ignore
     assert '{:g}'.format(BinarySize(2 ** 30)) == '1g'
     with pytest.raises(ValueError):
         '{:x}'.format(BinarySize(1))
@@ -138,6 +138,13 @@ def test_resource_slot_serialization():
     assert r1 == ResourceSlot.from_json({'a': '1', 'b': '2147483648'})
     assert r2 == ResourceSlot.from_json({'a': '2', 'b': '1073741824'})
     assert r3 == ResourceSlot.from_json({'a': '1', 'b': '0'})
+
+    r4 = ResourceSlot.from_user_input({'a': Decimal('Infinity'), 'b': Decimal('-Infinity')}, st)
+    assert not r4['a'].is_finite()
+    assert not r4['b'].is_finite()
+    assert r4['a'] > 0
+    assert r4['b'] < 0
+    assert r4.to_humanized(st) == {'a': 'Infinity', 'b': '-Infinity'}
 
     # The result for "unspecified" fields may be different
     # depending on the policy options.

@@ -56,19 +56,19 @@ def test_image_ref_parsing():
     # To parse registry URLs correctly, we first need to give
     # the valid registry URLs!
     ref = ImageRef('myregistry.org/lua', [])
-    assert ref.name == f'myregistry.org/lua'
+    assert ref.name == 'myregistry.org/lua'
     assert ref.tag == 'latest'
     assert ref.registry == default_registry
     assert ref.tag_set == ('latest', set())
 
     ref = ImageRef('myregistry.org/lua', ['myregistry.org'])
-    assert ref.name == f'lua'
+    assert ref.name == 'lua'
     assert ref.tag == 'latest'
     assert ref.registry == 'myregistry.org'
     assert ref.tag_set == ('latest', set())
 
     ref = ImageRef('myregistry.org/lua:5.3-alpine', ['myregistry.org'])
-    assert ref.name == f'lua'
+    assert ref.name == 'lua'
     assert ref.tag == '5.3-alpine'
     assert ref.registry == 'myregistry.org'
     assert ref.tag_set == ('5.3', {'alpine'})
@@ -90,32 +90,32 @@ def test_image_ref_parsing():
 
     # IP addresses are treated as valid registry URLs.
     ref = ImageRef('127.0.0.1:5000/python:3.6-cuda9-ubuntu')
-    assert ref.name == f'python'
+    assert ref.name == 'python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == '127.0.0.1:5000'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
     # IPv6 addresses must be bracketted.
     ref = ImageRef('::1/python:3.6-cuda9-ubuntu')
-    assert ref.name == f'::1/python'
+    assert ref.name == '::1/python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == default_registry
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
     ref = ImageRef('[::1]/python:3.6-cuda9-ubuntu')
-    assert ref.name == f'python'
+    assert ref.name == 'python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == '[::1]'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
     ref = ImageRef('[::1]:5000/python:3.6-cuda9-ubuntu')
-    assert ref.name == f'python'
+    assert ref.name == 'python'
     assert ref.tag == '3.6-cuda9-ubuntu'
     assert ref.registry == '[::1]:5000'
     assert ref.tag_set == ('3.6', {'ubuntu', 'cuda'})
 
     ref = ImageRef('[212c:9cb9:eada:e57b:84c9:6a9:fbec:bdd2]:1024/python')
-    assert ref.name == f'python'
+    assert ref.name == 'python'
     assert ref.tag == 'latest'
     assert ref.registry == '[212c:9cb9:eada:e57b:84c9:6a9:fbec:bdd2]:1024'
     assert ref.tag_set == ('latest', set())

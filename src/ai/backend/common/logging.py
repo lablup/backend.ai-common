@@ -273,8 +273,8 @@ class Logger():
                 'formatter': 'console',
                 'stream': 'ext://sys.stderr',
             }
-            for l in self.log_config['loggers'].values():
-                l['handlers'].append('console')
+            for _logger in self.log_config['loggers'].values():
+                _logger['handlers'].append('console')
 
         def _activate_aggregator():
             if 'aggregator' not in self.log_config['handlers']:
@@ -283,8 +283,8 @@ class Logger():
                     'level': self.daemon_config['level'],
                     'queue': self.log_queue,
                 }
-                for l in self.log_config['loggers'].values():
-                    l['handlers'].append('aggregator')
+                for _logger in self.log_config['loggers'].values():
+                    _logger['handlers'].append('aggregator')
 
         if 'file' in self.daemon_config['drivers']:
             _activate_aggregator()
