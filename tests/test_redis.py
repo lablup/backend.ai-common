@@ -49,7 +49,7 @@ async def test_execute_with_retries(mocker, mock_time):
     with pytest.raises(asyncio.TimeoutError):
         await redis.execute_with_retries(mock_work_connreset, retry_delay=0.5, retry_timeout=60.0, exponential_backoff=False)
     assert mock_async_sleep.get_call_count() in (120, 121)
-    assert 59.9 <= mock_async_sleep.get_total_delay() <= 60.1
+    assert 59.9 <= mock_async_sleep.get_total_delay() <= 60.9
 
     mock_async_sleep.reset()
 
