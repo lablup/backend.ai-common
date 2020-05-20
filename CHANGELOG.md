@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.03.0b3 (2020-05-20)
+----------------------
+
+### Fixes
+* `types`: Fix humanization of infinity values ([#32](https://github.com/lablup/backend.ai-common/issues/32))
+
+
 20.03.0b2 (2020-05-12)
 ----------------------
 
