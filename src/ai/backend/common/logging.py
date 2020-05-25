@@ -324,6 +324,8 @@ class RelayHandler(logging.Handler):
             return
         # record may be None to signal shutdown.
         try:
+            if record is not None and record.exc_info is not None:
+                pickling_support.install(record.exc_info[1])
             pickled_rec = pickle.dumps(record)
         except (pickle.PickleError, TypeError):
             self._fallback(record)
