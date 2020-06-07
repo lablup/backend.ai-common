@@ -1,1 +1,0 @@
-Fix mount expression type using an explicitly typed tuples in `types.KernelCreationConfig`

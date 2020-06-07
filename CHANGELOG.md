@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.03.0b5 (2020-06-07)
+----------------------
+
+### Fixes
+* Fix mount expression type using an explicitly typed tuples in `types.KernelCreationConfig` ([#35](https://github.com/lablup/backend.ai-common/issues/35))
+
+
 20.03.0b4 (2020-06-07)
 ----------------------
 
