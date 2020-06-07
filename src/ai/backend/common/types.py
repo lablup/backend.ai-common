@@ -8,16 +8,21 @@ import ipaddress
 import math
 import numbers
 from typing import (
-    Any, Optional, Union,
-    Tuple, Sequence, List,
+    Any,
+    List,
+    Literal,
     Mapping,
-    NewType, Type, TypeVar,
+    NewType,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
     TypedDict,
     TYPE_CHECKING,
+    Union,
 )
 import uuid
-
-import attr
 
 __all__ = (
     'aobject',
@@ -37,6 +42,11 @@ __all__ = (
     'IntrinsicSlotNames',
     'ResourceSlot',
     'MountPermission',
+    'MountPermissionLiteral',
+    'MountTuple5',
+    'MountTuple4',
+    'MountTuple3',
+    'MountTypes',
     'KernelCreationConfig',
     'KernelCreationResult',
     'ServicePortProtocols',
@@ -180,6 +190,9 @@ class MountPermission(str, enum.Enum):
     READ_ONLY = 'ro'
     READ_WRITE = 'rw'
     RW_DELETE = 'wd'
+
+
+MountPermissionLiteral = Literal['ro', 'rw', 'wd']
 
 
 class MountTypes(str, enum.Enum):
@@ -513,14 +526,14 @@ class ResourceSlot(UserDict):
         }
 
 
-@attr.s(auto_attribs=True, slots=True)
-class VFolderRequest:
-    '''
-    Represents vfolders for a new compute session request.
-    '''
-    vfolder_id: str
-    vfolder_host: str
-    permission: MountPermission
+MountTuple5 = Tuple[str, str, str, MountPermissionLiteral, str]  # vfname, vfhost, vfid, perm, hostpath
+MountTuple4 = Tuple[str, str, str, MountPermissionLiteral]       # vfname, vfhost, vfid, perm
+MountTuple3 = Tuple[str, str, str]                               # vfname, vfhost, vfid, "rw"
+MountExpression = Union[
+    MountTuple5,
+    MountTuple4,
+    MountTuple3,
+]
 
 
 class ImageRegistry(TypedDict):
@@ -571,7 +584,7 @@ class KernelCreationConfig(TypedDict):
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
-    mounts: Sequence[str]              # list of mount expressions
+    mounts: Sequence[MountExpression]  # list of mount expression tuples
     mount_map: Mapping[str, str]       # Mapping of vfolder custom mount path
     package_directory: Sequence[str]
     idle_timeout: int
