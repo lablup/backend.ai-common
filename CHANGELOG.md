@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.03.0b4 (2020-06-07)
+----------------------
+
+### Fixes
+* Fix pickling exceptions imported later than the `ai.backend.common.logging` package ([#34](https://github.com/lablup/backend.ai-common/issues/34))
+
+
 20.03.0b3 (2020-05-20)
 ----------------------
 
