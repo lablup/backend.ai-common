@@ -46,7 +46,10 @@ class HookHandler(Protocol):
     :class:`HookDenied` exception.
     """
 
-    async def __call__(self, args: Tuple[Any, ...]) -> Any:
+    async def __call__(self, *args) -> Any:
+        # NOTE: Until https://github.com/python/mypy/issues/5876 is resolved,
+        #       the get_handlers() in the HookPlugin subclasses should be marked
+        #       with "type: ignore" comments.
         ...
 
 
