@@ -144,6 +144,23 @@ def readable_size_to_bytes(expr):
 
 
 def str_to_timedelta(tstr):
+    """
+    Convert humanized timedelta string into a Python timedelta object.
+
+    Example:
+    >>> str_to_timedelta('30min')
+    datetime.timedelta(seconds=1800)
+    >>> str_to_timedelta('1d1hr')
+    datetime.timedelta(days=1, seconds=3600)
+    >>> str_to_timedelta('2hours 15min')
+    datetime.timedelta(seconds=8100)
+    >>> str_to_timedelta('20sec')
+    datetime.timedelta(seconds=20)
+    >>> str_to_timedelta('300')
+    datetime.timedelta(seconds=300)
+    >>> str_to_timedelta('-1day')
+    datetime.timedelta(days=-1)
+    """
     _rx = re.compile(r'(?P<sign>[+|-])?\s*'
                      r'((?P<days>\d+(\.\d+)?)(d|day|days))?\s*'
                      r'((?P<hours>\d+(\.\d+)?)(h|hr|hrs|hour|hours))?\s*'
