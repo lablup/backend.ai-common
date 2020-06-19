@@ -15,14 +15,32 @@ class AbstractPlugin(metaclass=ABCMeta):
     """
 
     def __init__(self, config: Mapping[str, Any]) -> None:
+        """
+        Instantiate the plugin with the given initial configuration.
+        """
         self.config = config
 
     @abstractmethod
     async def init(self) -> None:
+        """
+        Initialize any resource used by the plugin.
+        """
         pass
 
     @abstractmethod
     async def cleanup(self) -> None:
+        """
+        Clean up any resources used by the plugin upon server cleanup.
+        """
+        pass
+
+    @abstractmethod
+    async def update_config(self, config: Mapping[str, Any]) -> None:
+        """
+        Handle runtime configuration updates.
+        The config parameter contains both the updated parts
+        and unchanged parts of the configuration.
+        """
         pass
 
 

@@ -2,19 +2,25 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 import enum
+import logging
 from typing import (
     Any,
     Dict,
-    Iterator,
+    Final,
+    List,
     Optional,
     Protocol,
     Sequence,
     Tuple,
+    Union,
 )
 
 import attr
 
 from . import AbstractPlugin, AbstractPluginContext, discover_plugins
+from ..logging_utils import BraceStyleAdapter
+
+log = BraceStyleAdapter(logging.getLogger(__name__))
 
 
 class HookHandler(Protocol):
@@ -25,7 +31,7 @@ class HookHandler(Protocol):
     :class:`HookDenied` exception.
     """
 
-    async def __call__(self, args: Tuple[Any, ...]) -> None:
+    async def __call__(self, args: Tuple[Any, ...]) -> Any:
         ...
 
 
@@ -43,22 +49,36 @@ class HookPlugin(AbstractPlugin, metaclass=ABCMeta):
         pass
 
 
-class HookDenied(Exception):
+class Reject(Exception):
     def __init__(self, reason: str):
         super().__init__(reason)
         self.reason = reason
 
 
-class HookResultStatus(enum.Enum):
+class HookResults(enum.Enum):
     PASSED = 0
-    DENIED = 1
+    REJECTED = 1
+    ERROR = 2
+
+
+class HookReturnTiming(enum.Enum):
+    ALL_COMPLETED = 0
+    FIRST_COMPLETED = 1
+
+
+PASSED: Final = HookResults.PASSED
+REJECTED: Final = HookResults.REJECTED
+ERROR: Final = HookResults.ERROR
+ALL_COMPLETED: Final = HookReturnTiming.ALL_COMPLETED
+FIRST_COMPLETED: Final = HookReturnTiming.FIRST_COMPLETED
 
 
 @attr.s(auto_attribs=True, slots=True, frozen=True)
 class HookResult:
-    status: HookResultStatus
-    src_plugin: Optional[str] = None
+    status: HookResults
+    src_plugin: Optional[Union[str, Sequence[str]]] = None
     reason: Optional[str] = None
+    result: Optional[Any] = None
 
 
 class HookPluginContext(AbstractPluginContext):
@@ -79,35 +99,67 @@ class HookPluginContext(AbstractPluginContext):
     async def cleanup(self) -> None:
         pass
 
-    def _get_handlers(self, event_name: str) -> Iterator[Tuple[str, HookHandler]]:
+    def _get_handlers(
+        self, event_name: str, order: Sequence[str] = None,
+    ) -> Sequence[Tuple[str, HookHandler]]:
+        handlers = []
         for plugin_name, plugin_instance in self.plugins.items():
             for hooked_event_name, hook_handler in plugin_instance.get_handlers():
                 if event_name != hooked_event_name:
                     continue
-                yield plugin_name, hook_handler
+                handlers.append((plugin_name, hook_handler))
+        if order is not None:
+            non_empty_order = order
+            handlers.sort(key=lambda item: non_empty_order.index(item))
+        else:
+            # the default is alphabetical order
+            handlers.sort(key=lambda item: item[0])
+        return handlers
 
-    async def dispatch_cancellable_event(
-        self, event_name: str, args: Tuple[Any, ...],
+    async def dispatch(
+        self, event_name: str, args: Tuple[Any, ...], *,
+        return_when: HookReturnTiming = ALL_COMPLETED,
+        order: Sequence[str] = None,
     ) -> HookResult:
         """
         Invoke the handlers that matches with the given ``event_name``.
         If any of the handlers raises :class:`HookDenied`,
         the event caller should seize the processing.
         """
-        for plugin_name, hook_handler in self._get_handlers(event_name):
+        executed_plugin_names = []
+        results: List[Any] = []
+        for plugin_name, hook_handler in self._get_handlers(event_name, order=order):
             try:
-                await hook_handler(args)
-            except HookDenied as e:
+                executed_plugin_names.append(plugin_name)
+                result = await hook_handler(args)
+            except Reject as e:
                 return HookResult(
-                    status=HookResultStatus.DENIED,
+                    status=REJECTED,
                     src_plugin=plugin_name,
                     reason=e.reason,
                 )
+            except Exception as e:
+                return HookResult(
+                    status=ERROR,
+                    src_plugin=plugin_name,
+                    reason=repr(e),
+                )
+            else:
+                if return_when == FIRST_COMPLETED:
+                    return HookResult(
+                        status=PASSED,
+                        src_plugin=plugin_name,
+                        result=result,
+                    )
+                else:
+                    results.append(result)
         return HookResult(
-            status=HookResultStatus.PASSED,
+            status=PASSED,
+            src_plugin=executed_plugin_names,
+            result=results,
         )
 
-    async def dispatch_notification_event(
+    async def notify(
         self, event_name: str, args: Tuple[Any, ...],
     ) -> None:
         """
@@ -115,4 +167,9 @@ class HookPluginContext(AbstractPluginContext):
         Regardless of the handler results, the processing continues.
         """
         for plugin_name, hook_handler in self._get_handlers(event_name):
-            await hook_handler(args)
+            try:
+                await hook_handler(args)
+            except Exception:
+                log.exception('HookPluginContext.notify({}): skipping error in hook handler from {}',
+                              event_name, plugin_name)
+                continue
