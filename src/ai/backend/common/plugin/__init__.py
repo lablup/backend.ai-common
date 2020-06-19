@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+import logging
 import pkg_resources
 from typing import (
     Any,
@@ -6,6 +7,16 @@ from typing import (
     Iterator,
     Mapping,
     Tuple,
+)
+
+from ..logging_utils import BraceStyleAdapter
+
+log = BraceStyleAdapter(logging.getLogger(__name__))
+
+__all__ = (
+    'AbstractPlugin',
+    'AbstractPluginContext',
+    'discover_plugins',
 )
 
 
@@ -67,4 +78,5 @@ def discover_plugins(
     for entrypoint in pkg_resources.iter_entry_points(plugin_group):
         if entrypoint.name in blocklist:
             continue
+        log.info('loading plugin (group:{}): {}', plugin_group, entrypoint.name)
         yield entrypoint.name, entrypoint.load()
