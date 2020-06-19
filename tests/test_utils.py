@@ -106,8 +106,6 @@ def test_str_to_timedelta():
     assert str_to_timedelta('4s') == timedelta(seconds=4)
     assert str_to_timedelta('4') == timedelta(seconds=4)
 
-    assert str_to_timedelta('1days2hr') == timedelta(days=1, hours=2)
-
     assert str_to_timedelta('+1d2h3m4s') == timedelta(days=1, hours=2, minutes=3, seconds=4)
     assert str_to_timedelta('-1d2h3m4s') == timedelta(days=-1, hours=-2, minutes=-3, seconds=-4)
     assert str_to_timedelta('1day2hr3min4sec') == timedelta(days=1, hours=2, minutes=3, seconds=4)
