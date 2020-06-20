@@ -5,7 +5,6 @@ import enum
 import logging
 from typing import (
     Any,
-    Dict,
     Final,
     List,
     Optional,
@@ -13,11 +12,12 @@ from typing import (
     Sequence,
     Tuple,
     Union,
+    cast,
 )
 
 import attr
 
-from . import AbstractPlugin, AbstractPluginContext, discover_plugins
+from . import AbstractPlugin, BasePluginContext
 from ..logging_utils import BraceStyleAdapter
 
 log = BraceStyleAdapter(logging.getLogger(__name__))
@@ -99,29 +99,19 @@ class HookResult:
     result: Optional[Any] = None
 
 
-class HookPluginContext(AbstractPluginContext):
+class HookPluginContext(BasePluginContext):
     """
     A manager for hook plugins with convenient handler invocation.
     """
 
-    plugins: Dict[str, HookPlugin]
-
-    def __init__(self) -> None:
-        self.plugins = {}
-
-    async def init(self) -> None:
-        hook_plugins = discover_plugins('backendai_hook_v10')
-        for plugin_name, plugin_instance in hook_plugins:
-            await plugin_instance.init()
-
-    async def cleanup(self) -> None:
-        pass
+    plugin_group = 'backendai_hook_v10'
 
     def _get_handlers(
         self, event_name: str, order: Sequence[str] = None,
     ) -> Sequence[Tuple[str, HookHandler]]:
         handlers = []
-        for plugin_name, plugin_instance in self.plugins.items():
+        for plugin_name, raw_plugin_instance in self.plugins.items():
+            plugin_instance = cast(HookPlugin, raw_plugin_instance)
             for hooked_event_name, hook_handler in plugin_instance.get_handlers():
                 if event_name != hooked_event_name:
                     continue
@@ -130,7 +120,7 @@ class HookPluginContext(AbstractPluginContext):
             non_empty_order = order
             handlers.sort(key=lambda item: non_empty_order.index(item))
         else:
-            # the default is alphabetical order
+            # the default is alphabetical order with plugin names
             handlers.sort(key=lambda item: item[0])
         return handlers
 
