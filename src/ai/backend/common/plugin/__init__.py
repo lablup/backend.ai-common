@@ -17,6 +17,7 @@ from typing import (
 )
 
 from ..etcd import AsyncEtcd
+from ..types import QueueSentinel
 from ..logging_utils import BraceStyleAdapter
 
 log = BraceStyleAdapter(logging.getLogger(__name__))
@@ -36,8 +37,6 @@ class AbstractPlugin(metaclass=ABCMeta):
     plugin_config: Mapping[str, Any]
     """
     ``plugin_config`` contains the plugin-specific configuration read from the etcd.
-    This configuration may be updated at runtime via the ``update_plugin_config()`` method,
-    which is called when the etcd updates are detected.
     """
 
     local_config: Mapping[str, Any]
@@ -46,6 +45,12 @@ class AbstractPlugin(metaclass=ABCMeta):
     This configuration is only updated when restarting the daemon and thus plugins should assume
     that it's read-only and immutable during its lifetime.
     e.g., If the plugin is running with the manager, it's the validated content of manager.toml file.
+    """
+
+    watch_enabled: ClassVar[bool] = True
+    """
+    If set True (default), the hosting plugin context will watch and automatically update
+    the etcd's plugin configuration changes via the ``update_plugin_config()`` method.
     """
 
     def __init__(self, plugin_config: Mapping[str, Any], local_config: Mapping[str, Any]) -> None:
@@ -107,28 +112,37 @@ class BasePluginContext:
     async def init(self) -> None:
         hook_plugins = discover_plugins(self.plugin_group)
         for plugin_name, plugin_entry in hook_plugins:
-            plugin_config = await self.etcd.get_prefix(f"config/plugins/{plugin_name}")
+            plugin_config = await self.etcd.get_prefix(f"config/plugins/{plugin_name}/")
             plugin_instance = plugin_entry(plugin_config, self.local_config)
             self.plugins[plugin_name] = plugin_instance
             await plugin_instance.init()
-            # TODO: fix up with unit tests.....
-            # await self.watch_config_changes(plugin_name)
+            if plugin_instance.watch_enabled:
+                await self.watch_config_changes(plugin_name)
+        await asyncio.sleep(0)
 
     async def cleanup(self) -> None:
+        for wtask in {*self._config_watchers}:
+            if not wtask.done():
+                wtask.cancel()
+                await wtask
         for plugin_instance in self.plugins.values():
             await plugin_instance.cleanup()
-        for wtask in {*self._config_watchers}:
-            wtask.cancel()
-            await wtask
 
     async def _watcher(self, plugin_name: str) -> None:
-        try:
-            async for ev in self.etcd.watch_prefix(f"config/plugins/{plugin_name}"):
-                print(f"config-watcher: {plugin_name}: {ev}")
-                # TODO: aggregate a chunk of changes happening in a short period of time??
-        except asyncio.CancelledError:
-            print(f"config-watcher: {plugin_name}: <cancelled>")
-            pass
+        # As wait_timeout applies to the waiting for an internal async queue,
+        # so short timeouts for polling the changes does not incur gRPC/network overheads.
+        has_changes = False
+        async for ev in self.etcd.watch_prefix(
+            f"config/plugins/{plugin_name}",
+            wait_timeout=0.2,
+        ):
+            if ev is QueueSentinel.TIMEOUT:
+                if has_changes:
+                    new_config = await self.etcd.get_prefix(f"config/plugins/{plugin_name}/")
+                    await self.plugins[plugin_name].update_plugin_config(new_config)
+                has_changes = False
+            else:
+                has_changes = True
 
     async def watch_config_changes(self, plugin_name: str) -> None:
         wtask = asyncio.create_task(self._watcher(plugin_name))

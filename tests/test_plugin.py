@@ -1,10 +1,10 @@
+import asyncio
 import functools
 from typing import (
     Any,
     Mapping,
-    Type,
 )
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from ai.backend.common.plugin import (
     AbstractPlugin,
@@ -52,7 +52,8 @@ def mock_entrypoints_with_class(plugin_group_name: str, *, plugin_cls):
 @pytest.mark.asyncio
 async def test_plugin_context_init_cleanup(etcd, mocker):
     mocked_plugin = AsyncMock(DummyPlugin)
-    mocked_entrypoints = functools.partial(mock_entrypoints_with_instance, mocked_plugin=mocked_plugin)
+    mocked_entrypoints = functools.partial(mock_entrypoints_with_instance,
+                                           mocked_plugin=mocked_plugin)
     mocker.patch('ai.backend.common.plugin.pkg_resources.iter_entry_points', mocked_entrypoints)
     ctx = BasePluginContext(etcd, {})
     try:
@@ -81,5 +82,31 @@ async def test_plugin_context_config(etcd, mocker):
         assert isinstance(ctx.plugins['dummy'], DummyPlugin)
         ctx.plugins['dummy'].local_config['local-key'] == 'local-value'
         ctx.plugins['dummy'].plugin_config['etcd-key'] == 'etcd-value'
+    finally:
+        await ctx.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_plugin_context_config_autoupdate(etcd, mocker):
+    mocked_plugin = AsyncMock(DummyPlugin)
+    mocked_entrypoints = functools.partial(mock_entrypoints_with_instance,
+                                           mocked_plugin=mocked_plugin)
+    mocker.patch('ai.backend.common.plugin.pkg_resources.iter_entry_points', mocked_entrypoints)
+    await etcd.put_prefix('config/plugins/dummy', {'a': '1', 'b': '2'})
+    ctx = BasePluginContext(
+        etcd,
+        {'local-key': 'local-value'},
+    )
+    try:
+        await ctx.init()
+        await asyncio.sleep(0.01)
+        await etcd.put_prefix('config/plugins/dummy', {'a': '3', 'b': '4'})
+        await asyncio.sleep(0.6)  # we should see the update only once
+        await etcd.put_prefix('config/plugins/dummy', {'a': '5', 'b': '6'})
+        await asyncio.sleep(0.3)
+        args_list = mocked_plugin.update_plugin_config.await_args_list
+        assert len(args_list) == 2
+        assert args_list[0].args[0] == {'a': '3', 'b': '4'}
+        assert args_list[1].args[0] == {'a': '5', 'b': '6'}
     finally:
         await ctx.cleanup()

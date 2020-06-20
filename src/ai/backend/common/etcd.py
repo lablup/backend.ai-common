@@ -23,6 +23,7 @@ from typing import (
 from urllib.parse import quote as _quote, unquote
 
 from aiotools import aclosing
+from async_timeout import timeout as _timeout
 import etcd3
 from etcd3 import etcdrpc
 from etcd3.client import EtcdTokenCallCredentials
@@ -30,7 +31,7 @@ import grpc
 import trafaret as t
 
 from .logging_utils import BraceStyleAdapter
-from .types import HostPortPair
+from .types import HostPortPair, QueueSentinel
 
 __all__ = (
     'quote', 'unquote',
@@ -40,8 +41,6 @@ __all__ = (
 Event = namedtuple('Event', 'key event value')
 
 log = BraceStyleAdapter(logging.getLogger(__name__))
-
-sentinel = object()
 
 
 class ConfigScopes(enum.Enum):
@@ -163,9 +162,14 @@ class AsyncEtcd:
         self.encoding = encoding
 
     async def close(self):
-        return await self.loop.run_in_executor(
+        ret = await self.loop.run_in_executor(
             self.executor,
             lambda: self.etcd_sync.close())
+        # ref: https://github.com/kragniz/python-etcd3/issues/997
+        # Currently there is no public API to control this... :(
+        if self.etcd_sync.watcher._callback_thread:
+            self.etcd_sync.watcher._callback_thread.join()
+        return ret
 
     def _mangle_key(self, k: str) -> bytes:
         if k.startswith('/'):
@@ -452,7 +456,7 @@ class AsyncEtcd:
         if isinstance(resp, grpc.RpcError):
             if resp.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.UNKNOWN):
                 # server restarting or terminated
-                self.loop.call_soon_threadsafe(queue.put_nowait, sentinel)
+                self.loop.call_soon_threadsafe(queue.put_nowait, QueueSentinel.CLOSED)
                 return
             else:
                 raise RuntimeError(f'Unexpected RPC Error: {resp}')
@@ -493,10 +497,12 @@ class AsyncEtcd:
         self,
         raw_key: bytes,
         ready_event: asyncio.Event = None,
+        cleanup_event: asyncio.Event = None,
         prefix: bool = False,
+        timeout: float = None,
         **kwargs,
-    ) -> AsyncGenerator[Event, None]:
-        queue: asyncio.Queue = asyncio.Queue()
+    ) -> AsyncGenerator[Union[QueueSentinel, Event], None]:
+        queue: asyncio.Queue[Union[QueueSentinel, Event]] = asyncio.Queue()
         cb = functools.partial(self._watch_cb, queue)
         if prefix:
             watch_id = await self._add_watch_prefix_callback(raw_key, cb, **kwargs)
@@ -506,20 +512,30 @@ class AsyncEtcd:
             ready_event.set()
         try:
             while True:
-                ev = await queue.get()
-                yield ev
-                queue.task_done()
+                try:
+                    async with _timeout(timeout):
+                        ev = await queue.get()
+                except asyncio.TimeoutError:
+                    yield QueueSentinel.TIMEOUT
+                else:
+                    yield ev
+                    queue.task_done()
         except asyncio.CancelledError:
             raise
         finally:
             await self._cancel_watch(watch_id)
-            del queue
+            if cleanup_event is not None:
+                cleanup_event.set()
 
-    async def watch(self, key: str, *,
-                    scope: ConfigScopes = ConfigScopes.GLOBAL,
-                    scope_prefix_map: Mapping[ConfigScopes, str] = None,
-                    once: bool = False, ready_event: asyncio.Event = None) \
-                    -> AsyncGenerator[Event, None]:
+    async def watch(
+        self, key: str, *,
+        scope: ConfigScopes = ConfigScopes.GLOBAL,
+        scope_prefix_map: Mapping[ConfigScopes, str] = None,
+        once: bool = False,
+        ready_event: asyncio.Event = None,
+        cleanup_event: asyncio.Event = None,
+        wait_timeout: float = None,
+    ) -> AsyncGenerator[Union[QueueSentinel, Event], None]:
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
         scope_prefix_len = len(f'{_slash(scope_prefix)}')
@@ -527,35 +543,60 @@ class AsyncEtcd:
         # NOTE: yield from in async-generator is not supported.
         while True:
             try:
-                async with aclosing(self._watch_impl(mangled_key, ready_event)) as agen:
+                async with aclosing(
+                    self._watch_impl(mangled_key,
+                                     ready_event,
+                                     cleanup_event,
+                                     timeout=wait_timeout)
+                ) as agen:
                     async for ev in agen:
-                        if ev is sentinel:
+                        if ev is QueueSentinel.CLOSED:
                             log.debug('watch(): etcd connection closed, restarting watch')
                             break
-                        yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
-                        if once:
-                            return
+                        elif ev is QueueSentinel.TIMEOUT:
+                            yield ev
+                        else:
+                            yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
+                            if once:
+                                return
             except asyncio.CancelledError:
-                return
+                break
+        if cleanup_event:
+            cleanup_event.set()
 
-    async def watch_prefix(self, key_prefix: str, *,
-                           scope: ConfigScopes = ConfigScopes.GLOBAL,
-                           scope_prefix_map: Mapping[ConfigScopes, str] = None,
-                           once: bool = False, ready_event: asyncio.Event = None) \
-                           -> AsyncGenerator[Event, None]:
+    async def watch_prefix(
+        self, key_prefix: str, *,
+        scope: ConfigScopes = ConfigScopes.GLOBAL,
+        scope_prefix_map: Mapping[ConfigScopes, str] = None,
+        once: bool = False,
+        ready_event: asyncio.Event = None,
+        cleanup_event: asyncio.Event = None,
+        wait_timeout: float = None,
+    ) -> AsyncGenerator[Union[QueueSentinel, Event], None]:
         scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
         scope_prefix = scope_prefix_map[scope]
         scope_prefix_len = len(f'{_slash(scope_prefix)}')
         mangled_key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
         while True:
             try:
-                async with aclosing(self._watch_impl(mangled_key_prefix, ready_event, prefix=True)) as agen:
+                async with aclosing(
+                    self._watch_impl(mangled_key_prefix,
+                                     ready_event,
+                                     cleanup_event,
+                                     prefix=True,
+                                     timeout=wait_timeout)
+                ) as agen:
                     async for ev in agen:
-                        if ev is sentinel:
+                        if ev is QueueSentinel.CLOSED:
                             log.debug('watch_prefix(): etcd connection closed, restarting watch')
                             break
-                        yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
-                        if once:
-                            return
+                        elif ev is QueueSentinel.TIMEOUT:
+                            yield ev
+                        else:
+                            yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
+                            if once:
+                                return
             except asyncio.CancelledError:
-                return
+                break
+        if cleanup_event:
+            cleanup_event.set()

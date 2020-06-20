@@ -24,8 +24,6 @@ import janus
 
 from .types import BinarySize, Sentinel
 
-eof_sentinel = Sentinel()
-
 
 def env_info():
     """
@@ -417,7 +415,7 @@ class AsyncFileWriter:
         with open(self._target_filename, self._access_mode) as f:
             while True:
                 item = self._q.sync_q.get()
-                if item == eof_sentinel:
+                if item is Sentinel.TOKEN:
                     break
                 if self._decode is not None:
                     item = self._decode(item)
@@ -425,7 +423,7 @@ class AsyncFileWriter:
                 self._q.sync_q.task_done()
 
     async def __aexit__(self, exc_type, exc, tb):
-        await self._q.async_q.put(eof_sentinel)
+        await self._q.async_q.put(Sentinel.TOKEN)
         try:
             await self._fut
         finally:

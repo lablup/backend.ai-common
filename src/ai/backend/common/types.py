@@ -623,5 +623,10 @@ def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
     return result
 
 
-class Sentinel(object):
-    pass
+class Sentinel(enum.Enum):
+    TOKEN = 0
+
+
+class QueueSentinel(enum.Enum):
+    CLOSED = 0
+    TIMEOUT = 1
