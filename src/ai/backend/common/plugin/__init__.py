@@ -131,7 +131,7 @@ class BasePluginContext:
 
     async def watch_config_changes(self, plugin_name: str) -> None:
         wtask = asyncio.create_task(self._watcher(plugin_name))
-        wtask.add_done_callback(functools.partial(self._config_watchers.discard, wtask))
+        wtask.add_done_callback(self._config_watchers.discard)
         self._config_watchers.add(wtask)
 
 
