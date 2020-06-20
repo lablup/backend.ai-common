@@ -139,7 +139,7 @@ class HookPluginContext(BasePluginContext):
         for plugin_name, hook_handler in self._get_handlers(event_name, order=order):
             try:
                 executed_plugin_names.append(plugin_name)
-                result = await hook_handler(args)
+                result = await hook_handler(*args)
             except Reject as e:
                 return HookResult(
                     status=REJECTED,

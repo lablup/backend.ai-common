@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 import asyncio
-import functools
 import logging
 import pkg_resources
 from typing import (
@@ -17,7 +16,7 @@ from typing import (
     Type,
 )
 
-from ..gateway.etcd import ConfigServer
+from ..etcd import AsyncEtcd
 from ..logging_utils import BraceStyleAdapter
 
 log = BraceStyleAdapter(logging.getLogger(__name__))
@@ -92,15 +91,15 @@ class BasePluginContext:
     The subclasses must redefine ``plugin_group``.
     """
 
-    config_server: ConfigServer
+    etcd: AsyncEtcd
     local_config: Mapping[str, Any]
     plugins: Dict[str, AbstractPlugin]
     plugin_group: ClassVar[str] = 'backendai_XXX_v10'
 
     _config_watchers: Set[asyncio.Task]
 
-    def __init__(self, config_server: ConfigServer, local_config: Mapping[str, Any]) -> None:
-        self.config_server = config_server
+    def __init__(self, etcd: AsyncEtcd, local_config: Mapping[str, Any]) -> None:
+        self.etcd = etcd
         self.local_config = local_config
         self.plugins = {}
         self._config_watchers = set()
@@ -108,10 +107,12 @@ class BasePluginContext:
     async def init(self) -> None:
         hook_plugins = discover_plugins(self.plugin_group)
         for plugin_name, plugin_entry in hook_plugins:
-            plugin_config = await self.config_server.etcd.get_prefix(f"config/plugins/{plugin_name}")
+            plugin_config = await self.etcd.get_prefix(f"config/plugins/{plugin_name}")
             plugin_instance = plugin_entry(plugin_config, self.local_config)
+            self.plugins[plugin_name] = plugin_instance
             await plugin_instance.init()
-            await self.watch_config_changes(plugin_name)
+            # TODO: fix up with unit tests.....
+            # await self.watch_config_changes(plugin_name)
 
     async def cleanup(self) -> None:
         for plugin_instance in self.plugins.values():
@@ -122,7 +123,7 @@ class BasePluginContext:
 
     async def _watcher(self, plugin_name: str) -> None:
         try:
-            async for ev in self.config_server.watch_prefix(f"config/plugins/{plugin_name}"):
+            async for ev in self.etcd.watch_prefix(f"config/plugins/{plugin_name}"):
                 print(f"config-watcher: {plugin_name}: {ev}")
                 # TODO: aggregate a chunk of changes happening in a short period of time??
         except asyncio.CancelledError:
