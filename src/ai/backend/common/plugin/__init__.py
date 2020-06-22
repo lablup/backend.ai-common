@@ -26,8 +26,7 @@ log = BraceStyleAdapter(logging.getLogger(__name__))
 
 __all__ = (
     'AbstractPlugin',
-    'AbstractPluginContext',
-    'discover_plugins',
+    'BasePluginContext',
 )
 
 
