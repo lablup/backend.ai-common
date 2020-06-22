@@ -104,7 +104,7 @@ class HookPluginContext(BasePluginContext):
     A manager for hook plugins with convenient handler invocation.
     """
 
-    plugin_group = 'backendai_hook_v10'
+    plugin_group = 'backendai_hook_v20'
 
     def _get_handlers(
         self, event_name: str, order: Sequence[str] = None,
