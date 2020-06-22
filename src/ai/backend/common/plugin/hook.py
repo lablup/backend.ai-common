@@ -99,7 +99,7 @@ class HookResult:
     result: Optional[Any] = None
 
 
-class HookPluginContext(BasePluginContext):
+class HookPluginContext(BasePluginContext[HookPlugin]):
     """
     A manager for hook plugins with convenient handler invocation.
     """

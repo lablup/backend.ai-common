@@ -9,11 +9,13 @@ from typing import (
     ClassVar,
     Container,
     Dict,
+    Generic,
     Iterator,
     Mapping,
     Set,
     Tuple,
     Type,
+    TypeVar,
 )
 
 from ..etcd import AsyncEtcd
@@ -88,7 +90,10 @@ class AbstractPlugin(metaclass=ABCMeta):
         self.plugin_config = plugin_config
 
 
-class BasePluginContext:
+P = TypeVar('P', bound=AbstractPlugin)
+
+
+class BasePluginContext(Generic[P]):
     """
     A minimal plugin manager which controls the lifecycles of the given plugins
     and watches & applies the configuration changes in etcd.
@@ -98,7 +103,7 @@ class BasePluginContext:
 
     etcd: AsyncEtcd
     local_config: Mapping[str, Any]
-    plugins: Dict[str, AbstractPlugin]
+    plugins: Dict[str, P]
     plugin_group: ClassVar[str] = 'backendai_XXX_v10'
 
     _config_watchers: Set[asyncio.Task]
@@ -109,8 +114,22 @@ class BasePluginContext:
         self.plugins = {}
         self._config_watchers = set()
 
+    @classmethod
+    def discover_plugins(
+        cls,
+        plugin_group: str,
+        blocklist: Container[str] = None,
+    ) -> Iterator[Tuple[str, Type[P]]]:
+        if blocklist is None:
+            blocklist = set()
+        for entrypoint in pkg_resources.iter_entry_points(plugin_group):
+            if entrypoint.name in blocklist:
+                continue
+            log.info('loading plugin (group:{}): {}', plugin_group, entrypoint.name)
+            yield entrypoint.name, entrypoint.load()
+
     async def init(self) -> None:
-        hook_plugins = discover_plugins(self.plugin_group)
+        hook_plugins = self.discover_plugins(self.plugin_group)
         for plugin_name, plugin_entry in hook_plugins:
             plugin_config = await self.etcd.get_prefix(f"config/plugins/{plugin_name}/")
             plugin_instance = plugin_entry(plugin_config, self.local_config)
@@ -148,16 +167,3 @@ class BasePluginContext:
         wtask = asyncio.create_task(self._watcher(plugin_name))
         wtask.add_done_callback(self._config_watchers.discard)
         self._config_watchers.add(wtask)
-
-
-def discover_plugins(
-    plugin_group: str,
-    blocklist: Container[str] = None,
-) -> Iterator[Tuple[str, Type[AbstractPlugin]]]:
-    if blocklist is None:
-        blocklist = set()
-    for entrypoint in pkg_resources.iter_entry_points(plugin_group):
-        if entrypoint.name in blocklist:
-            continue
-        log.info('loading plugin (group:{}): {}', plugin_group, entrypoint.name)
-        yield entrypoint.name, entrypoint.load()
