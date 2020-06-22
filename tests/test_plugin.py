@@ -281,7 +281,7 @@ async def test_hook_notify(etcd, mocker):
     ctx = HookPluginContext(etcd, {})
     try:
         await ctx.init()
-        # notify() should return successfully whether a plugin rejects/fails or not.
+        # notify() should return successfully no matter a plugin rejects/fails or not.
         hook_result = await ctx.notify('HOOK1', ('a', 'b'))
         assert hook_result is None
         hook_result = await ctx.notify('HOOK2', ('c', 'd'))
