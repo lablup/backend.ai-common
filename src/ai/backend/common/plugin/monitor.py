@@ -13,14 +13,20 @@ from . import AbstractPlugin, BasePluginContext
 __all__ = (
     'AbstractStatReporterPlugin',
     'AbstractErrorReporterPlugin',
-    'StatPluginContext',
+    'StatsPluginContext',
     'ErrorPluginContext',
+    'INCREMENT',
+    'GAUGE',
 )
 
 
 class StatMetricTypes(enum.Enum):
     INCREMENT = 0
     GAUGE = 1
+
+
+INCREMENT = StatMetricTypes.INCREMENT
+GAUGE = StatMetricTypes.GAUGE
 
 
 class AbstractStatReporterPlugin(AbstractPlugin, metaclass=ABCMeta):
@@ -32,7 +38,7 @@ class AbstractStatReporterPlugin(AbstractPlugin, metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    async def report_stats(
+    async def report_metric(
         self,
         metric_type: StatMetricTypes,
         metric_name: str,
@@ -61,17 +67,17 @@ class AbstractErrorReporterPlugin(AbstractPlugin, metaclass=ABCMeta):
         pass
 
 
-class StatPluginContext(BasePluginContext[AbstractStatReporterPlugin]):
+class StatsPluginContext(BasePluginContext[AbstractStatReporterPlugin]):
     plugin_group = 'backendai_stats_v20'
 
-    async def report_stats(
+    async def report_metric(
         self,
         metric_type: StatMetricTypes,
         metric_name: str,
         value: Union[float, int] = None,
     ):
         for plugin_instance in self.plugins.values():
-            await plugin_instance.report_stats(metric_type, metric_name, value)
+            await plugin_instance.report_metric(metric_type, metric_name, value)
 
 
 class ErrorPluginContext(BasePluginContext[AbstractErrorReporterPlugin]):
