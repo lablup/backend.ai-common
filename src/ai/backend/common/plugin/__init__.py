@@ -131,9 +131,14 @@ class BasePluginContext(Generic[P]):
         hook_plugins = self.discover_plugins(self.plugin_group)
         for plugin_name, plugin_entry in hook_plugins:
             plugin_config = await self.etcd.get_prefix(f"config/plugins/{plugin_name}/")
-            plugin_instance = plugin_entry(plugin_config, self.local_config)
-            self.plugins[plugin_name] = plugin_instance
-            await plugin_instance.init()
+            try:
+                plugin_instance = plugin_entry(plugin_config, self.local_config)
+                await plugin_instance.init()
+            except Exception:
+                log.exception('error during initialization of plugin: {}', plugin_name)
+                continue
+            else:
+                self.plugins[plugin_name] = plugin_instance
             if plugin_instance.config_watch_enabled:
                 await self.watch_config_changes(plugin_name)
         await asyncio.sleep(0)
