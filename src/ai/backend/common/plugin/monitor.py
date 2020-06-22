@@ -68,7 +68,7 @@ class AbstractErrorReporterPlugin(AbstractPlugin, metaclass=ABCMeta):
 
 
 class StatsPluginContext(BasePluginContext[AbstractStatReporterPlugin]):
-    plugin_group = 'backendai_stats_v20'
+    plugin_group = 'backendai_stats_monitor_v20'
 
     async def report_metric(
         self,
@@ -81,7 +81,7 @@ class StatsPluginContext(BasePluginContext[AbstractStatReporterPlugin]):
 
 
 class ErrorPluginContext(BasePluginContext[AbstractErrorReporterPlugin]):
-    plugin_group = 'backendai_error_v20'
+    plugin_group = 'backendai_error_monitor_v20'
 
     async def capture_exception(
         self,
