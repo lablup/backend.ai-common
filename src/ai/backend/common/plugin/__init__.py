@@ -47,7 +47,7 @@ class AbstractPlugin(metaclass=ABCMeta):
     e.g., If the plugin is running with the manager, it's the validated content of manager.toml file.
     """
 
-    watch_enabled: ClassVar[bool] = True
+    config_watch_enabled: ClassVar[bool] = True
     """
     If set True (default), the hosting plugin context will watch and automatically update
     the etcd's plugin configuration changes via the ``update_plugin_config()`` method.
@@ -116,7 +116,7 @@ class BasePluginContext:
             plugin_instance = plugin_entry(plugin_config, self.local_config)
             self.plugins[plugin_name] = plugin_instance
             await plugin_instance.init()
-            if plugin_instance.watch_enabled:
+            if plugin_instance.config_watch_enabled:
                 await self.watch_config_changes(plugin_name)
         await asyncio.sleep(0)
 

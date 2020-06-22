@@ -127,7 +127,7 @@ async def test_plugin_context_config_autoupdate(etcd, mocker):
 
 class DummyHookPassingPlugin(HookPlugin):
 
-    watch_enabled = False
+    config_watch_enabled = False
 
     _entrypoint_name = 'hook-p'
 
@@ -159,7 +159,7 @@ class DummyHookPassingPlugin(HookPlugin):
 
 class DummyHookRejectingPlugin(HookPlugin):
 
-    watch_enabled = False
+    config_watch_enabled = False
 
     _entrypoint_name = 'hook-r'
 
@@ -191,7 +191,7 @@ class DummyHookRejectingPlugin(HookPlugin):
 
 class DummyHookErrorPlugin(HookPlugin):
 
-    watch_enabled = False
+    config_watch_enabled = False
 
     _entrypoint_name = 'hook-e'
 
