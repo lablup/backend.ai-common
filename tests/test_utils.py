@@ -1,6 +1,7 @@
 import asyncio
 import codecs
 from collections import OrderedDict
+from datetime import timedelta
 from pathlib import Path
 from random import choice
 from string import ascii_uppercase
@@ -14,6 +15,7 @@ from ai.backend.common.utils import (
     odict, dict2kvlist, nmget,
     generate_uuid, get_random_seq,
     readable_size_to_bytes,
+    str_to_timedelta,
     current_loop, curl,
     run_through,
     StringSetFlag,
@@ -89,6 +91,40 @@ def test_readable_size_to_bytes():
         readable_size_to_bytes('3A')
     with pytest.raises(ValueError):
         readable_size_to_bytes('TT')
+
+
+def test_str_to_timedelta():
+    assert str_to_timedelta('1d2h3m4s') == timedelta(days=1, hours=2, minutes=3, seconds=4)
+    assert str_to_timedelta('1d2h3m') == timedelta(days=1, hours=2, minutes=3)
+    assert str_to_timedelta('1d2h') == timedelta(days=1, hours=2)
+    assert str_to_timedelta('1d') == timedelta(days=1)
+    assert str_to_timedelta('2h3m4s') == timedelta(hours=2, minutes=3, seconds=4)
+    assert str_to_timedelta('2h3m') == timedelta(hours=2, minutes=3)
+    assert str_to_timedelta('2h') == timedelta(hours=2)
+    assert str_to_timedelta('3m4s') == timedelta(minutes=3, seconds=4)
+    assert str_to_timedelta('3m') == timedelta(minutes=3)
+    assert str_to_timedelta('4s') == timedelta(seconds=4)
+    assert str_to_timedelta('4') == timedelta(seconds=4)
+
+    assert str_to_timedelta('+1d2h3m4s') == timedelta(days=1, hours=2, minutes=3, seconds=4)
+    assert str_to_timedelta('-1d2h3m4s') == timedelta(days=-1, hours=-2, minutes=-3, seconds=-4)
+    assert str_to_timedelta('1day2hr3min4sec') == timedelta(days=1, hours=2, minutes=3, seconds=4)
+    assert str_to_timedelta('1day2hour3minute4second') == timedelta(days=1, hours=2, minutes=3, seconds=4)
+    assert str_to_timedelta('1day 2hour 3minute 4second') == timedelta(days=1, hours=2, minutes=3, seconds=4)
+    assert str_to_timedelta('1days 2hours 3minutes 4seconds') == timedelta(days=1, hours=2, minutes=3, seconds=4)
+    assert str_to_timedelta('0.1d0.2h0.3m0.4s') == timedelta(days=.1, hours=.2, minutes=.3, seconds=.4)
+    assert str_to_timedelta('1d 2h 3m 4s') == timedelta(days=1, hours=2, minutes=3, seconds=4)
+    assert str_to_timedelta('-1d 2h 3m 4s') == timedelta(days=-1, hours=-2, minutes=-3, seconds=-4)
+    assert str_to_timedelta('- 1d 2h 3m 4s') == timedelta(days=-1, hours=-2, minutes=-3, seconds=-4)
+
+    with pytest.raises(ValueError):
+        assert str_to_timedelta('1da1hr')
+    with pytest.raises(ValueError):
+        assert str_to_timedelta('--1d2h3m4s')
+    with pytest.raises(ValueError):
+        assert str_to_timedelta('+')
+    with pytest.raises(ValueError):
+        assert str_to_timedelta('')
 
 
 @pytest.mark.asyncio
