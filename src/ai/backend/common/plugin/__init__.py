@@ -4,6 +4,7 @@ from abc import ABCMeta, abstractmethod
 import asyncio
 import logging
 import pkg_resources
+import re
 from typing import (
     Any,
     ClassVar,
@@ -112,6 +113,13 @@ class BasePluginContext(Generic[P]):
         self.local_config = local_config
         self.plugins = {}
         self._config_watchers = set()
+        if m := re.search(r'^backendai_(\w+)_v(\d+)$', self.plugin_group):
+            self._group_key = m.group(1)
+        else:
+            raise TypeError(
+                f"{type(self).__name__} has invalid plugin_group class attribute",
+                self.plugin_group,
+            )
 
     @classmethod
     def discover_plugins(
@@ -130,7 +138,9 @@ class BasePluginContext(Generic[P]):
     async def init(self) -> None:
         hook_plugins = self.discover_plugins(self.plugin_group)
         for plugin_name, plugin_entry in hook_plugins:
-            plugin_config = await self.etcd.get_prefix(f"config/plugins/{plugin_name}/")
+            plugin_config = await self.etcd.get_prefix(
+                f"config/plugins/{self._group_key}/{plugin_name}/"
+            )
             try:
                 plugin_instance = plugin_entry(plugin_config, self.local_config)
                 await plugin_instance.init()
@@ -156,12 +166,14 @@ class BasePluginContext(Generic[P]):
         # so short timeouts for polling the changes does not incur gRPC/network overheads.
         has_changes = False
         async for ev in self.etcd.watch_prefix(
-            f"config/plugins/{plugin_name}",
+            f"config/plugins/{self._group_key}/{plugin_name}",
             wait_timeout=0.2,
         ):
             if ev is QueueSentinel.TIMEOUT:
                 if has_changes:
-                    new_config = await self.etcd.get_prefix(f"config/plugins/{plugin_name}/")
+                    new_config = await self.etcd.get_prefix(
+                        f"config/plugins/{self._group_key}/{plugin_name}/"
+                    )
                     await self.plugins[plugin_name].update_plugin_config(new_config)
                 has_changes = False
             else:
