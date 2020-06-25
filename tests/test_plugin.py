@@ -83,7 +83,7 @@ async def test_plugin_context_init_cleanup(etcd, mocker):
 async def test_plugin_context_config(etcd, mocker):
     mocked_entrypoints = functools.partial(mock_entrypoints_with_class, plugin_cls=DummyPlugin)
     mocker.patch('ai.backend.common.plugin.pkg_resources.iter_entry_points', mocked_entrypoints)
-    await etcd.put('config/plugins/dummy/etcd-key', 'etcd-value')
+    await etcd.put('config/plugins/XXX/dummy/etcd-key', 'etcd-value')
     ctx = BasePluginContext(
         etcd,
         {'local-key': 'local-value'},
@@ -105,7 +105,7 @@ async def test_plugin_context_config_autoupdate(etcd, mocker):
     mocked_entrypoints = functools.partial(mock_entrypoints_with_instance,
                                            mocked_plugin=mocked_plugin)
     mocker.patch('ai.backend.common.plugin.pkg_resources.iter_entry_points', mocked_entrypoints)
-    await etcd.put_prefix('config/plugins/dummy', {'a': '1', 'b': '2'})
+    await etcd.put_prefix('config/plugins/XXX/dummy', {'a': '1', 'b': '2'})
     ctx = BasePluginContext(
         etcd,
         {'local-key': 'local-value'},
@@ -113,9 +113,9 @@ async def test_plugin_context_config_autoupdate(etcd, mocker):
     try:
         await ctx.init()
         await asyncio.sleep(0.01)
-        await etcd.put_prefix('config/plugins/dummy', {'a': '3', 'b': '4'})
+        await etcd.put_prefix('config/plugins/XXX/dummy', {'a': '3', 'b': '4'})
         await asyncio.sleep(0.6)  # we should see the update only once
-        await etcd.put_prefix('config/plugins/dummy', {'a': '5', 'b': '6'})
+        await etcd.put_prefix('config/plugins/XXX/dummy', {'a': '5', 'b': '6'})
         await asyncio.sleep(0.3)
         args_list = mocked_plugin.update_plugin_config.await_args_list
         assert len(args_list) == 2
