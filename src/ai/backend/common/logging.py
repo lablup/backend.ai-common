@@ -315,8 +315,7 @@ class RelayHandler(logging.Handler):
     def _fallback(self, record: Optional[logging.LogRecord]) -> None:
         if record is None:
             return
-        formatter = logging._defaultFormatter  # type: ignore  # noqa
-        print(formatter.format(record), file=sys.stderr)
+        print(record.getMessage(), file=sys.stderr)
 
     def emit(self, record: Optional[logging.LogRecord]) -> None:
         if self._sock is None:
@@ -328,16 +327,18 @@ class RelayHandler(logging.Handler):
                 pickling_support.install(record.exc_info[1])
             pickled_rec = pickle.dumps(record)
         except (pickle.PickleError, TypeError):
-            self._fallback(record)
             # We have a pickling error.
             # Change it into a self-created picklable log record with exception info.
-            record = logging.makeLogRecord({
-                'name': __name__,
-                'msg': 'Cannot pickle the log record',
-                'levelno': logging.ERROR,
-                'levelname': 'error',
-                'exc_info': sys.exc_info(),
-            })
+            if record is not None:
+                record = logging.makeLogRecord({
+                    'name': record.name,
+                    'pathname': record.pathname,
+                    'lineno': record.lineno,
+                    'msg': record.getMessage(),
+                    'levelno': record.levelno,
+                    'levelname': record.levelname,
+                    'exc_info': record.exc_info,
+                })
             pickled_rec = pickle.dumps(record)
         try:
             self._sock.send(pickled_rec)
