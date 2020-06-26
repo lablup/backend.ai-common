@@ -1,0 +1,4 @@
+Revamped the plugin API and subsystem.
+- All plugins now must subclass the `common.plugin.AbstractPlugin` interface.
+- It is highly recommended to subclass the `common.plugin.BasePluginContext` for specific plugin groups, as it now provides automatic etcd configuration update propagation to individual plugins and the lifecycle management.
+- Hook plugins now have explicit and clear semantics for event callbacks such as acceptance via ALL_COMPLETED/FIRST_COMPLETED requirements and one-way notifications, via `HookPluginContext`.
