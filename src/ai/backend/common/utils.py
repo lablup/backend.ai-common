@@ -2,12 +2,14 @@ import asyncio
 import base64
 from collections import OrderedDict
 from contextlib import closing
+from datetime import timedelta
 import enum
 import inspect
 from itertools import chain
 import numbers
 from pathlib import Path
 import random
+import re
 import sys
 import socket
 from typing import (
@@ -137,6 +139,44 @@ def readable_size_to_bytes(expr):
     if isinstance(expr, numbers.Real):
         return BinarySize(expr)
     return BinarySize.from_str(expr)
+
+
+def str_to_timedelta(tstr):
+    """
+    Convert humanized timedelta string into a Python timedelta object.
+
+    Example:
+    >>> str_to_timedelta('30min')
+    datetime.timedelta(seconds=1800)
+    >>> str_to_timedelta('1d1hr')
+    datetime.timedelta(days=1, seconds=3600)
+    >>> str_to_timedelta('2hours 15min')
+    datetime.timedelta(seconds=8100)
+    >>> str_to_timedelta('20sec')
+    datetime.timedelta(seconds=20)
+    >>> str_to_timedelta('300')
+    datetime.timedelta(seconds=300)
+    >>> str_to_timedelta('-1day')
+    datetime.timedelta(days=-1)
+    """
+    _rx = re.compile(r'(?P<sign>[+|-])?\s*'
+                     r'((?P<days>\d+(\.\d+)?)(d|day|days))?\s*'
+                     r'((?P<hours>\d+(\.\d+)?)(h|hr|hrs|hour|hours))?\s*'
+                     r'((?P<minutes>\d+(\.\d+)?)(m|min|mins|minute|minutes))?\s*'
+                     r'((?P<seconds>\d+(\.\d+)?)(s|sec|secs|second|seconds))?$')
+    ts = _rx.match(tstr)
+    if not ts:
+        try:
+            return timedelta(seconds=float(tstr))  # consider bare number string as seconds
+        except TypeError:
+            pass
+        raise ValueError('Invalid time expression')
+    ts = ts.groupdict()
+    sign = ts.pop('sign', None)
+    if set(ts.values()) == {None}:
+        raise ValueError('Invalid time expression')
+    params = {n: -float(t) if sign == '-' else float(t) for n, t in ts.items() if t}
+    return timedelta(**params)
 
 
 async def curl(url, default_value=None, params=None, headers=None, timeout=0.2):

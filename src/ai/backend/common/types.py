@@ -28,6 +28,7 @@ __all__ = (
     'aobject',
     'DeviceId',
     'ContainerId',
+    'SessionId',
     'KernelId',
     'MetricKey',
     'MetricValue',
@@ -103,8 +104,8 @@ HostPID = NewType('HostPID', PID)
 ContainerPID = NewType('ContainerPID', PID)
 
 ContainerId = NewType('ContainerId', str)
+SessionId = NewType('SessionId', uuid.UUID)
 KernelId = NewType('KernelId', uuid.UUID)
-SessionId = NewType('SessionId', str)
 
 AgentId = NewType('AgentId', str)
 DeviceName = NewType('DeviceName', str)
