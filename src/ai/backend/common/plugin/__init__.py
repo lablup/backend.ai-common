@@ -138,9 +138,10 @@ class BasePluginContext(Generic[P]):
     async def init(self) -> None:
         hook_plugins = self.discover_plugins(self.plugin_group)
         for plugin_name, plugin_entry in hook_plugins:
-            plugin_config = await self.etcd.get_prefix(
-                f"config/plugins/{self._group_key}/{plugin_name}/"
-            )
+            plugin_config = {
+                **(await self.etcd.get_prefix(f"config/plugins/_/{plugin_name}/")),
+                **(await self.etcd.get_prefix(f"config/plugins/{self._group_key}/{plugin_name}/")),
+            }
             try:
                 plugin_instance = plugin_entry(plugin_config, self.local_config)
                 await plugin_instance.init()
