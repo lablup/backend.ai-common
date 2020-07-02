@@ -227,7 +227,7 @@ def log_worker(
 
     if 'file' in daemon_config['drivers']:
         drv_config = daemon_config['file']
-        fmt = '(timestamp) (level) (name) (processName) (message)'
+        fmt = '%(timestamp) %(level) %(name) %(processName) %(message)'
         file_handler = logging.handlers.RotatingFileHandler(
             filename=drv_config['path'] / drv_config['filename'],
             backupCount=drv_config['backup-count'],
