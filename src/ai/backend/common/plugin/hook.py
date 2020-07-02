@@ -176,7 +176,7 @@ class HookPluginContext(BasePluginContext[HookPlugin]):
         """
         for plugin_name, hook_handler in self._get_handlers(event_name):
             try:
-                await hook_handler(args)
+                await hook_handler(*args)
             except Exception:
                 log.exception('HookPluginContext.notify({}): skipping error in hook handler from {}',
                               event_name, plugin_name)
