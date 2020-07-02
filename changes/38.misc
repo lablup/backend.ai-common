@@ -1,1 +1,0 @@
-Change SessionId's base type from str to uuid.UUID.

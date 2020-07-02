@@ -16,6 +16,22 @@ Changes
 
 .. towncrier release notes start
 
+20.03.0b6 (2020-07-02)
+----------------------
+
+### Breaking Changes
+* Revamped the plugin API and subsystem. ([#36](https://github.com/lablup/backend.ai-common/issues/36))
+  - All plugins now must subclass the `common.plugin.AbstractPlugin` interface.
+  - It is highly recommended to subclass the `common.plugin.BasePluginContext` for specific plugin groups, as it now provides automatic etcd configuration update propagation to individual plugins and the lifecycle management.
+  - Hook plugins now have explicit and clear semantics for event callbacks such as acceptance via ALL_COMPLETED/FIRST_COMPLETED requirements and one-way notifications, via `HookPluginContext`.
+
+### Features
+* Add function to convert humanized timedelta string to timedelta obj. ([#37](https://github.com/lablup/backend.ai-common/issues/37))
+
+### Miscellaneous
+* Change SessionId's base type from str to uuid.UUID. ([#38](https://github.com/lablup/backend.ai-common/issues/38))
+
+
 20.03.0b5 (2020-06-07)
 ----------------------
 
