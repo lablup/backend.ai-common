@@ -12,7 +12,6 @@ from typing import (
     Sequence,
     Tuple,
     Union,
-    cast,
 )
 
 import attr
