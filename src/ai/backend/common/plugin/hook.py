@@ -110,8 +110,7 @@ class HookPluginContext(BasePluginContext[HookPlugin]):
         self, event_name: str, order: Sequence[str] = None,
     ) -> Sequence[Tuple[str, HookHandler]]:
         handlers = []
-        for plugin_name, raw_plugin_instance in self.plugins.items():
-            plugin_instance = cast(HookPlugin, raw_plugin_instance)
+        for plugin_name, plugin_instance in self.plugins.items():
             for hooked_event_name, hook_handler in plugin_instance.get_handlers():
                 if event_name != hooked_event_name:
                     continue
