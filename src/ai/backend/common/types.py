@@ -562,6 +562,7 @@ class ServicePort(TypedDict):
 class DeviceModelInfo(TypedDict):
     device_id: DeviceId
     model_name: str
+    data: Mapping[str, Any]
 
 
 class KernelCreationResult(TypedDict):
