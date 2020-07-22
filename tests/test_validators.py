@@ -19,8 +19,11 @@ def test_trafaret_dataerror_pickling():
 
     # Remove the already installed monkey-patch.
     # (e.g., when running the whole test suite)
-    if hasattr(t.DataError, '__reduce__'):
-        delattr(t.DataError, '__reduce__')
+    try:
+        if hasattr(t.DataError, '__reduce__'):
+            delattr(t.DataError, '__reduce__')
+    except AttributeError:
+        pass
 
     with pytest.raises(RuntimeError):
         try:
