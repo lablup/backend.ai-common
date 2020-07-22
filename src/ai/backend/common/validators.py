@@ -244,7 +244,10 @@ class HostPortPair(t.Trafaret):
         else:
             self._failure('urecognized value type', value=value)
         try:
-            host = ipaddress.ip_address(host.strip('[]'))
+            if isinstance(host, str):
+                host = ipaddress.ip_address(host.strip('[]'))
+            elif isinstance(host, ipaddress._BaseAddress):
+                pass
         except ValueError:
             pass  # just treat as a string hostname
         if not self._allow_blank_host and not host:
