@@ -16,6 +16,17 @@ Changes
 
 .. towncrier release notes start
 
+20.03.0rc1 (2020-07-23)
+-----------------------
+
+### Features
+* Add option to hook plugin dispatcher to explicitly reject if there are no hook plugins that provides handlers for the given hook event ([#43](https://github.com/lablup/backend.ai-common/issues/43))
+
+### Fixes
+* Fix type-safety of users of `types.DeviceModelInfo` with device-specific data ([#41](https://github.com/lablup/backend.ai-common/issues/41))
+* Fix handling of already-parsed IP addr objs when validating HostPortPair inputs ([#42](https://github.com/lablup/backend.ai-common/issues/42))
+
+
 20.03.0b6 (2020-07-02)
 ----------------------
 

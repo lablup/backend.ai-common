@@ -1,1 +1,0 @@
-Fix type-safety of users of `types.DeviceModelInfo` with device-specific data
