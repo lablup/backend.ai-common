@@ -136,8 +136,8 @@ class BasePluginContext(Generic[P]):
             yield entrypoint.name, entrypoint.load()
 
     async def init(self) -> None:
-        hook_plugins = self.discover_plugins(self.plugin_group)
-        for plugin_name, plugin_entry in hook_plugins:
+        scanned_plugins = self.discover_plugins(self.plugin_group)
+        for plugin_name, plugin_entry in scanned_plugins:
             plugin_config = await self.etcd.get_prefix(
                 f"config/plugins/{self._group_key}/{plugin_name}/"
             )

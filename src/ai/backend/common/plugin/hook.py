@@ -125,6 +125,7 @@ class HookPluginContext(BasePluginContext[HookPlugin]):
     async def dispatch(
         self, event_name: str, args: Tuple[Any, ...], *,
         return_when: HookReturnTiming = ALL_COMPLETED,
+        success_if_no_hook: bool = True,
         order: Sequence[str] = None,
     ) -> HookResult:
         """
@@ -159,6 +160,12 @@ class HookPluginContext(BasePluginContext[HookPlugin]):
                     )
                 else:
                     results.append(result)
+        if not success_if_no_hook and not executed_plugin_names:
+            return HookResult(
+                status=REJECTED,
+                src_plugin=executed_plugin_names,  # empty
+                result=results,                    # empty
+            )
         return HookResult(
             status=PASSED,
             src_plugin=executed_plugin_names,
