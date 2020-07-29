@@ -16,6 +16,11 @@ Changes
 
 .. towncrier release notes start
 
+20.03.1 (2020-07-29)
+--------------------
+
+* Hotfix for a packaging issue, missing `common.plugin` subpackage in the distributions.
+
 20.03.0 (2020-07-28)
 --------------------
 
