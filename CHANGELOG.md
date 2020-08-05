@@ -16,6 +16,11 @@ Changes
 
 .. towncrier release notes start
 
+19.09.10 (2020-08-05)
+---------------------
+
+* Maintenance release to update setup dependencies.
+
 19.09.9 (2020-05-20)
 --------------------
 
