@@ -66,6 +66,13 @@ logging_config_iv = t.Dict({
 }).allow_extra('*')
 
 
+class PickledException(Exception):
+    """
+    Serves as a wrapper for exceptions that contain unpicklable arguments.
+    """
+    pass
+
+
 class LogstashHandler(logging.Handler):
 
     def __init__(self, endpoint, protocol: str, *,
@@ -337,7 +344,11 @@ class RelayHandler(logging.Handler):
                     'msg': record.getMessage(),
                     'levelno': record.levelno,
                     'levelname': record.levelname,
-                    'exc_info': record.exc_info,
+                    'exc_info': (
+                        PickledException,
+                        PickledException(repr(record.exc_info[1])),  # store stringified repr
+                        record.exc_info[2],
+                    ) if record.exc_info is not None else None,
                 })
             pickled_rec = pickle.dumps(record)
         try:
