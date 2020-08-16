@@ -7,12 +7,21 @@ import enum
 import ipaddress
 import json
 import os
-from pathlib import Path as _Path
+from pathlib import (
+    PurePath as _PurePath,
+    Path as _Path,
+)
 import re
 from typing import (
-    Any, Optional, Literal,
-    List, Mapping, Sequence, Tuple,
-    TypeVar, Type,
+    Any,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
 )
 import uuid
 import pwd
@@ -155,24 +164,51 @@ class JSONString(t.Trafaret):
             self._failure('value is not a valid JSON string', value=value)
 
 
-class Path(t.Trafaret):
+class PurePath(t.Trafaret):
 
-    def __init__(self, *, type: Literal['dir', 'file'],
-                 base_path: _Path = None,
-                 auto_create: bool = False,
-                 allow_nonexisting: bool = False,
-                 allow_devnull: bool = False,
-                 relative_only: bool = False,
-                 resolve: bool = True):
+    def __init__(
+        self, *,
+        base_path: _PurePath = None,
+        relative_only: bool = False,
+    ) -> None:
         super().__init__()
+        self._base_path = base_path
+        self._relative_only = relative_only
+
+    def check_and_return(self, value: Any) -> _PurePath:
+        p = _PurePath(value)
+        if self._relative_only and p.is_absolute():
+            self._failure('expected relative path but the value is absolute', value=value)
+        if self._base_path is not None:
+            try:
+                p.relative_to(self._base_path)
+            except ValueError:
+                self._failure('value is not in the base path', value=value)
+        return p
+
+
+class Path(PurePath):
+
+    def __init__(
+        self, *,
+        type: Literal['dir', 'file'],
+        base_path: _Path = None,
+        auto_create: bool = False,
+        allow_nonexisting: bool = False,
+        allow_devnull: bool = False,
+        relative_only: bool = False,
+        resolve: bool = True,
+    ) -> None:
+        super().__init__(
+            base_path=base_path,
+            relative_only=relative_only,
+        )
         self._type = type
         if auto_create and type != 'dir':
             raise TypeError('Only directory paths can be set auto-created.')
-        self._base_path = base_path
         self._auto_create = auto_create
         self._allow_nonexisting = allow_nonexisting
         self._allow_devnull = allow_devnull
-        self._relative_only = relative_only
         self._resolve = resolve
 
     def check_and_return(self, value: Any) -> _Path:
@@ -184,7 +220,7 @@ class Path(t.Trafaret):
             self._failure('expected relative path but the value is absolute', value=value)
         if self._base_path is not None:
             try:
-                _base_path = self._base_path.resolve() if self._resolve else self._base_path
+                _base_path = _Path(self._base_path).resolve() if self._resolve else self._base_path
                 p.relative_to(_base_path)
             except ValueError:
                 self._failure('value is not in the base path', value=value)
