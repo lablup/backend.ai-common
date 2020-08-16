@@ -42,15 +42,19 @@ __all__ = (
     'MultiKey',
     'BinarySize',
     'Enum',
+    'JSONString',
+    'PurePath',
+    'Path',
     'IPNetwork',
     'IPAddress',
     'HostPortPair',
-    'Path',
     'PortRange',
     'UserID',
     'GroupID',
-    'Slug',
+    'UUID',
     'TimeZone',
+    'TimeDuration',
+    'Slug',
 )
 
 
