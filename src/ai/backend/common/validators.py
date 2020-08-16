@@ -14,7 +14,6 @@ from pathlib import (
 import re
 from typing import (
     Any,
-    Generic,
     List,
     Literal,
     Mapping,
