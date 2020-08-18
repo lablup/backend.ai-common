@@ -27,6 +27,11 @@ import uuid
 import pwd
 
 import dateutil.tz
+try:
+    import jwt
+    jwt_available = True
+except ImportError:
+    jwt_available = False
 import multidict
 import trafaret as t
 from trafaret.base import TrafaretMeta
@@ -487,3 +492,28 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
         else:
             self._failure('value must be a string', value=value)
         return value
+
+
+if jwt_available:
+    class JsonWebToken(t.Trafaret):
+
+        default_algorithms = ['HS256']
+
+        def __init__(
+            self, *,
+            secret: str,
+            inner_iv: t.Trafaret = None,
+            algorithms: Sequence[str] = default_algorithms,
+        ) -> None:
+            self.secret = secret
+            self.algorithms = algorithms
+            self.inner_iv = inner_iv
+
+        def check_and_return(self, value: Any) -> Mapping[str, Any]:
+            try:
+                token_data = jwt.decode(value, self.secret, alogrithms=self.algorithms)
+                if self.inner_iv is not None:
+                    return self.inner_iv.check(token_data)
+                return token_data
+            except jwt.PyJWTError:
+                self._failure('cannot decode the given value as JWT', value=value)
