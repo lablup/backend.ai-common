@@ -337,6 +337,15 @@ class RelayHandler(logging.Handler):
             # We have a pickling error.
             # Change it into a self-created picklable log record with exception info.
             if record is not None:
+                exc_info: Any
+                if isinstance(record.exc_info, tuple):
+                    exc_info = (
+                        PickledException,
+                        PickledException(repr(record.exc_info[1])),  # store stringified repr
+                        record.exc_info[2],
+                    )
+                else:
+                    exc_info = record.exc_info
                 record = logging.makeLogRecord({
                     'name': record.name,
                     'pathname': record.pathname,
@@ -344,11 +353,7 @@ class RelayHandler(logging.Handler):
                     'msg': record.getMessage(),
                     'levelno': record.levelno,
                     'levelname': record.levelname,
-                    'exc_info': (
-                        PickledException,
-                        PickledException(repr(record.exc_info[1])),  # store stringified repr
-                        record.exc_info[2],
-                    ) if record.exc_info is not None else None,
+                    'exc_info': exc_info,
                 })
             pickled_rec = pickle.dumps(record)
         try:
