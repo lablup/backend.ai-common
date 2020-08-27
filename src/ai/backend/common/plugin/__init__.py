@@ -63,7 +63,7 @@ class AbstractPlugin(metaclass=ABCMeta):
         self.local_config = local_config
 
     @abstractmethod
-    async def init(self) -> None:
+    async def init(self, **kwargs) -> None:
         """
         Initialize any resource used by the plugin.
         """
@@ -135,7 +135,7 @@ class BasePluginContext(Generic[P]):
             log.info('loading plugin (group:{}): {}', plugin_group, entrypoint.name)
             yield entrypoint.name, entrypoint.load()
 
-    async def init(self) -> None:
+    async def init(self, **kwargs) -> None:
         scanned_plugins = self.discover_plugins(self.plugin_group)
         for plugin_name, plugin_entry in scanned_plugins:
             plugin_config = await self.etcd.get_prefix(
@@ -143,7 +143,7 @@ class BasePluginContext(Generic[P]):
             )
             try:
                 plugin_instance = plugin_entry(plugin_config, self.local_config)
-                await plugin_instance.init()
+                await plugin_instance.init(**kwargs)
             except Exception:
                 log.exception('error during initialization of plugin: {}', plugin_name)
                 continue
