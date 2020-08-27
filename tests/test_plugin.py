@@ -29,7 +29,7 @@ class DummyPlugin(AbstractPlugin):
     def __init__(self, plugin_config, local_config) -> None:
         super().__init__(plugin_config, local_config)
 
-    async def init(self, contxt: Any = {}) -> None:
+    async def init(self, context: Any = {}) -> None:
         pass
 
     async def cleanup(self) -> None:
@@ -64,6 +64,7 @@ def mock_entrypoints_with_class(plugin_group_name: str, *, plugin_cls):
 
 @pytest.mark.asyncio
 async def test_plugin_context_init_cleanup(etcd, mocker):
+    print('test plugin context init cleanup')
     mocked_plugin = AsyncMock(DummyPlugin)
     mocked_entrypoints = functools.partial(mock_entrypoints_with_instance,
                                            mocked_plugin=mocked_plugin)
