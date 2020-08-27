@@ -16,6 +16,14 @@ Changes
 
 .. towncrier release notes start
 
+20.03.2 (2020-08-27)
+--------------------
+
+### Features
+* Add `validators.PurePath`, a simpelified and non-syscall-involving version of `validators.Path` ([#44](https://github.com/lablup/backend.ai-common/issues/44))
+* Implement an ultimate exception pickler to log arbitrary errors, `PickledException`, which carries the `repr()`-ed original exception ([#45](https://github.com/lablup/backend.ai-common/issues/45))
+
+
 20.03.1 (2020-07-29)
 --------------------
 
