@@ -29,7 +29,7 @@ class DummyPlugin(AbstractPlugin):
     def __init__(self, plugin_config, local_config) -> None:
         super().__init__(plugin_config, local_config)
 
-    async def init(self) -> None:
+    async def init(self, contxt: Any = {}) -> None:
         pass
 
     async def cleanup(self) -> None:
@@ -137,7 +137,7 @@ class DummyHookPassingPlugin(HookPlugin):
             ('HOOK2', self.hook2_handler),
         ]
 
-    async def init(self) -> None:
+    async def init(self, context: Any = {}) -> None:
         pass
 
     async def cleanup(self) -> None:
@@ -169,7 +169,7 @@ class DummyHookRejectingPlugin(HookPlugin):
             ('HOOK2', self.hook2_handler),
         ]
 
-    async def init(self) -> None:
+    async def init(self, context: Any = {}) -> None:
         pass
 
     async def cleanup(self) -> None:
@@ -200,7 +200,7 @@ class DummyHookErrorPlugin(HookPlugin):
             ('HOOK3', self.hook3_handler),
         ]
 
-    async def init(self) -> None:
+    async def init(self, context: Any = {}) -> None:
         pass
 
     async def cleanup(self) -> None:
