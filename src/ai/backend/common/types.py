@@ -145,6 +145,11 @@ class SessionResult(str, enum.Enum):
     FAILURE = 'failure'
 
 
+class ClusterMode(str, enum.Enum):
+    SINGLE_NODE = 'single-node'
+    MULTI_NODE = 'multi-node'
+
+
 class MovingStatValue(TypedDict):
     min: str
     max: str
@@ -582,7 +587,6 @@ class KernelCreationConfig(TypedDict):
     image: ImageConfig
     auto_pull: AutoPullBehavior
     session_type: SessionTypes
-    cluster: dict
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
