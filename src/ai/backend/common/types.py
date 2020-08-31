@@ -564,6 +564,12 @@ class ServicePort(TypedDict):
     host_ports: Sequence[Optional[int]]
 
 
+class ClusterInfo(TypedDict):
+    network: Optional[str]  # the name of overlay network (None for single-node clusters)
+    role: str               # the container's role in the cluster
+    hostname: str           # the container's hostname
+
+
 class DeviceModelInfo(TypedDict):
     device_id: DeviceId
     model_name: str
@@ -587,6 +593,8 @@ class KernelCreationConfig(TypedDict):
     image: ImageConfig
     auto_pull: AutoPullBehavior
     session_type: SessionTypes
+    cluster_mode: ClusterMode
+    cluster: Optional[ClusterInfo]
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
