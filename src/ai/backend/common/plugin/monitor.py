@@ -43,7 +43,7 @@ class AbstractStatReporterPlugin(AbstractPlugin, metaclass=ABCMeta):
         metric_type: StatMetricTypes,
         metric_name: str,
         value: Union[float, int] = None,
-    ):
+    ) -> None:
         pass
 
 
@@ -75,7 +75,7 @@ class StatsPluginContext(BasePluginContext[AbstractStatReporterPlugin]):
         metric_type: StatMetricTypes,
         metric_name: str,
         value: Union[float, int] = None,
-    ):
+    ) -> None:
         for plugin_instance in self.plugins.values():
             await plugin_instance.report_metric(metric_type, metric_name, value)
 
