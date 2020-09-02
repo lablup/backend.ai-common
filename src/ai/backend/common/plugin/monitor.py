@@ -31,7 +31,7 @@ GAUGE = StatMetricTypes.GAUGE
 
 class AbstractStatReporterPlugin(AbstractPlugin, metaclass=ABCMeta):
 
-    async def init(self, context: Any = {}) -> None:
+    async def init(self, context: Any = None) -> None:
         pass
 
     async def cleanup(self) -> None:
@@ -43,12 +43,12 @@ class AbstractStatReporterPlugin(AbstractPlugin, metaclass=ABCMeta):
         metric_type: StatMetricTypes,
         metric_name: str,
         value: Union[float, int] = None,
-    ):
+    ) -> None:
         pass
 
 
 class AbstractErrorReporterPlugin(AbstractPlugin, metaclass=ABCMeta):
-    async def init(self, context: Any = {}) -> None:
+    async def init(self, context: Any = None) -> None:
         pass
 
     async def cleanup(self) -> None:
@@ -75,7 +75,7 @@ class StatsPluginContext(BasePluginContext[AbstractStatReporterPlugin]):
         metric_type: StatMetricTypes,
         metric_name: str,
         value: Union[float, int] = None,
-    ):
+    ) -> None:
         for plugin_instance in self.plugins.values():
             await plugin_instance.report_metric(metric_type, metric_name, value)
 
