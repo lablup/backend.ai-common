@@ -16,6 +16,18 @@ Changes
 
 .. towncrier release notes start
 
+20.03.3 (2020-09-04)
+--------------------
+
+### Features
+* Add JWT (JSON Web Token) validator (`tx.JsonWebToken`) with an inner token-data validator option ([#46](https://github.com/lablup/backend.ai-common/issues/46))
+* Add support for `context` as optional argument, e.g. used to pass on instances at initialization, for the plugin subsystem. ([#47](https://github.com/lablup/backend.ai-common/issues/47))
+* Add `ai.backend.json.ExtendedJSONEncoder` to handle UUID and datetime objects transparently when encoding objetcs into JSON ([#50](https://github.com/lablup/backend.ai-common/issues/50))
+
+### Fixes
+* Fix error monitor plugin and plugin context to match the updated API ([#47](https://github.com/lablup/backend.ai-common/issues/47))
+
+
 20.03.2 (2020-08-27)
 --------------------
 
