@@ -592,9 +592,10 @@ class KernelCreationConfig(TypedDict):
     image: ImageConfig
     auto_pull: AutoPullBehavior
     session_type: SessionTypes
-    role: str       # the kernel's role in the cluster
-    hostname: str   # the kernel's hostname in the cluster
     cluster_mode: ClusterMode
+    cluster_role: str       # the kernel's role in the cluster
+    cluster_idx: int        # the kernel's index in the cluster
+    cluster_hostname: str   # the kernel's hostname in the cluster
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
@@ -611,7 +612,8 @@ class KernelCreationConfig(TypedDict):
 class KernelEnqueueingConfig(TypedDict):
     image_ref: ImageRef
     cluster_role: str
-    idx: int
+    cluster_idx: int
+    cluster_hostname: str
     creation_config: dict
     bootstrap_script: str
     startup_command: str
