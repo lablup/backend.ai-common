@@ -104,7 +104,7 @@ else:
 
 _defined: bool = False
 get_instance_id: Callable[[], Awaitable[str]]
-get_instance_ip: Callable[[], Awaitable[str]]
+get_instance_ip: Callable[[Optional[BaseIPNetwork]], Awaitable[str]]
 get_instance_type: Callable[[], Awaitable[str]]
 get_instance_region: Callable[[], Awaitable[str]]
 
