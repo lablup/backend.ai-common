@@ -566,6 +566,7 @@ class ServicePort(TypedDict):
 
 class ClusterInfo(TypedDict):
     mode: ClusterMode
+    size: int
     network_name: Optional[str]  # the name of overlay network (None for single-node clusters)
 
 
