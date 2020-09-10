@@ -568,6 +568,12 @@ class ClusterInfo(TypedDict):
     mode: ClusterMode
     size: int
     network_name: Optional[str]  # the name of overlay network (None for single-node clusters)
+    ssh_keypair: Optional[ClusterSSHKeyPair]
+
+
+class ClusterSSHKeyPair(TypedDict):
+    public_key: str   # OpenSSH authorized-keys compatible format
+    private_key: str  # PEM-encoded string
 
 
 class DeviceModelInfo(TypedDict):
