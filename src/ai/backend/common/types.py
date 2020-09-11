@@ -51,6 +51,9 @@ __all__ = (
     'KernelCreationConfig',
     'KernelCreationResult',
     'ServicePortProtocols',
+    'ClusterInfo',
+    'ClusterMode',
+    'ClusterSSHKeyPair',
 )
 
 if TYPE_CHECKING:
@@ -567,7 +570,8 @@ class ServicePort(TypedDict):
 class ClusterInfo(TypedDict):
     mode: ClusterMode
     size: int
-    network_name: Optional[str]  # the name of overlay network (None for single-node clusters)
+    replicas: Mapping[str, int]  # per-role kernel counts
+    network_name: Optional[str]
     ssh_keypair: Optional[ClusterSSHKeyPair]
 
 
