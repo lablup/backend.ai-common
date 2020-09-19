@@ -45,7 +45,7 @@ redis_config_iv = t.Dict({
 }).allow_extra('*')
 
 vfolder_config_iv = t.Dict({
-    tx.AliasedKey(['mount', '_mount'], default='/mnt'): tx.Path(type='dir'),
+    tx.AliasedKey(['mount', '_mount'], default=None): t.Null | tx.Path(type='dir'),
     tx.AliasedKey(['fsprefix', '_fsprefix'], default=''):
         tx.Path(type='dir', resolve=False, relative_only=True, allow_nonexisting=True),
 }).allow_extra('*')

@@ -1,0 +1,1 @@
+Make the mount path in the vfolder etcd config validator nullable to allow detection of storage-proxy configs in agents
