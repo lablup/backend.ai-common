@@ -51,6 +51,9 @@ __all__ = (
     'KernelCreationConfig',
     'KernelCreationResult',
     'ServicePortProtocols',
+    'ClusterInfo',
+    'ClusterMode',
+    'ClusterSSHKeyPair',
 )
 
 if TYPE_CHECKING:
@@ -143,6 +146,11 @@ class SessionResult(str, enum.Enum):
     UNDEFINED = 'undefined'
     SUCCESS = 'success'
     FAILURE = 'failure'
+
+
+class ClusterMode(str, enum.Enum):
+    SINGLE_NODE = 'single-node'
+    MULTI_NODE = 'multi-node'
 
 
 class MovingStatValue(TypedDict):
@@ -559,6 +567,19 @@ class ServicePort(TypedDict):
     host_ports: Sequence[Optional[int]]
 
 
+class ClusterInfo(TypedDict):
+    mode: ClusterMode
+    size: int
+    replicas: Mapping[str, int]  # per-role kernel counts
+    network_name: Optional[str]
+    ssh_keypair: Optional[ClusterSSHKeyPair]
+
+
+class ClusterSSHKeyPair(TypedDict):
+    public_key: str   # OpenSSH authorized-keys compatible format
+    private_key: str  # PEM-encoded string
+
+
 class DeviceModelInfo(TypedDict):
     device_id: DeviceId
     model_name: str
@@ -582,7 +603,10 @@ class KernelCreationConfig(TypedDict):
     image: ImageConfig
     auto_pull: AutoPullBehavior
     session_type: SessionTypes
-    cluster: dict
+    cluster_mode: ClusterMode
+    cluster_role: str       # the kernel's role in the cluster
+    cluster_idx: int        # the kernel's index in the cluster
+    cluster_hostname: str   # the kernel's hostname in the cluster
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
@@ -599,7 +623,8 @@ class KernelCreationConfig(TypedDict):
 class KernelEnqueueingConfig(TypedDict):
     image_ref: ImageRef
     cluster_role: str
-    idx: int
+    cluster_idx: int
+    cluster_hostname: str
     creation_config: dict
     bootstrap_script: str
     startup_command: str
