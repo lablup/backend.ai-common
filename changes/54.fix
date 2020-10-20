@@ -1,0 +1,1 @@
+Make `validators.BinarySize` commutative with other trafarets and ensure that the converted values are either `Decimal` (for infinity) and `BinarySize`
