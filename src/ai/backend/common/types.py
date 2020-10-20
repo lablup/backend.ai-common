@@ -246,39 +246,50 @@ class BinarySize(int):
     endings = ('ibytes', 'ibyte', 'ib', 'bytes', 'byte', 'b')
 
     @classmethod
-    def from_str(cls, expr):
-        if isinstance(expr, (Decimal, numbers.Integral)):
-            return cls(expr)
-        assert isinstance(expr, str)
-        if expr.lower().startswith('inf'):
+    def _parse_str(cls, expr: str) -> Union[BinarySize, Decimal]:
+        if expr.lower() in ('inf', 'infinite', 'infinity'):
             return Decimal('Infinity')
         orig_expr = expr
         expr = expr.strip().replace('_', '')
         try:
-            return int(expr)
+            return cls(expr)
         except ValueError:
             expr = expr.lower()
+            dec_expr: Decimal
             try:
                 for ending in cls.endings:
                     if expr.endswith(ending):
                         length = len(ending) + 1
                         suffix = expr[-length]
-                        expr = Decimal(expr[:-length])
+                        dec_expr = Decimal(expr[:-length])
                         break
                 else:
-                    # when there is no unit ending (e.g., "2K")
+                    # when there is suffix without scale (e.g., "2K")
                     if not str.isnumeric(expr[-1]):
                         suffix = expr[-1]
-                        expr = Decimal(expr[:-1])
+                        dec_expr = Decimal(expr[:-1])
                     else:
-                        suffix = ' '
+                        # has no suffix and is not an integer
+                        # -> fractional bytes (e.g., 1.5 byte)
+                        raise ValueError('Fractional bytes are not allowed')
             except ArithmeticError:
                 raise ValueError('Unconvertible value', orig_expr)
             try:
                 multiplier = cls.suffix_map[suffix]
-                return cls(expr * multiplier)
             except KeyError:
                 raise ValueError('Unconvertible value', orig_expr)
+            return cls(dec_expr * multiplier)
+
+    @classmethod
+    def from_str(
+        cls,
+        expr: Union[str, Decimal, numbers.Integral],
+    ) -> Union[BinarySize, Decimal]:
+        if isinstance(expr, Decimal):
+            return cls(expr)
+        if isinstance(expr, numbers.Integral):
+            return cls(int(expr))
+        return cls._parse_str(expr)
 
     def _preformat(self):
         scale = self

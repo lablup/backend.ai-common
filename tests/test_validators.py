@@ -166,6 +166,19 @@ def test_binary_size():
         iv.check('XX')
 
 
+def test_binary_size_commutative_with_null():
+    iv1 = t.Null | tx.BinarySize()
+    iv2 = tx.BinarySize() | t.Null
+
+    iv1.check(None)
+    iv2.check(None)
+
+    with pytest.raises(t.DataError):
+        iv1.check('xxxxx')
+    with pytest.raises(t.DataError):
+        iv2.check('xxxxx')
+
+
 def test_enum():
 
     class MyTypes(enum.Enum):
