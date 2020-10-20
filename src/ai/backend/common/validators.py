@@ -3,6 +3,7 @@ An extension module to Trafaret which provides additional type checkers.
 '''
 
 import datetime
+from decimal import Decimal
 import enum
 import ipaddress
 import json
@@ -22,6 +23,7 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
+    Union,
 )
 import uuid
 import pwd
@@ -137,8 +139,10 @@ class MultiKey(t.Key):
 
 class BinarySize(t.Trafaret):
 
-    def check_and_return(self, value: Any) -> _BinarySize:
+    def check_and_return(self, value: Any) -> Union[_BinarySize, Decimal]:
         try:
+            if not isinstance(value, str):
+                value = str(value)
             return _BinarySize.from_str(value)
         except ValueError:
             self._failure('value is not a valid binary size', value=value)

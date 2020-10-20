@@ -60,6 +60,7 @@ def test_binary_size():
     assert 19291991 == BinarySize.from_str(19291991)
     with pytest.raises(ValueError):
         BinarySize.from_str('1.1')
+    assert 1126 == BinarySize.from_str('1.1k')
     assert 11021204 == BinarySize.from_str('11_021_204')
     assert 12345 == BinarySize.from_str('12345 bytes')
     assert 12345 == BinarySize.from_str('12345 B')
