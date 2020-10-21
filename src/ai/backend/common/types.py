@@ -281,6 +281,22 @@ class BinarySize(int):
             return cls(dec_expr * multiplier)
 
     @classmethod
+    def finite_from_str(
+        cls,
+        expr: Union[str, Decimal, numbers.Integral],
+    ) -> BinarySize:
+        if isinstance(expr, Decimal):
+            if expr.is_infinite():
+                raise ValueError('infinite values are not allowed')
+            return cls(expr)
+        if isinstance(expr, numbers.Integral):
+            return cls(int(expr))
+        result = cls._parse_str(expr)
+        if isinstance(result, Decimal) and result.is_infinite():
+            raise ValueError('infinite values are not allowed')
+        return cls(int(result))
+
+    @classmethod
     def from_str(
         cls,
         expr: Union[str, Decimal, numbers.Integral],
