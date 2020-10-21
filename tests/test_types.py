@@ -77,6 +77,12 @@ def test_binary_size():
     assert str(BinarySize(127303)) == '124.32 KiB'
     assert str(BinarySize(1048576)) == '1 MiB'
 
+    x = BinarySize.from_str('inf')
+    assert isinstance(x, Decimal)
+    assert x.is_infinite()
+    with pytest.raises(ValueError):
+        BinarySize.finite_from_str('inf')
+
     # short-hand formats
     assert 2 ** 30 == BinarySize.from_str('1g')
     assert 1048576 == BinarySize.from_str('1m')
