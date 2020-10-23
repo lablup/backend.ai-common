@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.03.4 (2020-10-23)
+--------------------
+
+### Fixes
+* Make `validators.BinarySize` commutative with other trafarets and ensure that the converted values are either `Decimal` (for infinity) and `BinarySize` ([#54](https://github.com/lablup/backend.ai-common/issues/54))
+
+
 20.03.3 (2020-09-04)
 --------------------
 
