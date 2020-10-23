@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.03.5 (2020-10-23)
+--------------------
+
+### Features
+* Add a finite-only constructor to `types.BinarySize`, which simplifies type handling when there are no infinite values expected ([#55](https://github.com/lablup/backend.ai-common/issues/55))
+
+
 20.03.4 (2020-10-23)
 --------------------
 
