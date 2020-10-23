@@ -87,7 +87,8 @@ async def execute_with_retries(
                                 'or aioredis.commands.Pipeline object')
         except asyncio.CancelledError:
             raise
-        except aioredis.errors.ConnectionForcedCloseError:
+        except (aioredis.errors.PoolClosedError,
+                aioredis.errors.ConnectionForcedCloseError):
             # This happens when we shut down the connection/pool.
             if suppress_force_closed:
                 return None
