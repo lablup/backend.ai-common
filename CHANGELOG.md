@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.03.6 (2020-10-23)
+--------------------
+
+### Fixes
+* Silence a bogus `PoolClosedError` from aioredis during shutting down servers ([#56](https://github.com/lablup/backend.ai-common/issues/56))
+
+
 20.03.5 (2020-10-23)
 --------------------
 
