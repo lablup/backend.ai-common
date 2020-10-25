@@ -1,18 +1,26 @@
 name: Lint with flake8
 
-on: [push, pull_request]
+on: [push]
 
 jobs:
-  lint:
+  lint-flake8:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: Set up Python 3.8
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v2
       with:
         python-version: 3.8
+    - name: Cache pip packages
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: lint-flake8-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.cfg') }}
+        restore-keys: |
+          lint-flake8-${{ runner.os }}-pip-${{ matrix.python-version }}
+          lint-flake8-${{ runner.os }}-pip-
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools
