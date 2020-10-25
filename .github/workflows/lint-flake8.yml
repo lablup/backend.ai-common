@@ -1,9 +1,9 @@
 name: Lint with flake8
 
-on: [push, pull_request]
+on: [push]
 
 jobs:
-  lint:
+  lint-flake8:
 
     runs-on: ubuntu-latest
 
