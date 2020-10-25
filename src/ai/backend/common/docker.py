@@ -49,13 +49,13 @@ async def login(
         registry_url: yarl.URL,
         credentials: dict,
         scope: str) -> dict:
-    '''
+    """
     Authorize to the docker registry using the given credentials and token scope, and returns a set
     of required aiohttp.ClientSession.request() keyword arguments for further API requests.
 
     Some registry servers only rely on HTTP Basic Authentication without token-based access controls
     (usually via nginx proxy). We do support them also. :)
-    '''
+    """
     basic_auth: Optional[aiohttp.BasicAuth]
 
     if credentials.get('username') and credentials.get('password'):
@@ -72,7 +72,7 @@ async def login(
         if www_auth_header:
             match = re.search(r'realm="([^"]+)"', www_auth_header)
             if match:
-                realm = match.group(1)
+                realm = yarl.URL(match.group(1))
             match = re.search(r'service="([^"]+)"', www_auth_header)
             if match:
                 service = match.group(1)
@@ -194,13 +194,13 @@ class ImageRef:
 
     @classmethod
     async def resolve_alias(cls, alias_key: str, etcd: AsyncEtcd):
-        '''
+        """
         Resolve the tag using etcd so that the current instance indicates
         a concrete, latest image.
 
         Note that alias resolving does not take the registry component into
         account.
-        '''
+        """
         alias_target = None
         repeats = 0
         while repeats < 8:
@@ -315,9 +315,9 @@ class ImageRef:
 
     @property
     def tag_path(self) -> str:
-        '''
+        """
         Return the string key that can be used to fetch image metadata from etcd.
-        '''
+        """
         return f'images/{etcd_quote(self.registry)}/' \
                f'{etcd_quote(self.name)}/{self.tag}'
 
@@ -343,9 +343,9 @@ class ImageRef:
 
     @property
     def short(self) -> str:
-        '''
+        """
         Returns the image reference string without the registry part.
-        '''
+        """
         # e.g., python:3.6-ubuntu
         return f'{self.name}:{self.tag}' if self.tag is not None else self.name
 
