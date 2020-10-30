@@ -16,6 +16,21 @@ Changes
 
 .. towncrier release notes start
 
+20.09.0a2 (2020-10-30)
+----------------------
+
+### Features
+* Add a finite-only constructor to `types.BinarySize`, which simplifies type handling when there are no infinite values expected ([#55](https://github.com/lablup/backend.ai-common/issues/55))
+
+### Fixes
+* Make `validators.BinarySize` commutative with other trafarets and ensure that the converted values are either `Decimal` (for infinity) and `BinarySize` ([#54](https://github.com/lablup/backend.ai-common/issues/54))
+* Silence a bogus `PoolClosedError` from aioredis during shutting down servers ([#56](https://github.com/lablup/backend.ai-common/issues/56))
+
+### Miscellaneous
+* Update dependencies, including upgrades to aiohttp 3.7 and aiotools 1.0 ([#57](https://github.com/lablup/backend.ai-common/issues/57))
+* Use `towncrier.check` in replacement of psf-chronographer ([#58](https://github.com/lablup/backend.ai-common/issues/58))
+
+
 20.09.0a1 (2020-10-06)
 ----------------------
 
