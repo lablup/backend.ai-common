@@ -465,14 +465,14 @@ class TimeDuration(t.Trafaret):
 
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
 
-    _rx_slug = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$')
+    _rx_slug = re.compile(r'^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9]([가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9._-]*[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9._-])?$')
 
     def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None,
                  allow_dot: bool = False) -> None:
         super().__init__()
         self._allow_dot = allow_dot
         if min_length is not None and min_length < 0:
-            raise TypeError('min_length must be larger than or equal to zero.')
+            raise TypeError('min_length must be larger than or equal to: zero.')
         if max_length is not None and max_length < 0:
             raise TypeError('max_length must be larger than or equal to zero.')
         if max_length is not None and min_length is not None and min_length > max_length:
