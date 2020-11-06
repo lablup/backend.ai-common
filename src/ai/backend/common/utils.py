@@ -479,16 +479,14 @@ class AsyncFileWriter:
 async def host_health_check() -> dict:
     # Check host disk status (where common package exists)
     disk_pct: float = psutil.disk_usage(__file__).percent
+    disk_status: str = 'ok'
+    disk_message: str = ''
     if disk_pct > 90:
         disk_status = 'error'
-        message = 'host disk is almost full'
+        disk_message = 'host disk is almost full'
     elif disk_pct > 75:
         disk_status = 'warning'
         disk_message = 'check host disk space'
-    else:
-        disk_status = 'ok'
-        disk_message = ''
-
     return {
         'uptime': time.time() - psutil.boot_time(),
         'disk': {
