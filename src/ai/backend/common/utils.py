@@ -12,6 +12,7 @@ import random
 import re
 import sys
 import socket
+import time
 from typing import (
     Any, Union, Type,
     Iterator, Callable, Awaitable,
@@ -23,6 +24,7 @@ import uuid
 import aiohttp
 from async_timeout import timeout as _timeout
 import janus
+import psutil
 
 from .types import BinarySize, Sentinel
 
@@ -472,3 +474,33 @@ class AsyncFileWriter:
 
     async def write(self, item):
         await self._q.async_q.put(item)
+
+
+async def host_health_check() -> dict:
+    # Check used disk space of host file system
+    proc = await asyncio.create_subprocess_exec(
+        *['df', __file__],
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    raw_out, raw_err = await proc.communicate()
+    out = raw_out.decode('utf8')
+    err = raw_err.decode('utf8')
+    device, size, used, available, percent, mountpoint = out.split('\n')[1].split()
+    percent = int(percent.split('%')[0])
+    if percent > 80:
+        fs_status = 'warning'
+    elif percent > 90:
+        fs_status = 'error'
+    else:
+        fs_status = 'ok'
+    sys.stdout.flush()
+
+    return {
+        'uptime': time.time() - psutil.boot_time(),
+        'filesystem': {
+            'status': fs_status,
+            'message': '',
+            'detail': '',
+        }
+    }
