@@ -477,30 +477,22 @@ class AsyncFileWriter:
 
 
 async def host_health_check() -> dict:
-    # Check used disk space of host file system
-    proc = await asyncio.create_subprocess_exec(
-        *['df', __file__],
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    raw_out, raw_err = await proc.communicate()
-    out = raw_out.decode('utf8')
-    err = raw_err.decode('utf8')
-    device, size, used, available, percent, mountpoint = out.split('\n')[1].split()
-    percent = int(percent.split('%')[0])
-    if percent > 80:
-        fs_status = 'warning'
-    elif percent > 90:
-        fs_status = 'error'
+    # Check host disk status (where common package exists)
+    disk_pct: float = psutil.disk_usage(__file__).percent
+    if disk_pct > 90:
+        disk_status = 'error'
+        message = 'host disk is almost full'
+    elif disk_pct > 75:
+        disk_status = 'warning'
+        disk_message = 'check host disk space'
     else:
-        fs_status = 'ok'
-    sys.stdout.flush()
+        disk_status = 'ok'
+        disk_message = ''
 
     return {
         'uptime': time.time() - psutil.boot_time(),
-        'filesystem': {
-            'status': fs_status,
-            'message': '',
-            'detail': '',
-        }
+        'disk': {
+            'status': disk_status,
+            'message': disk_message,
+        },
     }
