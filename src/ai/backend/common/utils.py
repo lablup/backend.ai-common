@@ -484,9 +484,9 @@ async def host_health_check() -> dict:
     if disk_pct > 90:
         disk_status = 'error'
         disk_message = 'host disk is almost full'
-    elif disk_pct > 75:
+    elif disk_pct > 70:
         disk_status = 'warning'
-        disk_message = 'check host disk space'
+        disk_message = 'host disk space not much left'
     return {
         'uptime': time.time() - psutil.boot_time(),
         'disk': {
