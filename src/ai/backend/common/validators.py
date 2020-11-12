@@ -465,7 +465,7 @@ class TimeDuration(t.Trafaret):
 
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
 
-    _rx_slug = re.compile(r'^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9]([가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9._-]*[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9._-])?$')
+    _rx_slug = re.compile(r'^[\w\-.\s]+$')
 
     def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None,
                  allow_dot: bool = False) -> None:
