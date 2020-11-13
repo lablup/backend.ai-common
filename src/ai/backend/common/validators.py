@@ -430,7 +430,7 @@ class TimeZone(t.Trafaret):
 
 class TimeDuration(t.Trafaret):
 
-    def __init__(self, *, allow_negative: bool = False):
+    def __init__(self, *, allow_negative: bool = False) -> None:
         self._allow_negative = allow_negative
 
     def check_and_return(self, value: Any) -> datetime.timedelta:
