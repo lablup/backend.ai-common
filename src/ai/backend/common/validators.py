@@ -495,7 +495,7 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
             else:
                 checked_value = value
             try:
-                m = type(self)._rx_slug.check_and_return(checked_value)
+                m = type(self)._rx_slug.check(checked_value)
             except t.DataError:
                 self._failure('value must be a valid slug.', value=value)
         else:
