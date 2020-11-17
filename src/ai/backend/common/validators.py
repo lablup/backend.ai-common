@@ -481,7 +481,7 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
         self._min_length = min_length
         self._max_length = max_length
         if self.ascii_only:
-            type(self)._rx_slug = t.RegexpRaw(regexp=r'^[\w\-.\s]+$', re.ASCII)
+            type(self)._rx_slug = t.RegexpRaw(regexp=r'^[\w\-.\s]+$', re_flags=re.ASCII)
 
     def check_and_return(self, value: Any) -> str:
         if isinstance(value, str):
@@ -493,7 +493,7 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
                 checked_value = value[1:]
             else:
                 checked_value = value
-            m = type(self)._rx_slug.search(checked_value)
+            m = type(self)._rx_slug.check_and_return(checked_value)
             if not m:
                 self._failure('value must be a valid slug.', value=value)
         else:
