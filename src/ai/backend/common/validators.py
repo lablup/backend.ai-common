@@ -465,20 +465,23 @@ class TimeDuration(t.Trafaret):
 
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
 
-    _rx_slug = re.compile(r'^[\w\-.\s]+$')
+    _rx_slug = t.RegexpRaw(regexp=r'^[\w\-.\s]+$') #re.compile(r'^[\w\-.\s]+$')
 
     def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None,
-                 allow_dot: bool = False) -> None:
+                 allow_dot: bool = False, ascii_only: bool = False) -> None:
         super().__init__()
         self._allow_dot = allow_dot
+        self._ascii_only = ascii_only
         if min_length is not None and min_length < 0:
-            raise TypeError('min_length must be larger than or equal to: zero.')
+            raise TypeError('min_length must be larger than or equal to zero.')
         if max_length is not None and max_length < 0:
             raise TypeError('max_length must be larger than or equal to zero.')
         if max_length is not None and min_length is not None and min_length > max_length:
             raise TypeError('min_length must be less than or equal to max_length when both set.')
         self._min_length = min_length
         self._max_length = max_length
+        if self.ascii_only:
+            type(self)._rx_slug = t.RegexpRaw(regexp=r'^[\w\-.\s]+$', re.ASCII)
 
     def check_and_return(self, value: Any) -> str:
         if isinstance(value, str):
