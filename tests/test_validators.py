@@ -316,7 +316,6 @@ def test_slug():
     assert iv.check('a-b') == 'a-b'
     assert iv.check('a_b') == 'a_b'
 
-
     # updates: '_' and empty string are allowed
     # with pytest.raises(t.DataError):
     #     iv.check('_')
@@ -336,7 +335,6 @@ def test_slug():
     assert iv.check('あ') == 'あ'
     assert iv.check('.字') == '.字'
     assert iv.check('字') == '字'
-
 
     with pytest.raises(t.DataError):
         iv.check('..a')
