@@ -466,7 +466,7 @@ class TimeDuration(t.Trafaret):
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
 
     _regexp = r'^((?!.*?\.{2,}))[\w.\-\/\\\s]+$'
-    _rx_slug = t.RegexpRaw(regexp=_regexp) # re.compile(r'^[\w\-.\s]+$')
+    _rx_slug = t.RegexpRaw(regexp=_regexp)  # re.compile(r'^[\w\-.\s]+$')
 
     def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None,
                  allow_dot: bool = False, ascii_only: bool = False) -> None:
