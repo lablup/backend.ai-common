@@ -1,0 +1,1 @@
+Fix regex to accept `unicode` mode and add parameter `ascii_only` to enable toggle mode in the validation check.
