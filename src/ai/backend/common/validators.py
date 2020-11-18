@@ -139,13 +139,14 @@ class MultiKey(t.Key):
 
 class BinarySize(t.Trafaret):
 
-    def check_and_return(self, value: Any) -> Union[_BinarySize, Decimal]:
+    def check_and_return(self, value: Any) -> Union[_BinarySize, Decimal, None]:
         try:
             if not isinstance(value, str):
                 value = str(value)
             return _BinarySize.from_str(value)
         except ValueError:
             self._failure('value is not a valid binary size', value=value)
+            return None
 
 
 T_enum = TypeVar('T_enum', bound=enum.Enum)
@@ -157,7 +158,7 @@ class Enum(t.Trafaret):
         self.enum_cls = enum_cls
         self.use_name = use_name
 
-    def check_and_return(self, value: Any) -> T_enum:
+    def check_and_return(self, value: Any) -> Optional[T_enum]:
         try:
             if self.use_name:
                 return self.enum_cls[value]
@@ -166,15 +167,17 @@ class Enum(t.Trafaret):
         except (KeyError, ValueError):
             self._failure(f'value is not a valid member of {self.enum_cls.__name__}',
                           value=value)
+            return None
 
 
 class JSONString(t.Trafaret):
 
-    def check_and_return(self, value: Any) -> dict:
+    def check_and_return(self, value: Any) -> Optional[dict]:
         try:
             return json.loads(value)
         except (KeyError, ValueError):
             self._failure('value is not a valid JSON string', value=value)
+            return None
 
 
 class PurePath(t.Trafaret):
@@ -253,20 +256,22 @@ class Path(PurePath):
 
 class IPNetwork(t.Trafaret):
 
-    def check_and_return(self, value: Any) -> ipaddress._BaseNetwork:
+    def check_and_return(self, value: Any) -> Optional[ipaddress._BaseNetwork]:
         try:
             return ipaddress.ip_network(value)
         except ValueError:
             self._failure('Invalid IP network format', value=value)
+            return None
 
 
 class IPAddress(t.Trafaret):
 
-    def check_and_return(self, value: Any) -> ipaddress._BaseAddress:
+    def check_and_return(self, value: Any) -> Optional[ipaddress._BaseAddress]:
         try:
             return ipaddress.ip_address(value)
         except ValueError:
             self._failure('Invalid IP address format', value=value)
+            return None
 
 
 class HostPortPair(t.Trafaret):
@@ -283,7 +288,8 @@ class HostPortPair(t.Trafaret):
             host, port = pair[0], pair[1]
         elif isinstance(value, Sequence):
             if len(value) != 2:
-                self._failure('value as array must contain only two values for address and number', value=value)
+                self._failure('value as array must contain only two values for address and number',
+                              value=value)
             host, port = value[0], value[1]
         elif isinstance(value, Mapping):
             try:
@@ -315,7 +321,8 @@ class PortRange(t.Trafaret):
             try:
                 value = tuple(map(int, value.split('-')))
             except (TypeError, ValueError):
-                self._failure('value as string should be a hyphen-separated pair of integers', value=value)
+                self._failure('value as string should be a hyphen-separated pair of integers',
+                              value=value)
         elif isinstance(value, Sequence):
             if len(value) != 2:
                 self._failure('value as array must contain only two values', value=value)
@@ -403,7 +410,7 @@ class GroupID(t.Trafaret):
 
 class UUID(t.Trafaret):
 
-    def check_and_return(self, value: Any) -> uuid.UUID:
+    def check_and_return(self, value: Any) -> Optional[uuid.UUID]:
         try:
             if isinstance(value, uuid.UUID):
                 return value
@@ -413,18 +420,21 @@ class UUID(t.Trafaret):
                 return uuid.UUID(bytes=value)
             else:
                 self._failure('value must be string or bytes', value=value)
+                return None
         except ValueError:
             self._failure('cannot convert value to UUID', value=value)
+            return None
 
 
 class TimeZone(t.Trafaret):
 
-    def check_and_return(self, value: Any) -> datetime.tzinfo:
+    def check_and_return(self, value: Any) -> Optional[datetime.tzinfo]:
         if not isinstance(value, str):
             self._failure('value must be string', value=value)
         tz = dateutil.tz.gettz(value)
         if tz is None:
             self._failure('value is not a known timezone', value=value)
+            return None
         return tz
 
 
@@ -433,7 +443,7 @@ class TimeDuration(t.Trafaret):
     def __init__(self, *, allow_negative: bool = False) -> None:
         self._allow_negative = allow_negative
 
-    def check_and_return(self, value: Any) -> datetime.timedelta:
+    def check_and_return(self, value: Any) -> Optional[datetime.timedelta]:
         if not isinstance(value, str):
             self._failure('value must be string', value=value)
         if len(value) == 0:
@@ -444,6 +454,7 @@ class TimeDuration(t.Trafaret):
                 t = float(value)
                 if not self._allow_negative and t < 0:
                     self._failure('value must be positive', value=value)
+                    return None
                 return datetime.timedelta(seconds=t)
             else:
                 t = float(value[:-1])
@@ -459,8 +470,10 @@ class TimeDuration(t.Trafaret):
                     return datetime.timedelta(minutes=t)
                 else:
                     self._failure('value is not a known time duration', value=value)
+                    return None
         except ValueError:
             self._failure(f'invalid numeric literal: {value[:-1]}', value=value)
+            return None
 
 
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
@@ -513,7 +526,7 @@ if jwt_available:
             self.algorithms = algorithms
             self.inner_iv = inner_iv
 
-        def check_and_return(self, value: Any) -> Mapping[str, Any]:
+        def check_and_return(self, value: Any) -> Optional[Mapping[str, Any]]:
             try:
                 token_data = jwt.decode(value, self.secret, alogrithms=self.algorithms)
                 if self.inner_iv is not None:
@@ -521,3 +534,4 @@ if jwt_available:
                 return token_data
             except jwt.PyJWTError:
                 self._failure('cannot decode the given value as JWT', value=value)
+                return None

@@ -380,7 +380,8 @@ class ImageRef:
             if ptagset_other.has(key_self):
                 version_self, version_other = ptagset_self.get(key_self), ptagset_other.get(key_self)
                 if version_self and version_other:
-                    parsed_version_self, parsed_version_other = version.parse(version_self), version.parse(version_other)
+                    parsed_version_self, parsed_version_other = \
+                        version.parse(version_self), version.parse(version_other)
                     if parsed_version_self != parsed_version_other:
                         return parsed_version_self < parsed_version_other
         return len(ptagset_self) > len(ptagset_other)

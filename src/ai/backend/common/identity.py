@@ -143,7 +143,7 @@ def _define_functions():
             return f'amazon/{region}'
 
     elif current_provider == 'azure':
-        # ref: https://docs.microsoft.com/azure/virtual-machines/virtual-machines-instancemetadataservice-overview
+        # ref: https://docs.microsoft.com/azure/virtual-machines/virtual-machines-instancemetadataservice-overview # noqa
         _metadata_prefix = 'http://169.254.169.254/metadata/instance'
 
         async def _get_instance_id() -> str:

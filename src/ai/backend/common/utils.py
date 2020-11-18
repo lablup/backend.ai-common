@@ -79,14 +79,15 @@ def get_random_seq(length: float, num_points: int, min_distance: float) -> Itera
     Generate a random sequence of numbers within the range [0, length]
     with the given number of points and the minimum distance between the points.
 
-    Note that X ( = the minimum distance d x the number of points N) must be equivalent to or smaller than
-    the length L + d to guarantee the the minimum distance between the points.
+    Note that X ( = the minimum distance d x the number of points N) must be equivalent to or smaller
+    than the length L + d to guarantee the the minimum distance between the points.
     If X == L + d, the points are always equally spaced with d.
 
     :return: An iterator over the generated sequence
     """
     assert num_points * min_distance <= length + min_distance, \
-           'There are too many points or it has a too large distance which cannot be fit into the given length.'
+        ('There are too many points '
+         'or it has a too large distance which cannot be fit into the given length.')
     extra = length - (num_points - 1) * min_distance
     ro = [random.uniform(0, 1) for _ in range(num_points + 1)]
     sum_ro = sum(ro)
@@ -504,7 +505,6 @@ async def host_health_check() -> dict:
         raw_out, raw_err = await proc.communicate()
         out = raw_out.decode('utf-8')
         err = raw_err.decode('utf-8')
-        docker_info: dict = {}
         if err and 'command not found' in err:
             # docker not installed
             pass
@@ -525,7 +525,7 @@ async def host_health_check() -> dict:
                     elif docker_disk_pct > 70:
                         disk_status = 'warning'
                         disk_message = 'docker disk space not much left'
-                except FileNotFoudnError:
+                except FileNotFoundError:
                     disk_status = 'error'
                     disk_message = 'docker root directory not found'
 

@@ -121,7 +121,9 @@ class LogstashHandler(logging.Handler):
             sock.connect((str(self._endpoint.host), self._endpoint.port,))
             self._sock = sock
         else:
-            raise ConfigurationError({'logging.LogstashHandler': f'unsupported protocol: {self._protocol}'})
+            raise ConfigurationError({
+                'logging.LogstashHandler': f'unsupported protocol: {self._protocol}',
+            })
 
     def cleanup(self):
         if self._sock:
@@ -387,7 +389,9 @@ class Logger():
 
         def _check_driver_config_exists_if_activated(cfg, driver):
             if driver in cfg['drivers'] and cfg[driver] is None:
-                raise ConfigurationError({'logging': f'{driver} driver is activated but no config given.'})
+                raise ConfigurationError({
+                    'logging': f'{driver} driver is activated but no config given.',
+                })
 
         _check_driver_config_exists_if_activated(cfg, 'console')
         _check_driver_config_exists_if_activated(cfg, 'file')
@@ -404,7 +408,8 @@ class Logger():
             },
             'loggers': {
                 '': {'handlers': [], 'level': cfg['level']},
-                **{k: {'handlers': [], 'level': v, 'propagate': False} for k, v in cfg['pkg-ns'].items()},
+                **{k: {'handlers': [], 'level': v, 'propagate': False}
+                   for k, v in cfg['pkg-ns'].items()},
             },
         }
 

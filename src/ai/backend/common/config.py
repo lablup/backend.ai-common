@@ -64,7 +64,8 @@ def find_config_file(daemon_name: str) -> Path:
             ]
         else:
             raise ConfigurationError({
-                'read_from_file()': f"Unsupported platform for config path auto-discovery: {sys.platform}",
+                'read_from_file()':
+                    f"Unsupported platform for config path auto-discovery: {sys.platform}",
             })
     else:
         toml_paths = [Path(toml_path_from_env)]
@@ -78,7 +79,10 @@ def find_config_file(daemon_name: str) -> Path:
         })
 
 
-def read_from_file(toml_path: Optional[Union[Path, str]], daemon_name: str) -> Tuple[Dict[str, Any], Path]:
+def read_from_file(
+    toml_path: Optional[Union[Path, str]],
+    daemon_name: str
+) -> Tuple[Dict[str, Any], Path]:
     config: Dict[str, Any]
     discovered_path: Path
     if toml_path is None:
