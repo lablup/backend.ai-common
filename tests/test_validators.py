@@ -315,12 +315,9 @@ def test_slug():
     assert iv.check('abc') == 'abc'
     assert iv.check('a-b') == 'a-b'
     assert iv.check('a_b') == 'a_b'
-
-    # updates: '_' and empty string are allowed
-    # with pytest.raises(t.DataError):
-    #     iv.check('_')
-    # with pytest.raises(t.DataError):
-    #     iv.check('')
+    assert iv.check('_') == '_'
+    with pytest.raises(t.DataError):
+        iv.check('')
 
     iv = tx.Slug(allow_dot=True, ascii_only=False)
     assert iv.check('.a') == '.a'
@@ -336,8 +333,7 @@ def test_slug():
     assert iv.check('.字') == '.字'
     assert iv.check('字') == '字'
 
-    with pytest.raises(t.DataError):
-        iv.check('..a')
+    assert iv.check('..a') == '..a'
 
     iv = tx.Slug[:4]
     assert iv.check('abc') == 'abc'
@@ -377,9 +373,6 @@ def test_slug():
     iv = tx.Slug(allow_dot=True, ascii_only=True)
     assert iv.check('.a') == '.a'
     assert iv.check('a') == 'a'
-
-    with pytest.raises(t.DataError):
-        iv.check('.ㄱ')
 
 
 def test_json_string():
