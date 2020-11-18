@@ -465,8 +465,8 @@ class TimeDuration(t.Trafaret):
 
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
 
-    _regexp = r'^((?!.*?\.{2,}))[\w.\-\/\\\s]+$'
-    _rx_slug = t.RegexpRaw(regexp=_regexp)  # re.compile(r'^[\w\-.\s]+$')
+    _rx_slug_ascii_only = re.compile(r'^[\w\-_.\s]+$', re.ASCII)
+    _rx_slug = re.compile(r'^[\w\-_.\s]+$')
 
     def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None,
                  allow_dot: bool = False, ascii_only: bool = False) -> None:
@@ -481,8 +481,6 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
             raise TypeError('min_length must be less than or equal to max_length when both set.')
         self._min_length = min_length
         self._max_length = max_length
-        if self._ascii_only:
-            type(self)._rx_slug = t.RegexpRaw(regexp=type(self)._regexp, re_flags=re.ASCII)
 
     def check_and_return(self, value: Any) -> str:
         if isinstance(value, str):
@@ -494,9 +492,11 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
                 checked_value = value[1:]
             else:
                 checked_value = value
-            try:
-                type(self)._rx_slug.check(checked_value)
-            except t.DataError:
+            if self._ascii_only:
+                m = type(self)._rx_slug_ascii_only.search(checked_value)
+            else:
+                m = type(self)._rx_slug.search(checked_value)
+            if not m:
                 self._failure('value must be a valid slug.', value=value)
         else:
             self._failure('value must be a string', value=value)
