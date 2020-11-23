@@ -16,6 +16,15 @@ Changes
 
 .. towncrier release notes start
 
+20.03.7 (2020-11-23)
+--------------------
+
+### Miscellaneous
+* Update dependencies, including upgrades to aiohttp 3.7 and aiotools 1.0 ([#57](https://github.com/lablup/backend.ai-common/issues/57))
+* Use `towncrier.check` in replacement of psf-chronographer ([#58](https://github.com/lablup/backend.ai-common/issues/58))
+* Fix internal type annotations due to updated dependencies
+
+
 20.03.6 (2020-10-23)
 --------------------
 
