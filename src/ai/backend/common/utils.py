@@ -4,7 +4,6 @@ from collections import OrderedDict
 from contextlib import closing
 from datetime import timedelta
 import enum
-from functools import partial
 import inspect
 from itertools import chain
 import numbers
@@ -13,7 +12,6 @@ import random
 import re
 import sys
 import socket
-import time
 from typing import (
     Any, Union, Type,
     Iterator, Callable, Awaitable,
@@ -25,7 +23,6 @@ import uuid
 import aiohttp
 from async_timeout import timeout as _timeout
 import janus
-import psutil
 
 from .types import BinarySize, Sentinel
 
@@ -476,63 +473,3 @@ class AsyncFileWriter:
 
     async def write(self, item):
         await self._q.async_q.put(item)
-
-
-async def host_health_check() -> dict:
-    loop = current_loop()
-
-    def _disk_usage(dir) -> float:
-        return psutil.disk_usage(dir).percent
-
-    # Check host disk status (where common package exists)
-    disk_pct: float = await loop.run_in_executor(None, partial(_disk_usage, __file__))
-    disk_status: str = 'ok'
-    disk_message: str = ''
-    if disk_pct > 90:
-        disk_status = 'error'
-        disk_message = 'host disk is almost full'
-    elif disk_pct > 70:
-        disk_status = 'warning'
-        disk_message = 'host disk space not much left'
-
-    # Check disk where docker root directory located
-    if disk_status == 'ok':
-        proc = await asyncio.create_subprocess_exec(
-            *['docker', 'info'],
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        raw_out, raw_err = await proc.communicate()
-        out = raw_out.decode('utf-8')
-        err = raw_err.decode('utf-8')
-        if err and 'command not found' in err:
-            # docker not installed
-            pass
-        elif err:
-            disk_status = 'error'
-            disk_message = 'check docker daemon status'
-        elif 'Docker Root Dir' in out:
-            m = re.search('Docker Root Dir: (.*)', out)
-            if m and m.group(1):
-                docker_root = m.group(1)
-                try:
-                    docker_disk_pct: float = await loop.run_in_executor(
-                        None, partial(_disk_usage, docker_root)
-                    )
-                    if docker_disk_pct > 90:
-                        disk_status = 'error'
-                        disk_message = 'docker disk is almost full'
-                    elif docker_disk_pct > 70:
-                        disk_status = 'warning'
-                        disk_message = 'docker disk space not much left'
-                except FileNotFoundError:
-                    disk_status = 'error'
-                    disk_message = 'docker root directory not found'
-
-    return {
-        'uptime': time.time() - psutil.boot_time(),
-        'disk': {
-            'status': disk_status,
-            'message': disk_message,
-        },
-    }
