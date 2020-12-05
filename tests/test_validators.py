@@ -7,6 +7,7 @@ import pickle
 
 import pytest
 import trafaret as t
+import yarl
 
 from ai.backend.common import validators as tx
 
@@ -177,6 +178,16 @@ def test_binary_size_commutative_with_null():
         iv1.check('xxxxx')
     with pytest.raises(t.DataError):
         iv2.check('xxxxx')
+
+
+def test_string_list():
+    iv = tx.StringList(delimiter=':')
+    assert iv.check('aaa:bbb:ccc') == ['aaa', 'bbb', 'ccc']
+    assert iv.check(':bbb') == ['', 'bbb']
+    assert iv.check('aaa:') == ['aaa', '']
+    assert iv.check('xxx') == ['xxx']
+    assert iv.check('') == ['']
+    assert iv.check(123) == ['123']
 
 
 def test_enum():
@@ -364,9 +375,9 @@ def test_slug():
 
 def test_json_string():
     iv = tx.JSONString()
-    iv.check('{}') == {}
-    iv.check('{"a":123}') == {'a': 123}
-    iv.check('[]') == []
+    assert iv.check('{}') == {}
+    assert iv.check('{"a":123}') == {'a': 123}
+    assert iv.check('[]') == []
     with pytest.raises(ValueError):
         iv.check('x')
 
@@ -375,14 +386,14 @@ def test_time_duration():
     iv = tx.TimeDuration()
     with pytest.raises(t.DataError):
         iv.check('')
-    iv.check('1w') == timedelta(weeks=1)
-    iv.check('1d') == timedelta(days=1)
-    iv.check('0.5d') == timedelta(hours=12)
-    iv.check('1h') == timedelta(hours=1)
-    iv.check('1m') == timedelta(minutes=1)
-    iv.check('1') == timedelta(seconds=1)
-    iv.check('0.5h') == timedelta(minutes=30)
-    iv.check('0.001') == timedelta(milliseconds=1)
+    assert iv.check('1w') == timedelta(weeks=1)
+    assert iv.check('1d') == timedelta(days=1)
+    assert iv.check('0.5d') == timedelta(hours=12)
+    assert iv.check('1h') == timedelta(hours=1)
+    assert iv.check('1m') == timedelta(minutes=1)
+    assert iv.check('1') == timedelta(seconds=1)
+    assert iv.check('0.5h') == timedelta(minutes=30)
+    assert iv.check('0.001') == timedelta(milliseconds=1)
     with pytest.raises(t.DataError):
         iv.check('-1')
     with pytest.raises(t.DataError):
@@ -395,11 +406,22 @@ def test_time_duration_negative():
     iv = tx.TimeDuration(allow_negative=True)
     with pytest.raises(t.DataError):
         iv.check('')
-    iv.check('0.5h') == timedelta(minutes=30)
-    iv.check('0.001') == timedelta(milliseconds=1)
-    iv.check('-1') == timedelta(seconds=-1)
-    iv.check('-3d') == timedelta(days=-3)
+    assert iv.check('0.5h') == timedelta(minutes=30)
+    assert iv.check('0.001') == timedelta(milliseconds=1)
+    assert iv.check('-1') == timedelta(seconds=-1)
+    assert iv.check('-3d') == timedelta(days=-3)
     with pytest.raises(t.DataError):
         iv.check('-a')
     with pytest.raises(t.DataError):
         iv.check('-xxh')
+
+
+def test_url():
+    iv = tx.URL()
+    with pytest.raises(t.DataError):
+        iv.check('')
+    with pytest.raises(t.DataError):
+        iv.check('example.com')
+    assert iv.check('https://example.com') == yarl.URL('https://example.com')
+    iv = tx.URL(scheme_required=False)
+    assert iv.check('example.com') == yarl.URL('example.com')
