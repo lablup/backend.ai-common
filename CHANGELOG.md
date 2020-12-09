@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.03.8 (2020-12-09)
+--------------------
+
+### Features
+* Add new trafaret-based validators `StringLis` and `URL` ([#61](https://github.com/lablup/backend.ai-common/issues/61))
+
+
 20.03.7 (2020-11-23)
 --------------------
 
