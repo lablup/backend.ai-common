@@ -38,6 +38,7 @@ import multidict
 import trafaret as t
 from trafaret.base import TrafaretMeta
 from trafaret.lib import _empty
+import yarl
 
 from .types import (
     BinarySize as _BinarySize,
@@ -48,6 +49,7 @@ __all__ = (
     'AliasedKey',
     'MultiKey',
     'BinarySize',
+    'StringList',
     'Enum',
     'JSONString',
     'PurePath',
@@ -62,6 +64,7 @@ __all__ = (
     'TimeZone',
     'TimeDuration',
     'Slug',
+    'URL',
 )
 
 
@@ -147,6 +150,20 @@ class BinarySize(t.Trafaret):
         except ValueError:
             self._failure('value is not a valid binary size', value=value)
             return None
+
+
+class StringList(t.Trafaret):
+
+    def __init__(self, *, delimiter: str = ',') -> None:
+        self.delimiter = delimiter
+
+    def check_and_return(self, value: Any) -> Sequence[str]:
+        try:
+            if not isinstance(value, str):
+                value = str(value)
+            return value.split(self.delimiter)
+        except ValueError:
+            self._failure('value is not a string or not convertible to string', value=value)
 
 
 T_enum = TypeVar('T_enum', bound=enum.Enum)
@@ -535,3 +552,27 @@ if jwt_available:
             except jwt.PyJWTError:
                 self._failure('cannot decode the given value as JWT', value=value)
                 return None
+
+
+class URL(t.Trafaret):
+
+    rx_scheme = re.compile(r"^[-a-z0-9]+://")
+
+    def __init__(
+        self, *,
+        scheme_required: bool = True,
+    ) -> None:
+        self.scheme_required = scheme_required
+
+    def check_and_return(self, value: Any) -> yarl.URL:
+        if not isinstance(value, (str, bytes)):
+            self._failure("A URL must be a unicode string or a byte sequence", value=value)
+        if isinstance(value, bytes):
+            value = value.decode('utf-8')
+        if self.scheme_required:
+            if not self.rx_scheme.match(value):
+                self._failure("The given value does not have the scheme (protocol) part", value=value)
+        try:
+            return yarl.URL(value)
+        except ValueError as e:
+            self._failure(f"cannot convert the given value to URL (error: {e!r})", value=value)
