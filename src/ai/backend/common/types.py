@@ -120,6 +120,7 @@ SecretKey = NewType('SecretKey', str)
 class SlotTypes(str, enum.Enum):
     COUNT = 'count'
     BYTES = 'bytes'
+    UNIQUE = 'unique'
 
 
 class AutoPullBehavior(str, enum.Enum):
