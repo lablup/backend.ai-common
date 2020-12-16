@@ -1,1 +1,0 @@
-Add `SlotTypes.UNIQUE` declaration

@@ -16,6 +16,16 @@ Changes
 
 .. towncrier release notes start
 
+20.03.9 (2020-12-16)
+--------------------
+
+### Features
+* Add `SlotTypes.UNIQUE` declaration ([#63](https://github.com/lablup/backend.ai-common/issues/63))
+
+### Miscellaneous
+* Update dependencies and further relax the dependency versions to adapt with the new pip resolver ([#62](https://github.com/lablup/backend.ai-common/issues/62))
+
+
 20.03.8 (2020-12-09)
 --------------------
 
