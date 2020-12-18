@@ -57,6 +57,7 @@ __all__ = (
     'ClusterInfo',
     'ClusterMode',
     'ClusterSSHKeyPair',
+    'check_hardware_metadata',
 )
 
 if TYPE_CHECKING:
@@ -134,16 +135,16 @@ class HardwareMetadata(TypedDict):
     status_info: Optional[str]
     metadata: Mapping[str, str]
 
-    @classmethod  # type: ignore
-    def check(cls, value: Any) -> HardwareMetadata:
-        try:
-            return t.Dict({
-                t.Key('status'): t.Enum("healthy", "degraded", "offline", "unavailable"),
-                t.Key('status_info'): t.Null | t.String,
-                t.Key('metadata'): t.Mapping(t.String, t.String),
-            }).check(value)
-        except t.DataError as e:
-            raise ValueError("The give value does not conform with the target typed dict.", e.as_dict())
+
+def check_hardware_metadata(value: Any) -> HardwareMetadata:
+    try:
+        return t.Dict({
+            t.Key('status'): t.Enum("healthy", "degraded", "offline", "unavailable"),
+            t.Key('status_info'): t.Null | t.String,
+            t.Key('metadata'): t.Mapping(t.String, t.String),
+        }).check(value)
+    except t.DataError as e:
+        raise ValueError("The give value does not conform with the target typed dict.", e.as_dict())
 
 
 class AutoPullBehavior(str, enum.Enum):
