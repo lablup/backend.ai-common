@@ -20,9 +20,11 @@ from typing import (
     TypeVar,
     TypedDict,
     TYPE_CHECKING,
-    Union,
+    Union, overload,
 )
 import uuid
+
+import trafaret as t
 
 __all__ = (
     'aobject',
@@ -42,6 +44,7 @@ __all__ = (
     'SlotName',
     'IntrinsicSlotNames',
     'ResourceSlot',
+    'HardwareMetadata',
     'MountPermission',
     'MountPermissionLiteral',
     'MountTuple5',
@@ -124,6 +127,23 @@ class SlotTypes(str, enum.Enum):
     COUNT = 'count'
     BYTES = 'bytes'
     UNIQUE = 'unique'
+
+
+class HardwareMetadata(TypedDict):
+    status: Literal["healthy", "degraded", "offline", "unavailable"]
+    status_info: Optional[str]
+    metadata: Mapping[str, str]
+
+    @classmethod  # type: ignore
+    def check(cls, value: Any) -> HardwareMetadata:
+        try:
+            return t.Dict({
+                t.Key('status'): t.Enum("healthy", "degraded", "offline", "unavailable"),
+                t.Key('status_info'): t.Null | t.String,
+                t.Key('metadata'): t.Mapping(t.String, t.String),
+            }).check(value)
+        except t.DataError as e:
+            raise ValueError("The give value does not conform with the target typed dict.", e.as_dict())
 
 
 class AutoPullBehavior(str, enum.Enum):
