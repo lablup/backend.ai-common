@@ -7,8 +7,10 @@ import enum
 import ipaddress
 import math
 import numbers
+import sys
 from typing import (
     Any,
+    Dict,
     List,
     Literal,
     Mapping,
@@ -20,11 +22,12 @@ from typing import (
     TypeVar,
     TypedDict,
     TYPE_CHECKING,
-    Union, overload,
+    Union,
+    cast,
 )
 import uuid
 
-import trafaret as t
+import typeguard
 
 __all__ = (
     'aobject',
@@ -57,7 +60,7 @@ __all__ = (
     'ClusterInfo',
     'ClusterMode',
     'ClusterSSHKeyPair',
-    'check_hardware_metadata',
+    'check_typed_dict',
 )
 
 if TYPE_CHECKING:
@@ -106,6 +109,26 @@ class aobject(object):
         pass
 
 
+TD = TypeVar('TD')
+
+
+def check_typed_dict(value: Mapping[Any, Any], expected_type: Type[TD]) -> TD:
+    """
+    Validates the given dict against the given TypedDict class, and wraps the value as the given TypedDict type.
+
+    This is a shortcut to :func:`typeguard.check_typed_dict()` function to fill extra information
+    """
+    assert issubclass(expected_type, dict) and hasattr(expected_type, '__annotations__'), \
+           f"expected_type ({type(expected_type)}) must be a TypedDict class"
+    frame = sys._getframe(1)
+    _globals = frame.f_globals
+    _locals = frame.f_locals
+    memo = typeguard._TypeCheckMemo(_globals, _locals)
+    typeguard.check_typed_dict('value', value, expected_type, memo)
+    # Here we passed the check, so return it after casting.
+    return cast(TD, value)
+
+
 PID = NewType('PID', int)
 HostPID = NewType('HostPID', PID)
 ContainerPID = NewType('ContainerPID', PID)
@@ -133,18 +156,7 @@ class SlotTypes(str, enum.Enum):
 class HardwareMetadata(TypedDict):
     status: Literal["healthy", "degraded", "offline", "unavailable"]
     status_info: Optional[str]
-    metadata: Mapping[str, str]
-
-
-def check_hardware_metadata(value: Any) -> HardwareMetadata:
-    try:
-        return t.Dict({
-            t.Key('status'): t.Enum("healthy", "degraded", "offline", "unavailable"),
-            t.Key('status_info'): t.Null | t.String,
-            t.Key('metadata'): t.Mapping(t.String, t.String),
-        }).check(value)
-    except t.DataError as e:
-        raise ValueError("The give value does not conform with the target typed dict.", e.as_dict())
+    metadata: Dict[str, str]
 
 
 class AutoPullBehavior(str, enum.Enum):
