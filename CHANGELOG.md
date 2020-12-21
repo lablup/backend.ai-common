@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.09.0b4 (2020-12-21)
+----------------------
+
+### Features
+* Add `types.check_typed_dict()`  for generic TypedDict runtime validation and `types.HardwareMetadata` to support hardware metadata queries. ([#65](https://github.com/lablup/backend.ai-common/issues/65))
+
+
 20.09.0b3 (2020-12-18)
 ----------------------
 
