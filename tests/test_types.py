@@ -4,6 +4,8 @@ from ai.backend.common.types import (
     BinarySize, ResourceSlot,
     DefaultForUnspecified,
     aobject,
+    HardwareMetadata,
+    check_typed_dict,
 )
 
 import pytest
@@ -53,6 +55,24 @@ async def test_aobject():
     assert o.y == 3
     assert init_count == 2
     assert ainit_count == 2
+
+
+def test_check_typed_dict():
+    with pytest.raises(TypeError):
+        check_typed_dict({}, {})
+    with pytest.raises(AssertionError):
+        check_typed_dict({}, dict)
+    with pytest.raises(AssertionError):
+        check_typed_dict({}, int)
+    with pytest.raises(TypeError):
+        check_typed_dict({}, HardwareMetadata)
+    with pytest.raises(TypeError):
+        check_typed_dict({'status': 'oops', 'status_info': None, 'metadata': {}}, HardwareMetadata)
+    with pytest.raises(TypeError):
+        check_typed_dict({'status': 'healthy', 'status_info': None, 'metadata': {'a': 1}}, HardwareMetadata)
+
+    a = check_typed_dict({'status': 'healthy', 'status_info': None, 'metadata': {'a': 'b'}}, HardwareMetadata)
+    assert isinstance(a, dict)
 
 
 def test_binary_size():
