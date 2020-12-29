@@ -119,7 +119,10 @@ def reconn_reauth_adaptor(meth: Callable[..., Awaitable[Any]]):
                 num_reconn_tries += 1
                 continue
             except grpc.RpcError as e:
-                if e.code() == grpc.StatusCode.UNAUTHENTICATED and self._creds:
+                if (
+                    e.code() == grpc.StatusCode.UNAUTHENTICATED or
+                    (e.code() == grpc.StatusCode.UNKNOWN and "invalid auth token" in e.details())
+                ) and self._creds:
                     if num_reauth_tries > 0:
                         raise
                     await reauthenticate(self.etcd_sync, self._creds, self.executor)
@@ -454,7 +457,10 @@ class AsyncEtcd:
 
     def _watch_cb(self, queue: asyncio.Queue, resp: etcd3.watch.WatchResponse) -> None:
         if isinstance(resp, grpc.RpcError):
-            if resp.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.UNKNOWN):
+            if (
+                resp.code() == grpc.StatusCode.UNAVAILABLE or
+                (resp.code() == grpc.StatusCode.UNKNOWN and "invalid auth token" not in resp.details())
+            ):
                 # server restarting or terminated
                 self.loop.call_soon_threadsafe(queue.put_nowait, QueueSentinel.CLOSED)
                 return
