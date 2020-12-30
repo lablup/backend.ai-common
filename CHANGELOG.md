@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.09.1 (2020-12-30)
+--------------------
+
+### Fixes
+* Fix an edge case of HA setup with etcd, where a newly joined / failed-over etcd node does not recognize existing still-valid auth tokens ([#66](https://github.com/lablup/backend.ai-common/issues/66))
+
+
 20.09.0 (2020-12-27)
 --------------------
 
