@@ -1,1 +1,0 @@
-Fix an edge case of HA setup with etcd, where a newly joined / failed-over etcd node does not recognize existing still-valid auth tokens
