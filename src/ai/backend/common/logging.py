@@ -409,8 +409,6 @@ class Logger():
         }
 
     def __enter__(self):
-        if is_active.get():
-            raise RuntimeError('You cannot activate two or more loggers at the same time.')
         tx.fix_trafaret_pickle_support()  # monkey-patch for pickling trafaret.DataError
         pickling_support.install()        # enable pickling of tracebacks
         self.log_config['handlers']['relay'] = {
