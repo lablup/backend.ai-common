@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.03.11 (2021-01-15)
+---------------------
+
+### Fixes
+* Update aiotools to v1.2 for more stable daemon shutdown ([#68](https://github.com/lablup/backend.ai-common/issues/68))
+
+
 20.03.10 (2021-01-06)
 ---------------------
 
