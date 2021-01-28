@@ -5,6 +5,7 @@ from contextvars import ContextVar
 from decimal import Decimal
 import enum
 import ipaddress
+import itertools
 import math
 import numbers
 import sys
@@ -24,6 +25,7 @@ from typing import (
     TYPE_CHECKING,
     Union,
     cast,
+    overload,
 )
 import uuid
 
@@ -109,14 +111,63 @@ class aobject(object):
         pass
 
 
+T1 = TypeVar('T1')
+T2 = TypeVar('T2')
+T3 = TypeVar('T3')
+T4 = TypeVar('T4')
+
+
+@overload
+def check_typed_tuple(
+    value: Tuple[Any],
+    types: Tuple[Type[T1]],
+) -> Tuple[T1]:
+    ...
+
+
+@overload
+def check_typed_tuple(
+    value: Tuple[Any, Any],
+    types: Tuple[Type[T1], Type[T2]],
+) -> Tuple[T1, T2]:
+    ...
+
+
+@overload
+def check_typed_tuple(
+    value: Tuple[Any, Any, Any],
+    types: Tuple[Type[T1], Type[T2], Type[T3]],
+) -> Tuple[T1, T2, T3]:
+    ...
+
+
+@overload
+def check_typed_tuple(
+    value: Tuple[Any, Any, Any, Any],
+    types: Tuple[Type[T1], Type[T2], Type[T3], Type[T4]],
+) -> Tuple[T1, T2, T3, T4]:
+    ...
+
+
+def check_typed_tuple(value: Tuple[Any, ...], types: Tuple[Type, ...]) -> Tuple:
+    for v, t in itertools.zip_longest(value, types):
+        if t is not None:
+            typeguard.check_type('item', v, t)
+    return value
+
+
 TD = TypeVar('TD')
 
 
 def check_typed_dict(value: Mapping[Any, Any], expected_type: Type[TD]) -> TD:
     """
-    Validates the given dict against the given TypedDict class, and wraps the value as the given TypedDict type.
+    Validates the given dict against the given TypedDict class,
+    and wraps the value as the given TypedDict type.
 
     This is a shortcut to :func:`typeguard.check_typed_dict()` function to fill extra information
+
+    Currently using this function may not be able to fix type errors, due to an upstream issue:
+    python/mypy#9827
     """
     assert issubclass(expected_type, dict) and hasattr(expected_type, '__annotations__'), \
            f"expected_type ({type(expected_type)}) must be a TypedDict class"
