@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.09.3 (2021-02-01)
+--------------------
+
+### Fixes
+* Update package dependencies including coloredlogs, pyzmq, pytest and mypy ([#69](https://github.com/lablup/backend.ai-common/issues/69))
+
+
 20.09.2 (2021-01-14)
 --------------------
 
