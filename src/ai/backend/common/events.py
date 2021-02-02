@@ -12,6 +12,7 @@ from typing import (
     ClassVar,
     Coroutine,
     Generic,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -107,6 +108,55 @@ class DoTerminateSessionEvent(AbstractEvent):
 
 
 @attr.s(slots=True, frozen=True)
+class GenericAgentEventArgs():
+
+    reason: str = attr.ib(default='')
+
+    def serialize(self) -> tuple:
+        return (self.reason, )
+
+    @classmethod
+    def deserialize(cls, value: tuple):
+        return cls(value[0])
+
+
+class AgentStartedEvent(GenericAgentEventArgs, AbstractEvent):
+    name = "agent_started"
+
+
+class AgentTerminatedEvent(GenericAgentEventArgs, AbstractEvent):
+    name = "agent_terminated"
+
+
+@attr.s(slots=True, frozen=True)
+class AgentHeartbeatEvent(AbstractEvent):
+    name = "agent_heartbeat"
+
+    agent_info: Mapping[str, Any] = attr.ib()
+
+    def serialize(self) -> tuple:
+        return (self.agent_info, )
+
+    @classmethod
+    def deserialize(cls, value: tuple):
+        return cls(value[0])
+
+
+@attr.s(slots=True, frozen=True)
+class AgentStatsEvent(AbstractEvent):
+    name = "agent_stats"
+
+    stats: Mapping[str, Any] = attr.ib()
+
+    def serialize(self) -> tuple:
+        return (self.stats, )
+
+    @classmethod
+    def deserialize(cls, value: tuple):
+        return cls(value[0])
+
+
+@attr.s(slots=True, frozen=True)
 class KernelCreationEventArgs():
     kernel_id: KernelId = attr.ib()
     creation_id: str = attr.ib()
@@ -152,7 +202,7 @@ class KernelStartedEvent(KernelCreationEventArgs, AbstractEvent):
 class KernelTerminationEventArgs():
     kernel_id: KernelId = attr.ib()
     reason: str = attr.ib(default='')
-    exit_code: Optional[int] = attr.ib(default=None)
+    exit_code: int = attr.ib(default=-1)
 
     def serialize(self) -> tuple:
         return (
@@ -247,7 +297,7 @@ class SessionTerminatedEvent(SessionTerminationEventArgs, AbstractEvent):
 class SessionResultEventArgs():
     session_id: SessionId = attr.ib()
     reason: str = attr.ib(default='')
-    exit_code: Optional[int] = attr.ib(default=None)
+    exit_code: int = attr.ib(default=-1)
 
     def serialize(self) -> tuple:
         return (
@@ -274,7 +324,30 @@ class SessionFailureEvent(SessionResultEventArgs, AbstractEvent):
 
 
 @attr.s(auto_attribs=True, slots=True)
-class KernelStatSyncEventArgs(AbstractEvent):
+class DoSyncKernelLogsEvent(AbstractEvent):
+    name = "do_sync_kernel_logs"
+
+    kernel_id: KernelId = attr.ib()
+    container_id: str = attr.ib()
+
+    def serialize(self) -> tuple:
+        return (
+            str(self.kernel_id),
+            self.container_id,
+        )
+
+    @classmethod
+    def deserialize(cls, value: tuple):
+        return cls(
+            KernelId(uuid.UUID(value[0])),
+            value[1],
+        )
+
+
+@attr.s(auto_attribs=True, slots=True)
+class DoSyncKernelStatsEvent(AbstractEvent):
+    name = "do_sync_kernel_stats"
+
     kernel_ids: Sequence[KernelId] = attr.ib()
 
     def serialize(self) -> tuple:
@@ -584,11 +657,11 @@ class EventProducer(aobject):
     def __init__(self, connector: RedisConnectorFunc, log_events: bool = False) -> None:
         self._connector = connector
         self._log_events = log_events
-    
+
     async def __ainit__(self) -> None:
         self.redis_producer = await self._connector()
         self.producer_lock = asyncio.Lock()
-    
+
     async def close(self) -> None:
         self.redis_producer.close()
         await self.redis_producer.wait_closed()
