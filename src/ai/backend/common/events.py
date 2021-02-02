@@ -397,15 +397,17 @@ class ExecutionCancelledEvent(GenericSessionEventArgs, AbstractEvent):
 
 
 @attr.s(auto_attribs=True, slots=True)
-class BgtaskUpdateEventArgs(AbstractEvent):
-    task_id: str = attr.ib()
+class BgtaskUpdatedEvent(AbstractEvent):
+    name = "bgtask_updated"
+
+    task_id: uuid.UUID = attr.ib()
     current_progress: float = attr.ib()
     total_progress: float = attr.ib()
     message: Optional[str] = attr.ib(default=None)
 
     def serialize(self) -> tuple:
         return (
-            self.task_id,
+            str(self.task_id),
             self.current_progress,
             self.total_progress,
             self.message,
@@ -414,26 +416,41 @@ class BgtaskUpdateEventArgs(AbstractEvent):
     @classmethod
     def deserialize(cls, value: tuple):
         return cls(
-            value[0],
+            uuid.UUID(value[0]),
             value[1],
             value[2],
             value[3],
         )
 
 
-class BgtaskUpdatedEvent(BgtaskUpdateEventArgs, AbstractEvent):
-    name = "bgtask_updated"
+@attr.s(auto_attribs=True, slots=True)
+class BgtaskDoneEventArgs():
+    task_id: uuid.UUID = attr.ib()
+    message: Optional[str] = attr.ib(default=None)
+
+    def serialize(self) -> tuple:
+        return (
+            str(self.task_id),
+            self.message,
+        )
+
+    @classmethod
+    def deserialize(cls, value: tuple):
+        return cls(
+            uuid.UUID(value[0]),
+            value[1],
+        )
 
 
-class BgtaskDoneEvent(BgtaskUpdateEventArgs, AbstractEvent):
+class BgtaskDoneEvent(BgtaskDoneEventArgs, AbstractEvent):
     name = "bgtask_done"
 
 
-class BgtaskCancelledEvent(BgtaskUpdateEventArgs, AbstractEvent):
+class BgtaskCancelledEvent(BgtaskDoneEventArgs, AbstractEvent):
     name = "bgtask_cancelled"
 
 
-class BgtaskFailedEvent(BgtaskUpdateEventArgs, AbstractEvent):
+class BgtaskFailedEvent(BgtaskDoneEventArgs, AbstractEvent):
     name = "bgtask_failed"
 
 
