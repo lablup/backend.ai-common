@@ -7,7 +7,6 @@ import functools
 import logging
 from typing import (
     Any,
-    Awaitable,
     Callable,
     ClassVar,
     Coroutine,
