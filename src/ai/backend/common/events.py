@@ -481,7 +481,7 @@ class EventHandler(Generic[TContext, TEvent]):
     event_cls: Type[TEvent]
     context: TContext
     # callback: EventCallback[TContext, TEvent] <- not properly recognized by mypy
-    callback: Callable[[TContext, AgentId, TEvent], Coroutine[Any, Any, None]]
+    callback: Callable[[TContext, AgentId, TEvent], None | Coroutine[Any, Any, None]]
 
 
 class EventDispatcher(aobject):
@@ -550,7 +550,7 @@ class EventDispatcher(aobject):
         event_cls: Type[TEvent],
         context: TContext,
         # callback: EventCallback[TContext, TEvent],  <- not properly recognized by mypy
-        callback: Callable[[TContext, AgentId, TEvent], Coroutine[Any, Any, None]],
+        callback: Callable[[TContext, AgentId, TEvent], None | Coroutine[Any, Any, None]],
     ) -> EventHandler[TContext, TEvent]:
         handler = EventHandler(event_cls, context, callback)
         self.consumers[event_cls.name].add(cast(EventHandler[Any, AbstractEvent], handler))
@@ -567,7 +567,7 @@ class EventDispatcher(aobject):
         event_cls: Type[TEvent],
         context: TContext,
         # callback: EventCallback[TContext, TEvent],  <- not properly recognized by mypy
-        callback: Callable[[TContext, AgentId, TEvent], Coroutine[Any, Any, None]],
+        callback: Callable[[TContext, AgentId, TEvent], None | Coroutine[Any, Any, None]],
     ) -> EventHandler[TContext, TEvent]:
         handler = EventHandler(event_cls, context, callback)
         self.subscribers[event_cls.name].add(cast(EventHandler[Any, AbstractEvent], handler))
