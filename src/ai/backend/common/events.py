@@ -609,9 +609,9 @@ class EventDispatcher(aobject):
         source: AgentId,
         args: tuple,
     ) -> None:
-        log_fmt = 'DISPATCH_CONSUMERS(ev:{}, ag:{})'
-        log_args = (event_name, source)
         if self._log_events:
+            log_fmt = 'DISPATCH_CONSUMERS(ev:{}, ag:{})'
+            log_args = (event_name, source)
             log.debug(log_fmt, *log_args)
         loop = asyncio.get_running_loop()
         for consumer in self.consumers[event_name]:
@@ -634,9 +634,9 @@ class EventDispatcher(aobject):
         source: AgentId,
         args: tuple,
     ) -> None:
-        log_fmt = 'DISPATCH_SUBSCRIBERS(ev:{}, ag:{})'
-        log_args = (event_name, source)
         if self._log_events:
+            log_fmt = 'DISPATCH_SUBSCRIBERS(ev:{}, ag:{})'
+            log_args = (event_name, source)
             log.debug(log_fmt, *log_args)
         loop = asyncio.get_running_loop()
         for subscriber in self.subscribers[event_name]:
@@ -669,7 +669,7 @@ class EventDispatcher(aobject):
 
     async def _subscribe_loop(self) -> None:
 
-        async def _subscribe_impl():
+        async def _subscribe_impl() -> None:
             channels = await self.redis_subscriber.subscribe('events.pubsub')
             async for raw_msg in channels[0].iter():
                 msg = msgpack.unpackb(raw_msg)
