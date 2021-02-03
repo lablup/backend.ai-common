@@ -18,6 +18,7 @@ from typing import (
     Sequence,
     Type,
     TypeVar,
+    Union,
     cast,
 )
 import uuid
@@ -33,6 +34,7 @@ from .types import (
     AgentId,
     KernelId,
     SessionId,
+    LogSeverity,
 )
 
 __all__ = (
@@ -126,6 +128,36 @@ class AgentStartedEvent(GenericAgentEventArgs, AbstractEvent):
 
 class AgentTerminatedEvent(GenericAgentEventArgs, AbstractEvent):
     name = "agent_terminated"
+
+
+@attr.s(slots=True, frozen=True)
+class AgentErrorEvent(AbstractEvent):
+    name = "agent_error"
+
+    message: str = attr.ib()
+    traceback: Optional[str] = attr.ib(default=None)
+    user: Optional[Any] = attr.ib(default=None)
+    context_env: Mapping[str, Any] = attr.ib(factory=dict)
+    severity: LogSeverity = attr.ib(default=LogSeverity.ERROR)
+
+    def serialize(self) -> tuple:
+        return (
+            self.message,
+            self.traceback,
+            self.user,
+            self.context_env,
+            str(self.severity),
+        )
+
+    @classmethod
+    def deserialize(cls, value: tuple):
+        return cls(
+            value[0],
+            value[1],
+            value[2],
+            value[3],
+            LogSeverity(value[4]),
+        )
 
 
 @attr.s(slots=True, frozen=True)
@@ -465,23 +497,17 @@ TEvent = TypeVar('TEvent', bound='AbstractEvent', contravariant=True)
 TEventCov = TypeVar('TEventCov', bound='AbstractEvent')
 TContext = TypeVar('TContext', contravariant=True)
 
-
-class EventCallback(Protocol[TContext, TEvent]):
-    async def __call__(
-        self,
-        context: TContext,
-        source: AgentId,
-        event: TEvent,
-    ) -> None:
-        ...
+EventCallback = Union[
+    Callable[[TContext, AgentId, TEvent], Coroutine[Any, Any, None]],
+    Callable[[TContext, AgentId, TEvent], None]
+]
 
 
 @attr.s(auto_attribs=True, slots=True, frozen=True, eq=False, order=False)
 class EventHandler(Generic[TContext, TEvent]):
     event_cls: Type[TEvent]
     context: TContext
-    # callback: EventCallback[TContext, TEvent] <- not properly recognized by mypy
-    callback: Callable[[TContext, AgentId, TEvent], None | Coroutine[Any, Any, None]]
+    callback: EventCallback[TContext, TEvent]
 
 
 class EventDispatcher(aobject):
@@ -549,8 +575,7 @@ class EventDispatcher(aobject):
         self,
         event_cls: Type[TEvent],
         context: TContext,
-        # callback: EventCallback[TContext, TEvent],  <- not properly recognized by mypy
-        callback: Callable[[TContext, AgentId, TEvent], None | Coroutine[Any, Any, None]],
+        callback: EventCallback[TContext, TEvent],
     ) -> EventHandler[TContext, TEvent]:
         handler = EventHandler(event_cls, context, callback)
         self.consumers[event_cls.name].add(cast(EventHandler[Any, AbstractEvent], handler))
@@ -566,8 +591,7 @@ class EventDispatcher(aobject):
         self,
         event_cls: Type[TEvent],
         context: TContext,
-        # callback: EventCallback[TContext, TEvent],  <- not properly recognized by mypy
-        callback: Callable[[TContext, AgentId, TEvent], None | Coroutine[Any, Any, None]],
+        callback: EventCallback[TContext, TEvent],
     ) -> EventHandler[TContext, TEvent]:
         handler = EventHandler(event_cls, context, callback)
         self.subscribers[event_cls.name].add(cast(EventHandler[Any, AbstractEvent], handler))
@@ -593,15 +617,14 @@ class EventDispatcher(aobject):
         for consumer in self.consumers[event_name]:
             cb = consumer.callback
             event_cls = consumer.event_cls
-            if asyncio.iscoroutine(cb):
-                self.consumer_taskset.add(asyncio.create_task(cast(Awaitable, cb)))
-            elif asyncio.iscoroutinefunction(cb):
+            if asyncio.iscoroutinefunction(cb):
+                # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
                 self.consumer_taskset.add(asyncio.create_task(
-                    cb(consumer.context, source, event_cls.deserialize(args))
+                    cb(consumer.context, source, event_cls.deserialize(args))  # type: ignore
                 ))
             else:
                 cb = functools.partial(
-                    cb, consumer.context, source, event_cls.deserialize(args),
+                    cb, consumer.context, source, event_cls.deserialize(args),  # type: ignore
                 )
                 loop.call_soon(cb)
 
@@ -619,15 +642,14 @@ class EventDispatcher(aobject):
         for subscriber in self.subscribers[event_name]:
             cb = subscriber.callback
             event_cls = subscriber.event_cls
-            if asyncio.iscoroutine(cb):
-                self.subscriber_taskset.add(asyncio.create_task(cast(Awaitable, cb)))
-            elif asyncio.iscoroutinefunction(cb):
+            if asyncio.iscoroutinefunction(cb):
+                # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
                 self.subscriber_taskset.add(asyncio.create_task(
-                    cb(subscriber.context, source, event_cls.deserialize(args))
+                    cb(subscriber.context, source, event_cls.deserialize(args))  # type: ignore
                 ))
             else:
                 cb = functools.partial(
-                    cb, subscriber.context, source, event_cls.deserialize(args),
+                    cb, subscriber.context, source, event_cls.deserialize(args),  # type: ignore
                 )
                 loop.call_soon(cb)
 
