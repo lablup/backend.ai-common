@@ -51,7 +51,7 @@ class AbstractEvent(metaclass=abc.ABCMeta):
 
     # derivatives shoudld define the fields.
 
-    name: ClassVar[int] = "undefined"
+    name: ClassVar[str] = "undefined"
 
     @abc.abstractmethod
     def serialize(self) -> tuple:
