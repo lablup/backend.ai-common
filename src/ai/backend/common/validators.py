@@ -532,12 +532,12 @@ if jwt_available:
 
         def check_and_return(self, value: Any) -> Mapping[str, Any]:
             try:
-                token_data = jwt.decode(value, self.secret, alogrithms=self.algorithms)
+                token_data = jwt.decode(value, self.secret, algorithms=self.algorithms)
                 if self.inner_iv is not None:
                     return self.inner_iv.check(token_data)
                 return token_data
-            except jwt.PyJWTError:
-                self._failure('cannot decode the given value as JWT', value=value)
+            except jwt.PyJWTError as e:
+                self._failure(f'cannot decode the given value as JWT: {e}', value=value)
 
 
 class URL(t.Trafaret):
