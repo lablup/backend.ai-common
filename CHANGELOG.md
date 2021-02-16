@@ -16,6 +16,19 @@ Changes
 
 .. towncrier release notes start
 
+20.09.4 (2021-02-16)
+--------------------
+
+### BREAKING
+* You must upgrade manager to 20.09.7+, agent to 20.09.5+, and common to 20.09.4+ altogether at once to make your cluster running correctly!
+
+### Features
+* Migrate all event bus related codes into the new `common.events` module with statically typed event objects and explicit serialization and deserialization implementations ([#70](https://github.com/lablup/backend.ai-common/issues/70))
+
+### Fixes
+* Fix a typo in `validators.JsonWebToken`, the `algorithms` argument when decoding the token which became mandatory in PyJWT 2.0+ ([#71](https://github.com/lablup/backend.ai-common/issues/71))
+
+
 20.09.3 (2021-02-01)
 --------------------
 

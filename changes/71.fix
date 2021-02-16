@@ -1,1 +1,0 @@
-Fix a typo in `validators.JsonWebToken`, the `algorithms` argument when decoding the token which became mandatory in PyJWT 2.0+
