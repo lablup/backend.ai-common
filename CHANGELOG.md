@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.03.13 (2021-03-04)
+---------------------
+
+### Fixes
+* Update pyzmq to v22 series to reduce its wheel distribution size and fix a fork-safety bug introduced in v20. ([#72](https://github.com/lablup/backend.ai-common/issues/72))
+
+
 20.03.12 (2021-02-01)
 ---------------------
 
