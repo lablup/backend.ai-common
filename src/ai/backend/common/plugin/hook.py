@@ -90,7 +90,7 @@ ALL_COMPLETED: Final = HookReturnTiming.ALL_COMPLETED
 FIRST_COMPLETED: Final = HookReturnTiming.FIRST_COMPLETED
 
 
-@attr.s(auto_attribs=True, slots=True, frozen=True)
+@attr.s(auto_attribs=True, slots=True)
 class HookResult:
     status: HookResults
     src_plugin: Optional[Union[str, Sequence[str]]] = None
