@@ -1,0 +1,1 @@
+Remove no longer used `AgentStatsEvent` and make `HookResult` mutable
