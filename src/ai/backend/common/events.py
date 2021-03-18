@@ -174,20 +174,6 @@ class AgentHeartbeatEvent(AbstractEvent):
 
 
 @attr.s(slots=True, frozen=True)
-class AgentStatsEvent(AbstractEvent):
-    name = "agent_stats"
-
-    stats: Mapping[str, Any] = attr.ib()
-
-    def serialize(self) -> tuple:
-        return (self.stats, )
-
-    @classmethod
-    def deserialize(cls, value: tuple):
-        return cls(value[0])
-
-
-@attr.s(slots=True, frozen=True)
 class KernelCreationEventArgs():
     kernel_id: KernelId = attr.ib()
     creation_id: str = attr.ib()
