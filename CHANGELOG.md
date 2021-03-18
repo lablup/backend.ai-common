@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.09.6 (2021-03-18)
+--------------------
+
+### Fixes
+* Remove no longer used `AgentStatsEvent` and make `HookResult` mutable ([#73](https://github.com/lablup/backend.ai-common/issues/73))
+
+
 20.09.5 (2021-02-22)
 --------------------
 
