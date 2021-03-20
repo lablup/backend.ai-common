@@ -16,6 +16,20 @@ Changes
 
 .. towncrier release notes start
 
+21.03.0.rc1 (2021-03-20)
+------------------------
+
+### Features
+* Now it runs on Python 3.9 ([#67](https://github.com/lablup/backend.ai-common/issues/67))
+* Migrate all event bus related codes into the new `common.events` module with statically typed event objects and explicit serialization and deserialization implementations ([#70](https://github.com/lablup/backend.ai-common/issues/70))
+
+### Fixes
+* Update package dependencies including coloredlogs, pyzmq, pytest and mypy ([#69](https://github.com/lablup/backend.ai-common/issues/69))
+* Fix a typo in `validators.JsonWebToken`, the `algorithms` argument when decoding the token which became mandatory in PyJWT 2.0+ ([#71](https://github.com/lablup/backend.ai-common/issues/71))
+* Update pyzmq to v22 series to reduce its wheel distribution size and fix a fork-safety bug introduced in v20. ([#72](https://github.com/lablup/backend.ai-common/issues/72))
+* Remove no longer used `AgentStatsEvent` and make `HookResult` mutable ([#73](https://github.com/lablup/backend.ai-common/issues/73))
+
+
 20.09.1 (2020-12-30)
 --------------------
 
