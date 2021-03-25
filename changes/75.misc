@@ -1,0 +1,1 @@
+Add an internal script (`scripts/diff-release.py`) to diff the release branches to check which PRs are backported or not
