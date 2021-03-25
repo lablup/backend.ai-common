@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import pickle
 import pprint
+import time
 from typing import (
     Any, Optional,
     Mapping, MutableMapping,
@@ -16,6 +17,7 @@ import socket
 import ssl
 import sys
 
+import coloredlogs
 from pythonjsonlogger.jsonlogger import JsonFormatter
 import trafaret as t
 from tblib import pickling_support
@@ -163,6 +165,18 @@ class LogstashHandler(logging.Handler):
             self._sock.sendall(json.dumps(log).encode('utf-8'))
 
 
+class ConsoleFormatter(logging.Formatter):
+
+    def formatTime(self, record: logging.LogRecord, datefmt: str = None) -> str:
+        ct = self.converter(record.created)  # type: ignore
+        if datefmt:
+            datefmt = datefmt.replace("%f", f"{int(record.msecs):03d}")
+            return time.strftime(datefmt, ct)
+        else:
+            t = time.strftime("%Y-%m-%d %H:%M:%S", ct)
+            return f"{t}.{int(record.msecs):03d}"
+
+
 class CustomJsonFormatter(JsonFormatter):
 
     def add_fields(self, log_record, record, message_dict):
@@ -206,9 +220,9 @@ def log_worker(
         drv_config = daemon_config['console']
         console_formatter: logging.Formatter
         if drv_config['colored']:
-            import coloredlogs
             console_formatter = coloredlogs.ColoredFormatter(
                 log_formats[drv_config['format']],
+                datefmt="%Y-%m-%d %H:%M:%S.%f",  # coloredlogs has intrinsic support for msec
                 field_styles={'levelname': {'color': 248, 'bold': True},
                               'name': {'color': 246, 'bold': False},
                               'process': {'color': 'cyan'},
@@ -223,8 +237,9 @@ def log_worker(
                               'critical': {'background': 'red', 'color': 255, 'bold': True}},
             )
         else:
-            console_formatter = logging.Formatter(
+            console_formatter = ConsoleFormatter(
                 log_formats[drv_config['format']],
+                datefmt="%Y-%m-%d %H:%M:%S.%f",
             )
         console_handler = logging.StreamHandler(
             stream=sys.stderr,
