@@ -168,19 +168,9 @@ class LogstashHandler(logging.Handler):
 class ConsoleFormatter(logging.Formatter):
 
     def formatTime(self, record: logging.LogRecord, datefmt: str = None) -> str:
-        ct = self.converter(record.created)
+        ct = self.converter(record.created)  # type: ignore
         if datefmt:
-            return time.strftime(datefmt, ct)
-        else:
-            t = time.strftime("%Y-%m-%d %H:%M:%S", ct)
-            return f"{t}.{int(record.msecs):03d}"
-
-
-class ColoredConsoleFormatter(coloredlogs.ColoredFormatter):
-
-    def formatTime(self, record: logging.LogRecord, datefmt: str = None) -> str:
-        ct = self.converter(record.created)
-        if datefmt:
+            datefmt = datefmt.replace("%f", f"{int(record.msecs):03d}")
             return time.strftime(datefmt, ct)
         else:
             t = time.strftime("%Y-%m-%d %H:%M:%S", ct)
@@ -230,8 +220,9 @@ def log_worker(
         drv_config = daemon_config['console']
         console_formatter: logging.Formatter
         if drv_config['colored']:
-            console_formatter = ColoredConsoleFormatter(
+            console_formatter = coloredlogs.ColoredFormatter(
                 log_formats[drv_config['format']],
+                datefmt="%Y-%m-%d %H:%M:%S.%f",  # coloredlogs has intrinsic support for msec
                 field_styles={'levelname': {'color': 248, 'bold': True},
                               'name': {'color': 246, 'bold': False},
                               'process': {'color': 'cyan'},
@@ -248,6 +239,7 @@ def log_worker(
         else:
             console_formatter = ConsoleFormatter(
                 log_formats[drv_config['format']],
+                datefmt="%Y-%m-%d %H:%M:%S.%f",
             )
         console_handler = logging.StreamHandler(
             stream=sys.stderr,
