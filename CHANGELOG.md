@@ -16,6 +16,16 @@ Changes
 
 .. towncrier release notes start
 
+20.09.7 (2021-03-29)
+--------------------
+
+### Features
+* Add msec to the console logs for debugging delay issues ([#74](https://github.com/lablup/backend.ai-common/issues/74))
+
+### Miscellaneous
+* Add an internal script (`scripts/diff-release.py`) to diff the release branches to check which PRs are backported or not ([#75](https://github.com/lablup/backend.ai-common/issues/75))
+
+
 20.09.6 (2021-03-18)
 --------------------
 
