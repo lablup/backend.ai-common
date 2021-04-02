@@ -83,6 +83,10 @@ class DoScheduleEvent(EmptyEventArgs, AbstractEvent):
     name = "do_schedule"
 
 
+class DoPrepareEvent(EmptyEventArgs, AbstractEvent):
+    name = "do_schedule"
+
+
 class DoIdleCheckEvent(EmptyEventArgs, AbstractEvent):
     name = "do_idle_check"
 
@@ -277,6 +281,10 @@ class SessionEnqueuedEvent(SessionCreationEventArgs, AbstractEvent):
 
 class SessionScheduledEvent(SessionCreationEventArgs, AbstractEvent):
     name = "session_scheduled"
+
+
+class SessionPreparingEvent(SessionCreationEventArgs, AbstractEvent):
+    name = "session_preparing"
 
 
 class SessionCancelledEvent(SessionCreationEventArgs, AbstractEvent):
