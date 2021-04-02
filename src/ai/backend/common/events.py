@@ -84,7 +84,7 @@ class DoScheduleEvent(EmptyEventArgs, AbstractEvent):
 
 
 class DoPrepareEvent(EmptyEventArgs, AbstractEvent):
-    name = "do_schedule"
+    name = "do_prepare"
 
 
 class DoIdleCheckEvent(EmptyEventArgs, AbstractEvent):
