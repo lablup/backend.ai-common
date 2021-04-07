@@ -149,7 +149,7 @@ class AgentErrorEvent(AbstractEvent):
             self.traceback,
             self.user,
             self.context_env,
-            str(self.severity),
+            self.severity.value,
         )
 
     @classmethod
