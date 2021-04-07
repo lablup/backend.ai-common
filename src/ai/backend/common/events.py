@@ -83,6 +83,10 @@ class DoScheduleEvent(EmptyEventArgs, AbstractEvent):
     name = "do_schedule"
 
 
+class DoPrepareEvent(EmptyEventArgs, AbstractEvent):
+    name = "do_prepare"
+
+
 class DoIdleCheckEvent(EmptyEventArgs, AbstractEvent):
     name = "do_idle_check"
 
@@ -145,7 +149,7 @@ class AgentErrorEvent(AbstractEvent):
             self.traceback,
             self.user,
             self.context_env,
-            str(self.severity),
+            self.severity.value,
         )
 
     @classmethod
@@ -277,6 +281,10 @@ class SessionEnqueuedEvent(SessionCreationEventArgs, AbstractEvent):
 
 class SessionScheduledEvent(SessionCreationEventArgs, AbstractEvent):
     name = "session_scheduled"
+
+
+class SessionPreparingEvent(SessionCreationEventArgs, AbstractEvent):
+    name = "session_preparing"
 
 
 class SessionCancelledEvent(SessionCreationEventArgs, AbstractEvent):
