@@ -16,6 +16,15 @@ Changes
 
 .. towncrier release notes start
 
+20.09.8 (2021-04-13)
+--------------------
+
+### Features
+* Update for the manager scheduler v3 (lablup/backend.ai-manager#415) ([#76](https://github.com/lablup/backend.ai-common/issues/76))
+  - Fix `LogSeverity` serialization error for `AgentErrorEvent`
+  - Add new events for the updated manager scheduler (`SessionPreparingEvent`, `DoPrepareEvent`)
+
+
 20.09.7 (2021-03-29)
 --------------------
 
