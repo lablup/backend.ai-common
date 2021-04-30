@@ -5,7 +5,6 @@ import asyncio
 from collections import defaultdict
 import functools
 import logging
-import time
 from typing import (
     Any,
     Callable,
@@ -514,8 +513,57 @@ class CoalescingOptions(TypedDict):
 
 @attr.s(auto_attribs=True, slots=True)
 class CoalescingState:
-    last_fired: float = 0.0
     batch_size: int = 0
+    last_added: float = 0.0
+    last_handle: asyncio.TimerHandle | None = None
+    fut_sync: asyncio.Future | None = None
+
+    def proceed(self):
+        if self.fut_sync is not None and not self.fut_sync.done():
+            self.fut_sync.set_result(None)
+
+    async def rate_control(self, opts: CoalescingOptions | None) -> bool:
+        if opts is None:
+            return True
+        loop = asyncio.get_running_loop()
+        if self.fut_sync is None:
+            self.fut_sync = loop.create_future()
+        assert self.fut_sync is not None
+        self.last_added = loop.time()
+        self.batch_size += 1
+        if self.batch_size >= opts['max_batch_size']:
+            assert self.last_handle is not None
+            self.last_handle.cancel()
+            self.fut_sync.cancel()
+            self.last_handle = None
+            self.last_added = 0.0
+            self.batch_size = 0
+            return True
+        # Schedule.
+        self.last_handle = loop.call_later(
+            opts['max_wait'],
+            self.proceed,
+        )
+        if self.last_added > 0 and loop.time() - self.last_added < opts['max_wait']:
+            # Cancel the previously pending task.
+            self.last_handle.cancel()
+            self.fut_sync.cancel()
+            # Reschedule.
+            self.fut_sync = loop.create_future()
+            self.last_handle = loop.call_later(
+                opts['max_wait'],
+                self.proceed,
+            )
+        try:
+            await self.fut_sync
+        except asyncio.CancelledError:
+            return False
+        else:
+            self.fut_sync = None
+            self.last_handle = None
+            self.last_added = 0.0
+            self.batch_size = 0
+            return True
 
 
 class EventDispatcher(aobject):
@@ -627,34 +675,21 @@ class EventDispatcher(aobject):
         for consumer in self.consumers[event_name]:
             cb = consumer.callback
             event_cls = consumer.event_cls
-            coalescing_opts = consumer.coalescing_opts
-            coalescing_state = consumer.coalescing_state
-            do_invoke = False
-            if coalescing_opts is not None:
-                if (
-                    ((coalescing_state.last_fired != 0) and
-                     (time.monotonic() - coalescing_state.last_fired > coalescing_opts['max_wait'])) or
-                    (coalescing_state.batch_size >= coalescing_opts['max_batch_size'])
-                ):
-                    do_invoke = True
-            else:
-                do_invoke = True
-            if do_invoke:
-                coalescing_state.last_fired = time.monotonic()
-                coalescing_state.batch_size = 0
-                if asyncio.iscoroutinefunction(cb):
-                    # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
-                    self.consumer_taskset.add(asyncio.create_task(
-                        cb(consumer.context, source, event_cls.deserialize(args))  # type: ignore
-                    ))
-                else:
-                    cb = functools.partial(
-                        cb, consumer.context, source, event_cls.deserialize(args),  # type: ignore
-                    )
-                    loop.call_soon(cb)
-            else:
-                coalescing_state.last_fired = time.monotonic()
-                coalescing_state.batch_size += 1
+
+            async def handle():
+                coalescing_opts = consumer.coalescing_opts
+                coalescing_state = consumer.coalescing_state
+                if (await coalescing_state.rate_control(coalescing_opts)):
+                    if asyncio.iscoroutinefunction(cb):
+                        # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
+                        await cb(consumer.context, source, event_cls.deserialize(args))  # type: ignore
+                    else:
+                        wrapped_cb = functools.partial(
+                            cb, consumer.context, source, event_cls.deserialize(args),  # type: ignore
+                        )
+                        loop.call_soon(wrapped_cb)
+
+            self.consumer_taskset.add(asyncio.create_task(handle()))
 
     async def dispatch_subscribers(
         self,
@@ -672,32 +707,19 @@ class EventDispatcher(aobject):
             event_cls = subscriber.event_cls
             coalescing_opts = subscriber.coalescing_opts
             coalescing_state = subscriber.coalescing_state
-            do_invoke = False
-            if coalescing_opts is not None:
-                if (
-                    ((coalescing_state.last_fired != 0) and
-                     (time.monotonic() - coalescing_state.last_fired > coalescing_opts['max_wait'])) or
-                    (coalescing_state.batch_size >= coalescing_opts['max_batch_size'])
-                ):
-                    do_invoke = True
-            else:
-                do_invoke = True
-            if do_invoke:
-                coalescing_state.last_fired = time.monotonic()
-                coalescing_state.batch_size = 0
-                if asyncio.iscoroutinefunction(cb):
-                    # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
-                    self.subscriber_taskset.add(asyncio.create_task(
-                        cb(subscriber.context, source, event_cls.deserialize(args))  # type: ignore
-                    ))
-                else:
-                    cb = functools.partial(
-                        cb, subscriber.context, source, event_cls.deserialize(args),  # type: ignore
-                    )
-                    loop.call_soon(cb)
-            else:
-                coalescing_state.last_fired = time.monotonic()
-                coalescing_state.batch_size += 1
+
+            async def handle():
+                if (await coalescing_state.rate_control(coalescing_opts)):
+                    if asyncio.iscoroutinefunction(cb):
+                        # mypy cannot catch the meaning of asyncio.iscoroutinefunction
+                        await cb(subscriber.context, source, event_cls.deserialize(args))  # type: ignore
+                    else:
+                        wrapped_cb = functools.partial(
+                            cb, subscriber.context, source, event_cls.deserialize(args),  # type: ignore
+                        )
+                        loop.call_soon(wrapped_cb)
+
+            self.subscriber_taskset.add(asyncio.create_task(handle()))
 
     async def _consume_loop(self) -> None:
         while True:
