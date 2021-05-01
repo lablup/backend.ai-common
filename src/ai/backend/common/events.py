@@ -5,6 +5,7 @@ import asyncio
 from collections import defaultdict
 import functools
 import logging
+import secrets
 from typing import (
     Any,
     Callable,
@@ -500,6 +501,7 @@ EventCallback = Union[
 @attr.s(auto_attribs=True, slots=True, frozen=True, eq=False, order=False)
 class EventHandler(Generic[TContext, TEvent]):
     event_cls: Type[TEvent]
+    name: str
     context: TContext
     callback: EventCallback[TContext, TEvent]
     coalescing_opts: Optional[CoalescingOptions]
@@ -633,8 +635,12 @@ class EventDispatcher(aobject):
         context: TContext,
         callback: EventCallback[TContext, TEvent],
         coalescing_opts: CoalescingOptions = None,
+        *,
+        name: str = None,
     ) -> EventHandler[TContext, TEvent]:
-        handler = EventHandler(event_cls, context, callback, coalescing_opts, CoalescingState())
+        if name is None:
+            name = f"evh-{secrets.token_urlsafe(16)}"
+        handler = EventHandler(event_cls, name, context, callback, coalescing_opts, CoalescingState())
         self.consumers[event_cls.name].add(cast(EventHandler[Any, AbstractEvent], handler))
         return handler
 
@@ -650,8 +656,12 @@ class EventDispatcher(aobject):
         context: TContext,
         callback: EventCallback[TContext, TEvent],
         coalescing_opts: CoalescingOptions = None,
+        *,
+        name: str = None,
     ) -> EventHandler[TContext, TEvent]:
-        handler = EventHandler(event_cls, context, callback, coalescing_opts, CoalescingState())
+        if name is None:
+            name = f"evh-{secrets.token_urlsafe(16)}"
+        handler = EventHandler(event_cls, name, context, callback, coalescing_opts, CoalescingState())
         self.subscribers[event_cls.name].add(cast(EventHandler[Any, AbstractEvent], handler))
         return handler
 
@@ -673,23 +683,25 @@ class EventDispatcher(aobject):
             log.debug(log_fmt, *log_args)
         loop = asyncio.get_running_loop()
         for consumer in self.consumers[event_name]:
-            cb = consumer.callback
-            event_cls = consumer.event_cls
 
-            async def handle():
-                coalescing_opts = consumer.coalescing_opts
-                coalescing_state = consumer.coalescing_state
+            async def handle(evh: EventHandler) -> None:
+                coalescing_opts = evh.coalescing_opts
+                coalescing_state = evh.coalescing_state
+                cb = evh.callback
+                event_cls = evh.event_cls
                 if (await coalescing_state.rate_control(coalescing_opts)):
+                    if self._log_events:
+                        log.debug("DISPATCH_CONSUMER(evh:{})", evh.name)
                     if asyncio.iscoroutinefunction(cb):
                         # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
-                        await cb(consumer.context, source, event_cls.deserialize(args))  # type: ignore
+                        await cb(evh.context, source, event_cls.deserialize(args))  # type: ignore
                     else:
                         wrapped_cb = functools.partial(
-                            cb, consumer.context, source, event_cls.deserialize(args),  # type: ignore
+                            cb, evh.context, source, event_cls.deserialize(args),  # type: ignore
                         )
                         loop.call_soon(wrapped_cb)
 
-            self.consumer_taskset.add(asyncio.create_task(handle()))
+            self.consumer_taskset.add(asyncio.create_task(handle(consumer)))
 
     async def dispatch_subscribers(
         self,
@@ -703,23 +715,25 @@ class EventDispatcher(aobject):
             log.debug(log_fmt, *log_args)
         loop = asyncio.get_running_loop()
         for subscriber in self.subscribers[event_name]:
-            cb = subscriber.callback
-            event_cls = subscriber.event_cls
-            coalescing_opts = subscriber.coalescing_opts
-            coalescing_state = subscriber.coalescing_state
 
-            async def handle():
+            async def handle(evh: EventHandler) -> None:
+                coalescing_opts = evh.coalescing_opts
+                coalescing_state = evh.coalescing_state
+                event_cls = evh.event_cls
+                cb = evh.callback
                 if (await coalescing_state.rate_control(coalescing_opts)):
+                    if self._log_events:
+                        log.debug("DISPATCH_SUBSCRIBER(evh:{})", evh.name)
                     if asyncio.iscoroutinefunction(cb):
                         # mypy cannot catch the meaning of asyncio.iscoroutinefunction
-                        await cb(subscriber.context, source, event_cls.deserialize(args))  # type: ignore
+                        await cb(evh.context, source, event_cls.deserialize(args))  # type: ignore
                     else:
                         wrapped_cb = functools.partial(
-                            cb, subscriber.context, source, event_cls.deserialize(args),  # type: ignore
+                            cb, evh.context, source, event_cls.deserialize(args),  # type: ignore
                         )
                         loop.call_soon(wrapped_cb)
 
-            self.subscriber_taskset.add(asyncio.create_task(handle()))
+            self.subscriber_taskset.add(asyncio.create_task(handle(subscriber)))
 
     async def _consume_loop(self) -> None:
         while True:
