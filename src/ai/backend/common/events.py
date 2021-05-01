@@ -671,6 +671,24 @@ class EventDispatcher(aobject):
     ) -> None:
         self.subscribers[handler.event_cls.name].discard(cast(EventHandler[Any, AbstractEvent], handler))
 
+    async def handle(self, evh_type: str, evh: EventHandler, source: AgentId, args: tuple) -> None:
+        loop = asyncio.get_running_loop()
+        coalescing_opts = evh.coalescing_opts
+        coalescing_state = evh.coalescing_state
+        cb = evh.callback
+        event_cls = evh.event_cls
+        if (await coalescing_state.rate_control(coalescing_opts)):
+            if self._log_events:
+                log.debug("DISPATCH_{}(evh:{})", evh_type, evh.name)
+            if asyncio.iscoroutinefunction(cb):
+                # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
+                await cb(evh.context, source, event_cls.deserialize(args))  # type: ignore
+            else:
+                wrapped_cb = functools.partial(
+                    cb, evh.context, source, event_cls.deserialize(args),  # type: ignore
+                )
+                loop.call_soon(wrapped_cb)
+
     async def dispatch_consumers(
         self,
         event_name: str,
@@ -678,30 +696,11 @@ class EventDispatcher(aobject):
         args: tuple,
     ) -> None:
         if self._log_events:
-            log_fmt = 'DISPATCH_CONSUMERS(ev:{}, ag:{})'
-            log_args = (event_name, source)
-            log.debug(log_fmt, *log_args)
-        loop = asyncio.get_running_loop()
+            log.debug('DISPATCH_CONSUMERS(ev:{}, ag:{})', event_name, source)
         for consumer in self.consumers[event_name]:
-
-            async def handle(evh: EventHandler) -> None:
-                coalescing_opts = evh.coalescing_opts
-                coalescing_state = evh.coalescing_state
-                cb = evh.callback
-                event_cls = evh.event_cls
-                if (await coalescing_state.rate_control(coalescing_opts)):
-                    if self._log_events:
-                        log.debug("DISPATCH_CONSUMER(evh:{})", evh.name)
-                    if asyncio.iscoroutinefunction(cb):
-                        # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
-                        await cb(evh.context, source, event_cls.deserialize(args))  # type: ignore
-                    else:
-                        wrapped_cb = functools.partial(
-                            cb, evh.context, source, event_cls.deserialize(args),  # type: ignore
-                        )
-                        loop.call_soon(wrapped_cb)
-
-            self.consumer_taskset.add(asyncio.create_task(handle(consumer)))
+            self.consumer_taskset.add(asyncio.create_task(
+                self.handle("CONSUMER", consumer, source, args)
+            ))
 
     async def dispatch_subscribers(
         self,
@@ -710,30 +709,11 @@ class EventDispatcher(aobject):
         args: tuple,
     ) -> None:
         if self._log_events:
-            log_fmt = 'DISPATCH_SUBSCRIBERS(ev:{}, ag:{})'
-            log_args = (event_name, source)
-            log.debug(log_fmt, *log_args)
-        loop = asyncio.get_running_loop()
+            log.debug('DISPATCH_SUBSCRIBERS(ev:{}, ag:{})', event_name, source)
         for subscriber in self.subscribers[event_name]:
-
-            async def handle(evh: EventHandler) -> None:
-                coalescing_opts = evh.coalescing_opts
-                coalescing_state = evh.coalescing_state
-                event_cls = evh.event_cls
-                cb = evh.callback
-                if (await coalescing_state.rate_control(coalescing_opts)):
-                    if self._log_events:
-                        log.debug("DISPATCH_SUBSCRIBER(evh:{})", evh.name)
-                    if asyncio.iscoroutinefunction(cb):
-                        # mypy cannot catch the meaning of asyncio.iscoroutinefunction
-                        await cb(evh.context, source, event_cls.deserialize(args))  # type: ignore
-                    else:
-                        wrapped_cb = functools.partial(
-                            cb, evh.context, source, event_cls.deserialize(args),  # type: ignore
-                        )
-                        loop.call_soon(wrapped_cb)
-
-            self.subscriber_taskset.add(asyncio.create_task(handle(subscriber)))
+            self.subscriber_taskset.add(asyncio.create_task(
+                self.handle("SUBSCRIBER", subscriber, source, args)
+            ))
 
     async def _consume_loop(self) -> None:
         while True:
