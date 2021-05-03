@@ -6,6 +6,7 @@ from collections import defaultdict
 import functools
 import logging
 import secrets
+import sys
 from typing import (
     Any,
     Callable,
@@ -701,6 +702,7 @@ class EventDispatcher(aobject):
             self.consumer_taskset.add(asyncio.create_task(
                 self.handle("CONSUMER", consumer, source, args)
             ))
+            await asyncio.sleep(0)
 
     async def dispatch_subscribers(
         self,
@@ -714,6 +716,7 @@ class EventDispatcher(aobject):
             self.subscriber_taskset.add(asyncio.create_task(
                 self.handle("SUBSCRIBER", subscriber, source, args)
             ))
+            await asyncio.sleep(0)
 
     async def _consume_loop(self) -> None:
         while True:
@@ -750,7 +753,6 @@ class EventDispatcher(aobject):
 
 class EventProducer(aobject):
     redis_producer: aioredis.Redis
-    producer_lock: asyncio.Lock
 
     _connector: RedisConnectorFunc
     _log_events: bool
@@ -761,7 +763,6 @@ class EventProducer(aobject):
 
     async def __ainit__(self) -> None:
         self.redis_producer = await self._connector()
-        self.producer_lock = asyncio.Lock()
 
     async def close(self) -> None:
         self.redis_producer.close()
@@ -778,10 +779,11 @@ class EventProducer(aobject):
             'source': source,
             'args': event.serialize(),
         })
-        async with self.producer_lock:
-            def _pipe_builder():
-                pipe = self.redis_producer.pipeline()
-                pipe.rpush('events.prodcons', raw_msg)
-                pipe.publish('events.pubsub', raw_msg)
-                return pipe
-            await redis.execute_with_retries(_pipe_builder)
+
+        def _pipeline_constructor():
+            pipe = self.redis_producer.pipeline()
+            pipe.rpush('events.prodcons', raw_msg)
+            pipe.publish('events.pubsub', raw_msg)
+            return pipe
+
+        await redis.execute_with_retries(_pipeline_constructor)
