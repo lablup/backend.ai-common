@@ -779,11 +779,5 @@ class EventProducer(aobject):
             'source': source,
             'args': event.serialize(),
         })
-
-        def _pipeline_constructor():
-            pipe = self.redis_producer.pipeline()
-            pipe.rpush('events.prodcons', raw_msg)
-            pipe.publish('events.pubsub', raw_msg)
-            return pipe
-
-        await redis.execute_with_retries(_pipeline_constructor)
+        await redis.execute_with_retries(lambda: self.redis_producer.rpush('events.prodcons', raw_msg))
+        await redis.execute_with_retries(lambda: self.redis_producer.publish('events.pubsub', raw_msg))
