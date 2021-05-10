@@ -5,6 +5,7 @@ import asyncio
 from collections import defaultdict
 import functools
 import logging
+import secrets
 from typing import (
     Any,
     Callable,
@@ -17,6 +18,7 @@ from typing import (
     Sequence,
     Type,
     TypeVar,
+    TypedDict,
     Union,
     cast,
 )
@@ -499,8 +501,71 @@ EventCallback = Union[
 @attr.s(auto_attribs=True, slots=True, frozen=True, eq=False, order=False)
 class EventHandler(Generic[TContext, TEvent]):
     event_cls: Type[TEvent]
+    name: str
     context: TContext
     callback: EventCallback[TContext, TEvent]
+    coalescing_opts: Optional[CoalescingOptions]
+    coalescing_state: CoalescingState
+
+
+class CoalescingOptions(TypedDict):
+    max_wait: float
+    max_batch_size: int
+
+
+@attr.s(auto_attribs=True, slots=True)
+class CoalescingState:
+    batch_size: int = 0
+    last_added: float = 0.0
+    last_handle: asyncio.TimerHandle | None = None
+    fut_sync: asyncio.Future | None = None
+
+    def proceed(self):
+        if self.fut_sync is not None and not self.fut_sync.done():
+            self.fut_sync.set_result(None)
+
+    async def rate_control(self, opts: CoalescingOptions | None) -> bool:
+        if opts is None:
+            return True
+        loop = asyncio.get_running_loop()
+        if self.fut_sync is None:
+            self.fut_sync = loop.create_future()
+        assert self.fut_sync is not None
+        self.last_added = loop.time()
+        self.batch_size += 1
+        if self.batch_size >= opts['max_batch_size']:
+            assert self.last_handle is not None
+            self.last_handle.cancel()
+            self.fut_sync.cancel()
+            self.last_handle = None
+            self.last_added = 0.0
+            self.batch_size = 0
+            return True
+        # Schedule.
+        self.last_handle = loop.call_later(
+            opts['max_wait'],
+            self.proceed,
+        )
+        if self.last_added > 0 and loop.time() - self.last_added < opts['max_wait']:
+            # Cancel the previously pending task.
+            self.last_handle.cancel()
+            self.fut_sync.cancel()
+            # Reschedule.
+            self.fut_sync = loop.create_future()
+            self.last_handle = loop.call_later(
+                opts['max_wait'],
+                self.proceed,
+            )
+        try:
+            await self.fut_sync
+        except asyncio.CancelledError:
+            return False
+        else:
+            self.fut_sync = None
+            self.last_handle = None
+            self.last_added = 0.0
+            self.batch_size = 0
+            return True
 
 
 class EventDispatcher(aobject):
@@ -569,8 +634,13 @@ class EventDispatcher(aobject):
         event_cls: Type[TEvent],
         context: TContext,
         callback: EventCallback[TContext, TEvent],
+        coalescing_opts: CoalescingOptions = None,
+        *,
+        name: str = None,
     ) -> EventHandler[TContext, TEvent]:
-        handler = EventHandler(event_cls, context, callback)
+        if name is None:
+            name = f"evh-{secrets.token_urlsafe(16)}"
+        handler = EventHandler(event_cls, name, context, callback, coalescing_opts, CoalescingState())
         self.consumers[event_cls.name].add(cast(EventHandler[Any, AbstractEvent], handler))
         return handler
 
@@ -585,8 +655,13 @@ class EventDispatcher(aobject):
         event_cls: Type[TEvent],
         context: TContext,
         callback: EventCallback[TContext, TEvent],
+        coalescing_opts: CoalescingOptions = None,
+        *,
+        name: str = None,
     ) -> EventHandler[TContext, TEvent]:
-        handler = EventHandler(event_cls, context, callback)
+        if name is None:
+            name = f"evh-{secrets.token_urlsafe(16)}"
+        handler = EventHandler(event_cls, name, context, callback, coalescing_opts, CoalescingState())
         self.subscribers[event_cls.name].add(cast(EventHandler[Any, AbstractEvent], handler))
         return handler
 
@@ -596,6 +671,24 @@ class EventDispatcher(aobject):
     ) -> None:
         self.subscribers[handler.event_cls.name].discard(cast(EventHandler[Any, AbstractEvent], handler))
 
+    async def handle(self, evh_type: str, evh: EventHandler, source: AgentId, args: tuple) -> None:
+        loop = asyncio.get_running_loop()
+        coalescing_opts = evh.coalescing_opts
+        coalescing_state = evh.coalescing_state
+        cb = evh.callback
+        event_cls = evh.event_cls
+        if (await coalescing_state.rate_control(coalescing_opts)):
+            if self._log_events:
+                log.debug("DISPATCH_{}(evh:{})", evh_type, evh.name)
+            if asyncio.iscoroutinefunction(cb):
+                # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
+                await cb(evh.context, source, event_cls.deserialize(args))  # type: ignore
+            else:
+                wrapped_cb = functools.partial(
+                    cb, evh.context, source, event_cls.deserialize(args),  # type: ignore
+                )
+                loop.call_soon(wrapped_cb)
+
     async def dispatch_consumers(
         self,
         event_name: str,
@@ -603,23 +696,12 @@ class EventDispatcher(aobject):
         args: tuple,
     ) -> None:
         if self._log_events:
-            log_fmt = 'DISPATCH_CONSUMERS(ev:{}, ag:{})'
-            log_args = (event_name, source)
-            log.debug(log_fmt, *log_args)
-        loop = asyncio.get_running_loop()
+            log.debug('DISPATCH_CONSUMERS(ev:{}, ag:{})', event_name, source)
         for consumer in self.consumers[event_name]:
-            cb = consumer.callback
-            event_cls = consumer.event_cls
-            if asyncio.iscoroutinefunction(cb):
-                # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
-                self.consumer_taskset.add(asyncio.create_task(
-                    cb(consumer.context, source, event_cls.deserialize(args))  # type: ignore
-                ))
-            else:
-                cb = functools.partial(
-                    cb, consumer.context, source, event_cls.deserialize(args),  # type: ignore
-                )
-                loop.call_soon(cb)
+            self.consumer_taskset.add(asyncio.create_task(
+                self.handle("CONSUMER", consumer, source, args)
+            ))
+            await asyncio.sleep(0)
 
     async def dispatch_subscribers(
         self,
@@ -628,23 +710,12 @@ class EventDispatcher(aobject):
         args: tuple,
     ) -> None:
         if self._log_events:
-            log_fmt = 'DISPATCH_SUBSCRIBERS(ev:{}, ag:{})'
-            log_args = (event_name, source)
-            log.debug(log_fmt, *log_args)
-        loop = asyncio.get_running_loop()
+            log.debug('DISPATCH_SUBSCRIBERS(ev:{}, ag:{})', event_name, source)
         for subscriber in self.subscribers[event_name]:
-            cb = subscriber.callback
-            event_cls = subscriber.event_cls
-            if asyncio.iscoroutinefunction(cb):
-                # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
-                self.subscriber_taskset.add(asyncio.create_task(
-                    cb(subscriber.context, source, event_cls.deserialize(args))  # type: ignore
-                ))
-            else:
-                cb = functools.partial(
-                    cb, subscriber.context, source, event_cls.deserialize(args),  # type: ignore
-                )
-                loop.call_soon(cb)
+            self.subscriber_taskset.add(asyncio.create_task(
+                self.handle("SUBSCRIBER", subscriber, source, args)
+            ))
+            await asyncio.sleep(0)
 
     async def _consume_loop(self) -> None:
         while True:
@@ -681,7 +752,6 @@ class EventDispatcher(aobject):
 
 class EventProducer(aobject):
     redis_producer: aioredis.Redis
-    producer_lock: asyncio.Lock
 
     _connector: RedisConnectorFunc
     _log_events: bool
@@ -692,7 +762,6 @@ class EventProducer(aobject):
 
     async def __ainit__(self) -> None:
         self.redis_producer = await self._connector()
-        self.producer_lock = asyncio.Lock()
 
     async def close(self) -> None:
         self.redis_producer.close()
@@ -709,10 +778,5 @@ class EventProducer(aobject):
             'source': source,
             'args': event.serialize(),
         })
-        async with self.producer_lock:
-            def _pipe_builder():
-                pipe = self.redis_producer.pipeline()
-                pipe.rpush('events.prodcons', raw_msg)
-                pipe.publish('events.pubsub', raw_msg)
-                return pipe
-            await redis.execute_with_retries(_pipe_builder)
+        await redis.execute_with_retries(lambda: self.redis_producer.rpush('events.prodcons', raw_msg))
+        await redis.execute_with_retries(lambda: self.redis_producer.publish('events.pubsub', raw_msg))
