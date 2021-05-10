@@ -6,7 +6,6 @@ from collections import defaultdict
 import functools
 import logging
 import secrets
-import sys
 from typing import (
     Any,
     Callable,
