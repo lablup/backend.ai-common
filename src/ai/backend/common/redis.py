@@ -69,6 +69,7 @@ async def execute_with_retries(
     '''
     begin = time.monotonic()
     num_retries = 0
+    await asyncio.sleep(0)
     while True:
         try:
             if inspect.iscoroutinefunction(func):
@@ -109,6 +110,8 @@ async def execute_with_retries(
             await asyncio.sleep(delay)
             num_retries += 1
             continue
+        finally:
+            await asyncio.sleep(0)
 
 
 async def execute_script(
