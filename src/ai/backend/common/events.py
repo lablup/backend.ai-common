@@ -221,6 +221,10 @@ class KernelStartedEvent(KernelCreationEventArgs, AbstractEvent):
     name = "kernel_started"
 
 
+class KernelCancelledEvent(KernelCreationEventArgs, AbstractEvent):
+    name = "kernel_cancelled"
+
+
 @attr.s(slots=True, frozen=True)
 class KernelTerminationEventArgs():
     kernel_id: KernelId = attr.ib()
@@ -241,10 +245,6 @@ class KernelTerminationEventArgs():
             value[1],
             value[2],
         )
-
-
-class KernelCancelledEvent(KernelTerminationEventArgs, AbstractEvent):
-    name = "kernel_cancelled"
 
 
 class KernelTerminatingEvent(KernelTerminationEventArgs, AbstractEvent):
