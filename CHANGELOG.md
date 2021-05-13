@@ -16,6 +16,18 @@ Changes
 
 .. towncrier release notes start
 
+20.09.9 (2021-05-14)
+--------------------
+
+### Features
+* Implement coalescing of event handler invocation when there are bursts of the same events within a short period of time.
+  Also improve stability of event dispatchers by inserting explicit context switches between different events.
+  ([#77](https://github.com/lablup/backend.ai-common/issues/77))
+
+### Fixes
+* Refine the stability update by recategorizing `KernelCancelledEvent` as a creation event instead of a termination event ([#70](https://github.com/lablup/backend.ai-common/issues/70))
+
+
 20.09.8 (2021-04-13)
 --------------------
 
