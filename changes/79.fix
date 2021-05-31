@@ -1,0 +1,1 @@
+Allow overriding of msgpack wrapper method's keyword argument options. This should have been possible but it was not due to duplicate kwargs errors.
