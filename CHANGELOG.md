@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+21.03.3 (2021-06-07)
+--------------------
+
+### Fixes
+* Allow overriding of msgpack wrapper method's keyword argument options. This should have been possible but it was not due to duplicate kwargs errors. ([#79](https://github.com/lablup/backend.ai-common/issues/79))
+
+
 21.03.2 (2021-05-14)
 --------------------
 
