@@ -283,7 +283,7 @@ async def test_encoded_text_write():
             loop=current_loop(),
             target_filename=file_name,
             access_mode='w',
-            decode=codecs.decode,
+            encode=codecs.decode,
             max_chunks=1) as file_writer:
         for i in range(0, 100, 20):
             await file_writer.write(codecs.encode(init_str[i:i + 20]))

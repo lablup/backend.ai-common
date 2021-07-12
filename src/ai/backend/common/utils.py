@@ -18,12 +18,10 @@ from typing import (
     Awaitable,
     Callable,
     Collection,
+    Iterable,
     Iterator,
-    List,
     Mapping,
-    Optional,
     Sequence,
-    Set,
     Tuple,
     TYPE_CHECKING,
     Type,
@@ -33,6 +31,7 @@ from typing import (
 )
 import uuid
 if TYPE_CHECKING:
+    from decimal import Decimal
     from pathlib import Path
 
 import aiohttp
@@ -67,7 +66,7 @@ def env_info() -> str:
     return f'{pyver} (env: {sys.prefix})'
 
 
-def odict(*args: Sequence[Tuple[KT, VT]]) -> OrderedDict[KT, VT]:
+def odict(*args: Tuple[KT, VT]) -> OrderedDict[KT, VT]:
     """
     A short-hand for the constructor of OrderedDict.
     :code:`odict(('a',1), ('b',2))` is equivalent to
@@ -76,7 +75,7 @@ def odict(*args: Sequence[Tuple[KT, VT]]) -> OrderedDict[KT, VT]:
     return OrderedDict(args)
 
 
-def dict2kvlist(o: Mapping[KT, VT]) -> List[Union[KT, VT]]:
+def dict2kvlist(o: Mapping[KT, VT]) -> Iterable[Union[KT, VT]]:
     """
     Serializes a dict-like object into a generator of the flatten list of
     repeating key-value pairs.  It is useful when using HMSET method in Redis.
@@ -140,10 +139,10 @@ def find_free_port(bind_addr: str = '127.0.0.1') -> int:
 def nmget(
     o: Mapping[str, Any],
     key_path: str,
-    def_val: Optional[VT] = None,
-    path_delimiter: str= '.',
+    def_val: Any = None,
+    path_delimiter: str = '.',
     null_as_default: bool = True
-) -> Optional[VT]:
+) -> Any:
     """
     A short-hand for retrieving a value from nested mappings
     ("nested-mapping-get"). At each level it checks if the given "path"
@@ -176,7 +175,7 @@ def nmget(
     return o
 
 
-def readable_size_to_bytes(expr: Any) -> BinarySize:
+def readable_size_to_bytes(expr: Any) -> BinarySize | Decimal:
     if isinstance(expr, numbers.Real):
         return BinarySize(expr)
     return BinarySize.from_str(expr)
@@ -205,28 +204,28 @@ def str_to_timedelta(tstr: str) -> timedelta:
                      r'((?P<hours>\d+(\.\d+)?)(h|hr|hrs|hour|hours))?\s*'
                      r'((?P<minutes>\d+(\.\d+)?)(m|min|mins|minute|minutes))?\s*'
                      r'((?P<seconds>\d+(\.\d+)?)(s|sec|secs|second|seconds))?$')
-    ts = _rx.match(tstr)
-    if not ts:
+    match = _rx.match(tstr)
+    if not match:
         try:
             return timedelta(seconds=float(tstr))  # consider bare number string as seconds
         except TypeError:
             pass
         raise ValueError('Invalid time expression')
-    ts = ts.groupdict()
-    sign = ts.pop('sign', None)
-    if set(ts.values()) == {None}:
+    groups = match.groupdict()
+    sign = groups.pop('sign', None)
+    if set(groups.values()) == {None}:
         raise ValueError('Invalid time expression')
-    params = {n: -float(t) if sign == '-' else float(t) for n, t in ts.items() if t}
-    return timedelta(**params)
+    params = {n: -float(t) if sign == '-' else float(t) for n, t in groups.items() if t}
+    return timedelta(**params)  # type: ignore
 
 
 async def curl(
     url: Union[str, yarl.URL],
-    default_value: Union[VT, Callable[[], VT]] = None,
+    default_value: str | VT | Callable[[], str | VT],
     params: Mapping[str, str] = None,
     headers: Mapping[str, str] = None,
     timeout: float = 0.2,
-) -> VT:
+) -> str | VT:
     try:
         async with aiohttp.ClientSession() as sess:
             with _timeout(timeout):
@@ -484,16 +483,16 @@ class AsyncFileWriter:
         loop: asyncio.AbstractEventLoop,
         target_filename: Union[str, Path],
         access_mode: str,
-        decode: Callable[[str], bytes] = None,
+        encode: Callable[[str], bytes] = None,
         max_chunks: int = None,
     ) -> None:
         if max_chunks is None:
             max_chunks = 0
-        self._q: janus.Queue[Union[bytes, str, Sentinel]] = janus.Queue(maxsize=max_chunks)
+        self._q: janus.Queue[Union[str, Sentinel]] = janus.Queue(maxsize=max_chunks)
         self._loop = loop
         self._target_filename = target_filename
         self._access_mode = access_mode
-        self._decode = decode
+        self._encode = encode
 
     async def __aenter__(self):
         self._fut = self._loop.run_in_executor(None, self._write)
@@ -505,9 +504,9 @@ class AsyncFileWriter:
                 item = self._q.sync_q.get()
                 if item is Sentinel.TOKEN:
                     break
-                if self._decode is not None:
-                    item = self._decode(item)
-                f.write(item)
+                if self._encode is not None:
+                    encoded = self._encode(item)
+                f.write(encoded)
                 self._q.sync_q.task_done()
 
     async def __aexit__(self, exc_type, exc, tb):
