@@ -133,7 +133,7 @@ async def test_curl_returns_stripped_body(mocker):
     mock_resp = {'status': 200, 'text': mock_corofunc(b'success  ')}
     mock_get.return_value = AsyncContextManagerMock(**mock_resp)
 
-    resp = await curl('/test/url')
+    resp = await curl('/test/url', '')
 
     body = await mock_resp['text']()
     assert resp == body.strip()
