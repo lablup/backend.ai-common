@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import base64
 from collections import OrderedDict
@@ -7,27 +9,48 @@ import enum
 import inspect
 from itertools import chain
 import numbers
-from pathlib import Path
 import random
 import re
 import sys
 import socket
 from typing import (
-    Any, Union, Type,
-    Iterator, Callable, Awaitable,
+    Any,
+    Awaitable,
+    Callable,
+    Collection,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
     Tuple,
+    TYPE_CHECKING,
+    Type,
+    TypeVar,
+    Union,
     cast,
 )
 import uuid
+if TYPE_CHECKING:
+    from pathlib import Path
 
 import aiohttp
 from async_timeout import timeout as _timeout
 import janus
 
+if TYPE_CHECKING:
+    import yarl
+
 from .types import BinarySize, Sentinel
 
 
-def env_info():
+KT = TypeVar('KT')
+VT = TypeVar('VT')
+RT = TypeVar('RT')
+
+
+def env_info() -> str:
     """
     Returns a string that contains the Python version and runtime path.
     """
@@ -44,7 +67,7 @@ def env_info():
     return f'{pyver} (env: {sys.prefix})'
 
 
-def odict(*args):
+def odict(*args: Sequence[Tuple[KT, VT]]) -> OrderedDict[KT, VT]:
     """
     A short-hand for the constructor of OrderedDict.
     :code:`odict(('a',1), ('b',2))` is equivalent to
@@ -53,7 +76,7 @@ def odict(*args):
     return OrderedDict(args)
 
 
-def dict2kvlist(o):
+def dict2kvlist(o: Mapping[KT, VT]) -> List[Union[KT, VT]]:
     """
     Serializes a dict-like object into a generator of the flatten list of
     repeating key-value pairs.  It is useful when using HMSET method in Redis.
@@ -69,6 +92,18 @@ def generate_uuid() -> str:
     u = uuid.uuid4()
     # Strip the last two padding characters because u always has fixed length.
     return base64.urlsafe_b64encode(u.bytes)[:-2].decode('ascii')
+
+
+async def cancel_tasks(
+    tasks: Collection[asyncio.Task[RT]],
+) -> Sequence[Union[RT, Exception]]:
+    copied_tasks = {*tasks}
+    cancelled_tasks = []
+    for task in copied_tasks:
+        if not task.done():
+            task.cancel()
+            cancelled_tasks.append(task)
+    return await asyncio.gather(*cancelled_tasks, return_exceptions=True)
 
 
 def get_random_seq(length: float, num_points: int, min_distance: float) -> Iterator[float]:
@@ -102,7 +137,13 @@ def find_free_port(bind_addr: str = '127.0.0.1') -> int:
         return s.getsockname()[1]
 
 
-def nmget(o, key_path, def_val=None, path_delimiter='.', null_as_default=True):
+def nmget(
+    o: Mapping[str, Any],
+    key_path: str,
+    def_val: Optional[VT] = None,
+    path_delimiter: str= '.',
+    null_as_default: bool = True
+) -> Optional[VT]:
     """
     A short-hand for retrieving a value from nested mappings
     ("nested-mapping-get"). At each level it checks if the given "path"
@@ -135,13 +176,13 @@ def nmget(o, key_path, def_val=None, path_delimiter='.', null_as_default=True):
     return o
 
 
-def readable_size_to_bytes(expr):
+def readable_size_to_bytes(expr: Any) -> BinarySize:
     if isinstance(expr, numbers.Real):
         return BinarySize(expr)
     return BinarySize.from_str(expr)
 
 
-def str_to_timedelta(tstr):
+def str_to_timedelta(tstr: str) -> timedelta:
     """
     Convert humanized timedelta string into a Python timedelta object.
 
@@ -179,7 +220,13 @@ def str_to_timedelta(tstr):
     return timedelta(**params)
 
 
-async def curl(url, default_value=None, params=None, headers=None, timeout=0.2):
+async def curl(
+    url: Union[str, yarl.URL],
+    default_value: Union[VT, Callable[[], VT]] = None,
+    params: Mapping[str, str] = None,
+    headers: Mapping[str, str] = None,
+    timeout: float = 0.2,
+) -> VT:
     try:
         async with aiohttp.ClientSession() as sess:
             with _timeout(timeout):
@@ -256,12 +303,12 @@ class AsyncBarrier:
     num_parties: int = 1
     cond: asyncio.Condition
 
-    def __init__(self, num_parties: int):
+    def __init__(self, num_parties: int) -> None:
         self.num_parties = num_parties
         self.count = 0
         self.cond = asyncio.Condition()
 
-    async def wait(self):
+    async def wait(self) -> None:
         async with self.cond:
             self.count += 1
             if self.count == self.num_parties:
@@ -270,7 +317,7 @@ class AsyncBarrier:
                 while self.count < self.num_parties:
                     await self.cond.wait()
 
-    def reset(self):
+    def reset(self) -> None:
         self.count = 0
         # FIXME: if there are waiting coroutines, let them
         #        raise BrokenBarrierError like threading.Barrier
@@ -280,7 +327,7 @@ class FstabEntry:
     """
     Entry class represents a non-comment line on the `fstab` file.
     """
-    def __init__(self, device, mountpoint, fstype, options, d=0, p=0):
+    def __init__(self, device, mountpoint, fstype, options, d=0, p=0) -> None:
         self.device = device
         self.mountpoint = mountpoint
         self.fstype = fstype
@@ -313,7 +360,7 @@ class Fstab:
           and to support async I/O.
           (https://gist.github.com/niedbalski/507e974ed2d54a87ad37)
     """
-    def __init__(self, fp):
+    def __init__(self, fp) -> None:
         self._fp = fp
 
     def _hydrate_entry(self, line):
@@ -433,12 +480,13 @@ class AsyncFileWriter:
     writes using janus queue.
     """
     def __init__(
-            self,
-            loop: asyncio.AbstractEventLoop,
-            target_filename: Union[str, Path],
-            access_mode: str,
-            decode: Callable[[str], bytes] = None,
-            max_chunks: int = None) -> None:
+        self,
+        loop: asyncio.AbstractEventLoop,
+        target_filename: Union[str, Path],
+        access_mode: str,
+        decode: Callable[[str], bytes] = None,
+        max_chunks: int = None,
+    ) -> None:
         if max_chunks is None:
             max_chunks = 0
         self._q: janus.Queue[Union[bytes, str, Sentinel]] = janus.Queue(maxsize=max_chunks)
@@ -451,7 +499,7 @@ class AsyncFileWriter:
         self._fut = self._loop.run_in_executor(None, self._write)
         return self
 
-    def _write(self):
+    def _write(self) -> None:
         with open(self._target_filename, self._access_mode) as f:
             while True:
                 item = self._q.sync_q.get()
@@ -470,5 +518,5 @@ class AsyncFileWriter:
             self._q.close()
             await self._q.wait_closed()
 
-    async def write(self, item):
+    async def write(self, item) -> None:
         await self._q.async_q.put(item)
