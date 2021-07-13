@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+20.09.10 (2021-07-13)
+---------------------
+
+### Fixes
+* Update for batch-type session refactor/fix, adding `cancel_tasks()` utility function and refactoring the utils module ([#80](https://github.com/lablup/backend.ai-common/issues/80))
+
+
 20.09.9 (2021-05-14)
 --------------------
 
