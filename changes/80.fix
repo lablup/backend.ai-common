@@ -1,1 +1,1 @@
-Update for batch-type session refactor/fix, adding `cancel_tasks()` utility function and improving type annotations of the utils module
+Update for batch-type session refactor/fix, adding `cancel_tasks()` utility function and refactoring the utils module
