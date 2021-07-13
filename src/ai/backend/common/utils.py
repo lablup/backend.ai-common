@@ -1,52 +1,49 @@
 from __future__ import annotations
 
-import asyncio
 import base64
 from collections import OrderedDict
-from contextlib import closing
 from datetime import timedelta
 import enum
-import inspect
 from itertools import chain
 import numbers
 import random
 import re
 import sys
-import socket
 from typing import (
     Any,
-    Awaitable,
-    Callable,
-    Collection,
     Iterable,
     Iterator,
     Mapping,
-    Sequence,
     Tuple,
     TYPE_CHECKING,
-    Type,
     TypeVar,
     Union,
-    cast,
 )
 import uuid
 if TYPE_CHECKING:
     from decimal import Decimal
-    from pathlib import Path
 
-import aiohttp
-from async_timeout import timeout as _timeout
-import janus
+# It is a bad practice to keep all "miscellaneous" stuffs
+# into the single "utils" module.
+# Let's categorize them by purpose and domain, and keep
+# refactoring to use the proper module names.
 
-if TYPE_CHECKING:
-    import yarl
-
-from .types import BinarySize, Sentinel
+from .asyncio import (  # for legacy imports  # noqa
+    AsyncBarrier,
+    cancel_tasks,
+    current_loop,
+    run_through,
+)
+from .files import AsyncFileWriter  # for legacy imports  # noqa
+from .networking import (  # for legacy imports  # noqa
+    curl,
+    find_free_port,
+)
+from .types import BinarySize
 
 
 KT = TypeVar('KT')
 VT = TypeVar('VT')
-RT = TypeVar('RT')
 
 
 def env_info() -> str:
@@ -81,8 +78,9 @@ def dict2kvlist(o: Mapping[KT, VT]) -> Iterable[Union[KT, VT]]:
     repeating key-value pairs.  It is useful when using HMSET method in Redis.
 
     Example:
-    >>> list(dict2kvlist({'a': 1, 'b': 2}))
-    ['a', 1, 'b', 2]
+
+       >>> list(dict2kvlist({'a': 1, 'b': 2}))
+       ['a', 1, 'b', 2]
     """
     return chain.from_iterable((k, v) for k, v in o.items())
 
@@ -91,18 +89,6 @@ def generate_uuid() -> str:
     u = uuid.uuid4()
     # Strip the last two padding characters because u always has fixed length.
     return base64.urlsafe_b64encode(u.bytes)[:-2].decode('ascii')
-
-
-async def cancel_tasks(
-    tasks: Collection[asyncio.Task[RT]],
-) -> Sequence[Union[RT, Exception]]:
-    copied_tasks = {*tasks}
-    cancelled_tasks = []
-    for task in copied_tasks:
-        if not task.done():
-            task.cancel()
-            cancelled_tasks.append(task)
-    return await asyncio.gather(*cancelled_tasks, return_exceptions=True)
 
 
 def get_random_seq(length: float, num_points: int, min_distance: float) -> Iterator[float]:
@@ -127,13 +113,6 @@ def get_random_seq(length: float, num_points: int, min_distance: float) -> Itera
     for s in spacing:
         cumulative_sum += s
         yield cumulative_sum - min_distance
-
-
-def find_free_port(bind_addr: str = '127.0.0.1') -> int:
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind((bind_addr, 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
 
 
 def nmget(
@@ -219,26 +198,6 @@ def str_to_timedelta(tstr: str) -> timedelta:
     return timedelta(**params)  # type: ignore
 
 
-async def curl(
-    url: Union[str, yarl.URL],
-    default_value: str | VT | Callable[[], str | VT],
-    params: Mapping[str, str] = None,
-    headers: Mapping[str, str] = None,
-    timeout: float = 0.2,
-) -> str | VT:
-    try:
-        async with aiohttp.ClientSession() as sess:
-            with _timeout(timeout):
-                async with sess.get(url, params=params, headers=headers) as resp:
-                    assert resp.status == 200
-                    body = await resp.text()
-                    return body.strip()
-    except (asyncio.TimeoutError, aiohttp.ClientError, AssertionError):
-        if callable(default_value):
-            return default_value()
-        return default_value
-
-
 class StringSetFlag(enum.Flag):
 
     def __eq__(self, other):
@@ -292,34 +251,6 @@ class StringSetFlag(enum.Flag):
 
     def __str__(self):
         return self.value
-
-
-class AsyncBarrier:
-    """
-    This class provides a simplified asyncio-version of threading.Barrier class.
-    """
-
-    num_parties: int = 1
-    cond: asyncio.Condition
-
-    def __init__(self, num_parties: int) -> None:
-        self.num_parties = num_parties
-        self.count = 0
-        self.cond = asyncio.Condition()
-
-    async def wait(self) -> None:
-        async with self.cond:
-            self.count += 1
-            if self.count == self.num_parties:
-                self.cond.notify_all()
-            else:
-                while self.count < self.num_parties:
-                    await self.cond.wait()
-
-    def reset(self) -> None:
-        self.count = 0
-        # FIXME: if there are waiting coroutines, let them
-        #        raise BrokenBarrierError like threading.Barrier
 
 
 class FstabEntry:
@@ -417,107 +348,3 @@ class Fstab:
         if entry:
             return await self.remove_entry(entry)
         return False
-
-
-current_loop: Callable[[], asyncio.AbstractEventLoop]
-if hasattr(asyncio, 'get_running_loop'):
-    current_loop = asyncio.get_running_loop  # type: ignore
-else:
-    current_loop = asyncio.get_event_loop    # type: ignore
-
-
-async def run_through(
-    *awaitable_or_callables: Union[Callable[[], None], Awaitable[None]],
-    ignored_exceptions: Tuple[Type[Exception], ...],
-) -> None:
-    """
-    A syntactic sugar to simplify the code patterns like:
-
-    .. code-block:: python3
-
-       try:
-           await do1()
-       except MyError:
-           pass
-       try:
-           await do2()
-       except MyError:
-           pass
-       try:
-           await do3()
-       except MyError:
-           pass
-
-    Using ``run_through()``, it becomes:
-
-    .. code-block:: python3
-
-       await run_through(
-           do1(),
-           do2(),
-           do3(),
-           ignored_exceptions=(MyError,),
-       )
-    """
-    for f in awaitable_or_callables:
-        try:
-            if inspect.iscoroutinefunction(f):
-                await f()  # type: ignore
-            elif inspect.isawaitable(f):
-                await f  # type: ignore
-            else:
-                f()  # type: ignore
-        except Exception as e:
-            if isinstance(e, cast(Tuple[Any, ...], ignored_exceptions)):
-                continue
-            raise
-
-
-class AsyncFileWriter:
-    """
-    This class provides a context manager for making sequential async
-    writes using janus queue.
-    """
-    def __init__(
-        self,
-        loop: asyncio.AbstractEventLoop,
-        target_filename: Union[str, Path],
-        access_mode: str,
-        encode: Callable[[str], bytes] = None,
-        max_chunks: int = None,
-    ) -> None:
-        if max_chunks is None:
-            max_chunks = 0
-        self._q: janus.Queue[str | bytes | Sentinel] = janus.Queue(maxsize=max_chunks)
-        self._loop = loop
-        self._target_filename = target_filename
-        self._access_mode = access_mode
-        if encode is not None:
-            self._encode = encode
-        else:
-            self._encode = lambda v: v.encode()  # default encoder
-
-    async def __aenter__(self):
-        self._fut = self._loop.run_in_executor(None, self._write)
-        return self
-
-    def _write(self) -> None:
-        with open(self._target_filename, self._access_mode) as f:
-            while True:
-                item = self._q.sync_q.get()
-                if item is Sentinel.TOKEN:
-                    break
-                encoded = self._encode(item) if isinstance(item, str) else item
-                f.write(encoded)
-                self._q.sync_q.task_done()
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._q.async_q.put(Sentinel.TOKEN)
-        try:
-            await self._fut
-        finally:
-            self._q.close()
-            await self._q.wait_closed()
-
-    async def write(self, item) -> None:
-        await self._q.async_q.put(item)

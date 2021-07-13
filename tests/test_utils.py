@@ -1,10 +1,10 @@
 import asyncio
-import codecs
 from collections import OrderedDict
 from datetime import timedelta
 from pathlib import Path
-from random import choice
+from random import choice, randint
 from string import ascii_uppercase
+import sys
 from tempfile import NamedTemporaryFile
 from unittest import mock
 
@@ -16,7 +16,7 @@ from ai.backend.common.utils import (
     generate_uuid, get_random_seq,
     readable_size_to_bytes,
     str_to_timedelta,
-    current_loop, curl,
+    curl,
     run_through,
     StringSetFlag,
     AsyncBarrier, AsyncFileWriter
@@ -270,7 +270,7 @@ async def test_run_through():
 
 
 @pytest.mark.asyncio
-async def test_encoded_text_write():
+async def test_async_file_writer_str():
     # 1. Get temporary filename
     with NamedTemporaryFile() as temp_file:
         file_name = temp_file.name
@@ -280,13 +280,13 @@ async def test_encoded_text_write():
 
     # 3. Write chuncked decoded string into file
     async with AsyncFileWriter(
-            loop=current_loop(),
-            target_filename=file_name,
-            access_mode='w',
-            encode=codecs.decode,
-            max_chunks=1) as file_writer:
+        target_filename=file_name,
+        access_mode='w',
+        encode=lambda v: v.upper().encode(),
+        max_chunks=1,
+    ) as file_writer:
         for i in range(0, 100, 20):
-            await file_writer.write(codecs.encode(init_str[i:i + 20]))
+            await file_writer.write(init_str[i:i + 20])
 
     # 4. Read string from the file and close it
     with open(file_name, 'r') as f:
@@ -294,4 +294,35 @@ async def test_encoded_text_write():
     Path(file_name).unlink()
 
     # 5. Check initial and final strings
-    assert init_str == final_str
+    assert init_str.upper() == final_str
+
+
+@pytest.mark.asyncio
+async def test_async_file_writer_bytes():
+    # 1. Get temporary filename
+    with NamedTemporaryFile() as temp_file:
+        file_name = temp_file.name
+
+    # 2. Generate random binary data
+    init_data = (b''.join(randint(0, 255).to_bytes(1, sys.byteorder) for i in range(100)))
+
+    def dummy_encode(v: str) -> bytes:
+        assert False, "should not be called"
+
+    # 3. Write chuncked decoded string into file
+    async with AsyncFileWriter(
+        target_filename=file_name,
+        access_mode='wb',
+        encode=dummy_encode,
+        max_chunks=1,
+    ) as file_writer:
+        for i in range(0, 100, 20):
+            await file_writer.write(init_data[i:i + 20])
+
+    # 4. Read string from the file and close it
+    with open(file_name, 'rb') as f:
+        final_data = f.read()
+    Path(file_name).unlink()
+
+    # 5. Check initial and final data
+    assert init_data == final_data
