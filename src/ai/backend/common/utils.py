@@ -488,11 +488,14 @@ class AsyncFileWriter:
     ) -> None:
         if max_chunks is None:
             max_chunks = 0
-        self._q: janus.Queue[Union[str, Sentinel]] = janus.Queue(maxsize=max_chunks)
+        self._q: janus.Queue[str | bytes | Sentinel] = janus.Queue(maxsize=max_chunks)
         self._loop = loop
         self._target_filename = target_filename
         self._access_mode = access_mode
-        self._encode = encode
+        if encode is not None:
+            self._encode = encode
+        else:
+            self._encode = lambda v: v.encode()  # default encoder
 
     async def __aenter__(self):
         self._fut = self._loop.run_in_executor(None, self._write)
@@ -504,8 +507,7 @@ class AsyncFileWriter:
                 item = self._q.sync_q.get()
                 if item is Sentinel.TOKEN:
                     break
-                if self._encode is not None:
-                    encoded = self._encode(item)
+                encoded = self._encode(item) if isinstance(item, str) else item
                 f.write(encoded)
                 self._q.sync_q.task_done()
 
