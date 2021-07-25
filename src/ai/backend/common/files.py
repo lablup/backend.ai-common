@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from typing import (
     Callable,
@@ -24,7 +23,6 @@ class AsyncFileWriter:
 
     def __init__(
         self,
-        loop: asyncio.AbstractEventLoop,  # deprecated, noqa
         target_filename: str | Path,
         access_mode: str,
         encode: Callable[[str], bytes] = None,

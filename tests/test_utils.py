@@ -11,7 +11,7 @@ from unittest import mock
 import aiohttp
 import pytest
 
-from ai.backend.common.asyncio import AsyncBarrier, current_loop, run_through
+from ai.backend.common.asyncio import AsyncBarrier, run_through
 from ai.backend.common.files import AsyncFileWriter
 from ai.backend.common.networking import curl
 from ai.backend.common.utils import (
@@ -280,7 +280,6 @@ async def test_async_file_writer_str():
 
     # 3. Write chuncked decoded string into file
     async with AsyncFileWriter(
-        loop=current_loop(),
         target_filename=file_name,
         access_mode='w',
         encode=lambda v: v.upper().encode(),
@@ -312,7 +311,6 @@ async def test_async_file_writer_bytes():
 
     # 3. Write chuncked decoded string into file
     async with AsyncFileWriter(
-        loop=current_loop(),
         target_filename=file_name,
         access_mode='wb',
         encode=dummy_encode,
