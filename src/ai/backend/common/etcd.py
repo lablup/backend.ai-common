@@ -136,9 +136,16 @@ def reconn_reauth_adaptor(meth: Callable[..., Awaitable[Any]]):
 
 class AsyncEtcd:
 
-    def __init__(self, addr: HostPortPair, namespace: str,
-                 scope_prefix_map: Mapping[ConfigScopes, str], *,
-                 credentials=None, encoding='utf8'):
+    def __init__(
+        self,
+        addr: HostPortPair,
+        namespace: str,
+        scope_prefix_map: Mapping[ConfigScopes, str],
+        *,
+        credentials: dict = None,
+        encoding: str = 'utf8',
+        timeout: float = None,
+    ) -> None:
         self.scope_prefix_map = t.Dict({
             t.Key(ConfigScopes.GLOBAL): t.String(allow_blank=True),
             t.Key(ConfigScopes.SGROUP, optional=True): t.String,
@@ -150,9 +157,12 @@ class AsyncEtcd:
         while True:
             try:
                 self.etcd_sync = etcd3.client(
-                    host=str(addr.host), port=addr.port,
+                    host=str(addr.host),
+                    port=addr.port,
                     user=credentials.get('user') if credentials else None,
-                    password=credentials.get('password') if credentials else None)
+                    password=credentials.get('password') if credentials else None,
+                    timeout=timeout,
+                )
                 break
             except grpc.RpcError as e:
                 if e.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.UNKNOWN):
@@ -273,6 +283,34 @@ class AsyncEtcd:
                  for k, v in dict_obj.items()],
                 []
             ))
+
+    @reconn_reauth_adaptor
+    async def put_if_not_exists(
+        self,
+        key: str,
+        value: str,
+        *,
+        lease=None,
+        scope: ConfigScopes = ConfigScopes.GLOBAL,
+        scope_prefix_map: Mapping[ConfigScopes, str] = None,
+    ):
+        scope_prefix_map = ChainMap(scope_prefix_map or {}, self.scope_prefix_map)
+        scope_prefix = scope_prefix_map[scope]
+        mangled_key = self._mangle_key(f"{_slash(scope_prefix)}{key}")
+        encoded_value = str(value).encode(self.encoding)
+        status, _ = await self.loop.run_in_executor(
+            self.executor,
+            lambda: self.etcd_sync.transaction(
+                compare=[
+                    self.etcd_sync.transactions.version(mangled_key) == 0
+                ],
+                success=[
+                    self.etcd_sync.transactions.put(mangled_key, encoded_value, lease)
+                ],
+                failure=[],
+            )
+        )
+        return status
 
     @reconn_reauth_adaptor
     async def get(self, key: str, *,
