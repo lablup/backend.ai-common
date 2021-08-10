@@ -1,0 +1,1 @@
+Unlink the logger socket only if the socket file exists
