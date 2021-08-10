@@ -456,5 +456,5 @@ class Logger():
             self.log_worker.join()
             self.relay_handler.close()
             ep_url = yarl.URL(self.log_endpoint)
-            if ep_url.scheme.lower() == 'ipc':
-                os.unlink(ep_url.path)
+            if ep_url.scheme.lower() == 'ipc' and (ep_sock := Path(ep_url.path)).exists():
+                ep_sock.unlink()
