@@ -19,42 +19,36 @@ if not notify.enabled():
     # The service manager will probably kill the program here
     time.sleep(3)
 ```
-Author: stig@stigok.com Dec 2019
 """
 
 import os
 import socket
+
 
 class Notifier():
     def __init__(self, *, sock=None, addr=None):
         self.socket = sock or socket.socket(family=socket.AF_UNIX, type=socket.SOCK_DGRAM)
         self.address = addr or os.getenv("NOTIFY_SOCKET")
 
-
     async def _send(self, msg):
         """Send string `msg` as bytes on the notification socket"""
         await self.socket.sendto(msg.encode(), self.address)
-
 
     async def enabled(self):
         """Return a boolean stating whether watchdog is enabled"""
         return await bool(self.address)
 
-
     async def ready(self):
         """Report ready service state, i.e. completed initialisation"""
         await self._send("READY=1\n")
-
 
     async def status(self, msg):
         """Set a service status message"""
         await self._send("STATUS=%s\n" % (msg,))
 
-
     async def notify(self):
         """Report a healthy service state"""
         await self._send("WATCHDOG=1\n")
-
 
     async def notify_error(self, msg=None):
         """
@@ -67,4 +61,4 @@ class Notifier():
             self.status(msg)
 
         await self._send("WATCHDOG=trigger\n")
-
+        
