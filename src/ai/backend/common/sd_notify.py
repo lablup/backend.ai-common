@@ -61,4 +61,3 @@ class Notifier():
             self.status(msg)
 
         await self._send("WATCHDOG=trigger\n")
-        
