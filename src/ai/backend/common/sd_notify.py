@@ -36,11 +36,11 @@ class SystemDNotifier():
     socket: asyncudp.Socket | None
     address: str | None
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.socket = None
         self.address = os.getenv("NOTIFY_SOCKET", None)
 
-    async def _send(self, msg):
+    async def _send(self, msg: str) -> None:
         """Send string `msg` as bytes on the notification socket"""
         if self.address is None:
             return
@@ -50,24 +50,24 @@ class SystemDNotifier():
                 *(await loop.create_datagram_endpoint(
                     asyncudp._SocketProtocol,
                     family=socket.AF_UNIX,
-                    remote_addr=self.address,
+                    remote_addr=self.address,  # type: ignore
                 ))
             )
         self.socket.sendto(msg.encode())
 
-    async def ready(self):
+    async def ready(self) -> None:
         """Report ready service state, i.e. completed initialisation"""
         await self._send("READY=1\n")
 
-    async def update_status(self, msg):
+    async def update_status(self, msg: str) -> None:
         """Set a service status message"""
         await self._send("STATUS=%s\n" % (msg,))
 
-    async def notify(self):
+    async def notify(self) -> None:
         """Report a healthy service state"""
         await self._send("WATCHDOG=1\n")
 
-    async def notify_error(self, msg=None):
+    async def notify_error(self, msg: str = None) -> None:
         """
         Report a watchdog error. This program will likely be killed by the
         service manager.
