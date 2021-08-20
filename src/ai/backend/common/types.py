@@ -748,7 +748,6 @@ class KernelEnqueueingConfig(TypedDict):
     creation_config: dict
     bootstrap_script: str
     startup_command: str
-    agent_id: AgentId
 
 
 def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
