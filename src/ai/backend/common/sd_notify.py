@@ -43,6 +43,10 @@ class SystemDNotifier():
         self.socket = None
         self.address = os.getenv("NOTIFY_SOCKET", None)
 
+    @property
+    def enabled(self) -> bool:
+        return (self.address is not None)
+
     async def _send(self, msg: str) -> None:
         """Send string `msg` as bytes on the notification socket"""
         if self.address is None:
