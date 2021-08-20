@@ -6,20 +6,23 @@ Usage:
 
 .. code-block::
 
+    import asyncio
     import sd_notify
+
     notify = sd_notify.Notifier()
 
     # Report a status message
-    notify.status("Initialising my service...")
-    time.sleep(3)ß
+    await notify.update_status("Initialising my service...")
+    await asyncio.sleep(3)
+
     # Report that the program init is complete
-    notify.ready()
-    notify.statßus("Waiting for web requests...")
-    time.sleep(3)
+    await notify.ready()
+    await notify.update_status("Waiting for web requests...")
+    await asyncio.sleep(3)
+
     # Report an error to the service manager
-    notify.notify_error("An irrecoverable error occured!")
+    await notify.notify_error("An irrecoverable error occured!")
     # The service manager will probably kill the program here
-    time.sleep(3)
 """
 
 from __future__ import annotations
