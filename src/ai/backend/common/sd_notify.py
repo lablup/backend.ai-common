@@ -1,12 +1,14 @@
 """
-Simple sd_notify(3) client functionality implemented in Python 3.
+Simple systemd's daemon status notification UDP client implemented in Python 3.
+The methods will silently becomes no-op if NOTIFY_SOCKET environment variable is not set.
+
 Usage:
-```
-import sd_notify
-notify = sd_notify.Notifier()
-if not notify.enabled():
-    # Then it's probably not running is systemd with watchdog enabled
-        raise Exception("Watchdog not enabled")
+
+.. code-block::
+
+    import sd_notify
+    notify = sd_notify.Notifier()
+
     # Report a status message
     notify.status("Initialising my service...")
     time.sleep(3)ß
@@ -18,31 +20,46 @@ if not notify.enabled():
     notify.notify_error("An irrecoverable error occured!")
     # The service manager will probably kill the program here
     time.sleep(3)
-```
 """
 
+from __future__ import annotations
+
+import asyncio
 import os
 import socket
 
+import asyncudp
 
-class Notifier():
-    def __init__(self, *, sock=None, addr=None):
-        self.socket = sock or socket.socket(family=socket.AF_UNIX, type=socket.SOCK_DGRAM)
-        self.address = addr or os.getenv("NOTIFY_SOCKET")
+
+class SystemDNotifier():
+
+    socket: asyncudp.Socket | None
+    address: str | None
+
+    def __init__(self):
+        self.socket = None
+        self.address = os.getenv("NOTIFY_SOCKET", None)
 
     async def _send(self, msg):
         """Send string `msg` as bytes on the notification socket"""
-        await self.socket.sendto(msg.encode(), self.address)
-
-    async def enabled(self):
-        """Return a boolean stating whether watchdog is enabled"""
-        return await bool(self.address)
+        if self.address is None:
+            return
+        loop = asyncio.get_running_loop()
+        if self.socket is None:
+            self.socket = asyncudp.Socket(
+                *(await loop.create_datagram_endpoint(
+                    asyncudp._SocketProtocol,
+                    family=socket.AF_UNIX,
+                    remote_addr=self.address,
+                ))
+            )
+        self.socket.sendto(msg.encode())
 
     async def ready(self):
         """Report ready service state, i.e. completed initialisation"""
         await self._send("READY=1\n")
 
-    async def status(self, msg):
+    async def update_status(self, msg):
         """Set a service status message"""
         await self._send("STATUS=%s\n" % (msg,))
 
@@ -58,6 +75,5 @@ class Notifier():
         service manager.
         """
         if msg:
-            self.status(msg)
-
+            await self.update_status(msg)
         await self._send("WATCHDOG=trigger\n")
