@@ -750,6 +750,7 @@ class KernelEnqueueingConfig(TypedDict):
     startup_command: str
     agent_id: AgentId
 
+
 def _stringify_number(v: Union[BinarySize, int, float, Decimal]) -> str:
     '''
     Stringify a number, preventing unwanted scientific notations.
