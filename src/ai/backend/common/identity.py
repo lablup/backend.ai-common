@@ -136,7 +136,7 @@ def _define_functions():
                               'unknown')
 
         async def _get_instance_region() -> str:
-            doc = await curl(_dynamic_prefix + 'instance-identity/document')
+            doc = await curl(_dynamic_prefix + 'instance-identity/document', None)
             if doc is None:
                 return 'amazon/unknown'
             region = json.loads(doc)['region']

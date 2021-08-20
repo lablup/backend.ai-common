@@ -1,33 +1,52 @@
-import asyncio
+from __future__ import annotations
+
 import base64
 from collections import OrderedDict
-from contextlib import closing
 from datetime import timedelta
 import enum
-import inspect
 from itertools import chain
 import numbers
-from pathlib import Path
 import random
 import re
 import sys
-import socket
 from typing import (
-    Any, Union, Type,
-    Iterator, Callable, Awaitable,
+    Any,
+    Iterable,
+    Iterator,
+    Mapping,
     Tuple,
-    cast,
+    TYPE_CHECKING,
+    TypeVar,
+    Union,
 )
 import uuid
+if TYPE_CHECKING:
+    from decimal import Decimal
 
-import aiohttp
-from async_timeout import timeout as _timeout
-import janus
+# It is a bad practice to keep all "miscellaneous" stuffs
+# into the single "utils" module.
+# Let's categorize them by purpose and domain, and keep
+# refactoring to use the proper module names.
 
-from .types import BinarySize, Sentinel
+from .asyncio import (  # for legacy imports  # noqa
+    AsyncBarrier,
+    cancel_tasks,
+    current_loop,
+    run_through,
+)
+from .files import AsyncFileWriter  # for legacy imports  # noqa
+from .networking import (  # for legacy imports  # noqa
+    curl,
+    find_free_port,
+)
+from .types import BinarySize
 
 
-def env_info():
+KT = TypeVar('KT')
+VT = TypeVar('VT')
+
+
+def env_info() -> str:
     """
     Returns a string that contains the Python version and runtime path.
     """
@@ -44,7 +63,7 @@ def env_info():
     return f'{pyver} (env: {sys.prefix})'
 
 
-def odict(*args):
+def odict(*args: Tuple[KT, VT]) -> OrderedDict[KT, VT]:
     """
     A short-hand for the constructor of OrderedDict.
     :code:`odict(('a',1), ('b',2))` is equivalent to
@@ -53,14 +72,15 @@ def odict(*args):
     return OrderedDict(args)
 
 
-def dict2kvlist(o):
+def dict2kvlist(o: Mapping[KT, VT]) -> Iterable[Union[KT, VT]]:
     """
     Serializes a dict-like object into a generator of the flatten list of
     repeating key-value pairs.  It is useful when using HMSET method in Redis.
 
     Example:
-    >>> list(dict2kvlist({'a': 1, 'b': 2}))
-    ['a', 1, 'b', 2]
+
+       >>> list(dict2kvlist({'a': 1, 'b': 2}))
+       ['a', 1, 'b', 2]
     """
     return chain.from_iterable((k, v) for k, v in o.items())
 
@@ -95,14 +115,13 @@ def get_random_seq(length: float, num_points: int, min_distance: float) -> Itera
         yield cumulative_sum - min_distance
 
 
-def find_free_port(bind_addr: str = '127.0.0.1') -> int:
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind((bind_addr, 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
-
-
-def nmget(o, key_path, def_val=None, path_delimiter='.', null_as_default=True):
+def nmget(
+    o: Mapping[str, Any],
+    key_path: str,
+    def_val: Any = None,
+    path_delimiter: str = '.',
+    null_as_default: bool = True
+) -> Any:
     """
     A short-hand for retrieving a value from nested mappings
     ("nested-mapping-get"). At each level it checks if the given "path"
@@ -135,13 +154,13 @@ def nmget(o, key_path, def_val=None, path_delimiter='.', null_as_default=True):
     return o
 
 
-def readable_size_to_bytes(expr):
+def readable_size_to_bytes(expr: Any) -> BinarySize | Decimal:
     if isinstance(expr, numbers.Real):
         return BinarySize(expr)
     return BinarySize.from_str(expr)
 
 
-def str_to_timedelta(tstr):
+def str_to_timedelta(tstr: str) -> timedelta:
     """
     Convert humanized timedelta string into a Python timedelta object.
 
@@ -164,33 +183,19 @@ def str_to_timedelta(tstr):
                      r'((?P<hours>\d+(\.\d+)?)(h|hr|hrs|hour|hours))?\s*'
                      r'((?P<minutes>\d+(\.\d+)?)(m|min|mins|minute|minutes))?\s*'
                      r'((?P<seconds>\d+(\.\d+)?)(s|sec|secs|second|seconds))?$')
-    ts = _rx.match(tstr)
-    if not ts:
+    match = _rx.match(tstr)
+    if not match:
         try:
             return timedelta(seconds=float(tstr))  # consider bare number string as seconds
         except TypeError:
             pass
         raise ValueError('Invalid time expression')
-    ts = ts.groupdict()
-    sign = ts.pop('sign', None)
-    if set(ts.values()) == {None}:
+    groups = match.groupdict()
+    sign = groups.pop('sign', None)
+    if set(groups.values()) == {None}:
         raise ValueError('Invalid time expression')
-    params = {n: -float(t) if sign == '-' else float(t) for n, t in ts.items() if t}
-    return timedelta(**params)
-
-
-async def curl(url, default_value=None, params=None, headers=None, timeout=0.2):
-    try:
-        async with aiohttp.ClientSession() as sess:
-            with _timeout(timeout):
-                async with sess.get(url, params=params, headers=headers) as resp:
-                    assert resp.status == 200
-                    body = await resp.text()
-                    return body.strip()
-    except (asyncio.TimeoutError, aiohttp.ClientError, AssertionError):
-        if callable(default_value):
-            return default_value()
-        return default_value
+    params = {n: -float(t) if sign == '-' else float(t) for n, t in groups.items() if t}
+    return timedelta(**params)  # type: ignore
 
 
 class StringSetFlag(enum.Flag):
@@ -248,39 +253,11 @@ class StringSetFlag(enum.Flag):
         return self.value
 
 
-class AsyncBarrier:
-    """
-    This class provides a simplified asyncio-version of threading.Barrier class.
-    """
-
-    num_parties: int = 1
-    cond: asyncio.Condition
-
-    def __init__(self, num_parties: int):
-        self.num_parties = num_parties
-        self.count = 0
-        self.cond = asyncio.Condition()
-
-    async def wait(self):
-        async with self.cond:
-            self.count += 1
-            if self.count == self.num_parties:
-                self.cond.notify_all()
-            else:
-                while self.count < self.num_parties:
-                    await self.cond.wait()
-
-    def reset(self):
-        self.count = 0
-        # FIXME: if there are waiting coroutines, let them
-        #        raise BrokenBarrierError like threading.Barrier
-
-
 class FstabEntry:
     """
     Entry class represents a non-comment line on the `fstab` file.
     """
-    def __init__(self, device, mountpoint, fstype, options, d=0, p=0):
+    def __init__(self, device, mountpoint, fstype, options, d=0, p=0) -> None:
         self.device = device
         self.mountpoint = mountpoint
         self.fstype = fstype
@@ -313,7 +290,7 @@ class Fstab:
           and to support async I/O.
           (https://gist.github.com/niedbalski/507e974ed2d54a87ad37)
     """
-    def __init__(self, fp):
+    def __init__(self, fp) -> None:
         self._fp = fp
 
     def _hydrate_entry(self, line):
@@ -371,104 +348,3 @@ class Fstab:
         if entry:
             return await self.remove_entry(entry)
         return False
-
-
-current_loop: Callable[[], asyncio.AbstractEventLoop]
-if hasattr(asyncio, 'get_running_loop'):
-    current_loop = asyncio.get_running_loop  # type: ignore
-else:
-    current_loop = asyncio.get_event_loop    # type: ignore
-
-
-async def run_through(
-    *awaitable_or_callables: Union[Callable[[], None], Awaitable[None]],
-    ignored_exceptions: Tuple[Type[Exception], ...],
-) -> None:
-    """
-    A syntactic sugar to simplify the code patterns like:
-
-    .. code-block:: python3
-
-       try:
-           await do1()
-       except MyError:
-           pass
-       try:
-           await do2()
-       except MyError:
-           pass
-       try:
-           await do3()
-       except MyError:
-           pass
-
-    Using ``run_through()``, it becomes:
-
-    .. code-block:: python3
-
-       await run_through(
-           do1(),
-           do2(),
-           do3(),
-           ignored_exceptions=(MyError,),
-       )
-    """
-    for f in awaitable_or_callables:
-        try:
-            if inspect.iscoroutinefunction(f):
-                await f()  # type: ignore
-            elif inspect.isawaitable(f):
-                await f  # type: ignore
-            else:
-                f()  # type: ignore
-        except Exception as e:
-            if isinstance(e, cast(Tuple[Any, ...], ignored_exceptions)):
-                continue
-            raise
-
-
-class AsyncFileWriter:
-    """
-    This class provides a context manager for making sequential async
-    writes using janus queue.
-    """
-    def __init__(
-            self,
-            loop: asyncio.AbstractEventLoop,
-            target_filename: Union[str, Path],
-            access_mode: str,
-            decode: Callable[[str], bytes] = None,
-            max_chunks: int = None) -> None:
-        if max_chunks is None:
-            max_chunks = 0
-        self._q: janus.Queue[Union[bytes, str, Sentinel]] = janus.Queue(maxsize=max_chunks)
-        self._loop = loop
-        self._target_filename = target_filename
-        self._access_mode = access_mode
-        self._decode = decode
-
-    async def __aenter__(self):
-        self._fut = self._loop.run_in_executor(None, self._write)
-        return self
-
-    def _write(self):
-        with open(self._target_filename, self._access_mode) as f:
-            while True:
-                item = self._q.sync_q.get()
-                if item is Sentinel.TOKEN:
-                    break
-                if self._decode is not None:
-                    item = self._decode(item)
-                f.write(item)
-                self._q.sync_q.task_done()
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._q.async_q.put(Sentinel.TOKEN)
-        try:
-            await self._fut
-        finally:
-            self._q.close()
-            await self._q.wait_closed()
-
-    async def write(self, item):
-        await self._q.async_q.put(item)
