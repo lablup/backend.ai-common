@@ -16,6 +16,16 @@ Changes
 
 .. towncrier release notes start
 
+20.09.11 (2021-08-23)
+---------------------
+
+### Fixes
+* Unlink the logger socket only if the socket file exists ([#85](https://github.com/lablup/backend.ai-common/issues/85))
+
+### Miscellaneous
+* Update package dependencies ([#83](https://github.com/lablup/backend.ai-common/issues/83))
+
+
 20.09.10 (2021-07-13)
 ---------------------
 
