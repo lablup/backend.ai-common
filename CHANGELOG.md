@@ -16,8 +16,7 @@ Changes
 
 .. towncrier release notes start
 
-21.09.0a1 (2021-08-25)
-----------------------
+## 21.09.0a1 (2021-08-25)
 
 ### Features
 * Update for the manager scheduler v3 (lablup/backend.ai-manager#415)
@@ -38,8 +37,7 @@ Changes
 * Update package dependencies ([#83](https://github.com/lablup/backend.ai-common/issues/83))
 
 
-Older changelogs
-----------------
+## Older changelogs
 
 * [21.03](https://github.com/lablup/backend.ai-common/blob/21.03/CHANGELOG.md)
 * [20.09](https://github.com/lablup/backend.ai-common/blob/20.09/CHANGELOG.md)
