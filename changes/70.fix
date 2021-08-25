@@ -1,1 +1,0 @@
-Refine the stability update by recategorizing `KernelCancelledEvent` as a creation event instead of a termination event
