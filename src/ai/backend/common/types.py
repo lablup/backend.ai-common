@@ -301,6 +301,8 @@ class MountTypes(str, enum.Enum):
     VOLUME = 'volume'
     BIND = 'bind'
     TMPFS = 'tmpfs'
+    K8S_GENERIC = 'k8s-generic'
+    K8S_HOSTPATH = 'k8s-hostpath'
 
 
 class HostPortPair(namedtuple('HostPortPair', 'host port')):
