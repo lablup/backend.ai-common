@@ -1,1 +1,1 @@
-Add KernelPullProgressEvent to events.py for handling kernel-pull-progress-status
+Add `KernelPullProgressEvent` to represent incremental progress of image pulling when creating new kernels
