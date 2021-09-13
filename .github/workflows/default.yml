@@ -101,13 +101,13 @@ jobs:
          --auto-compaction-retention 1
     - name: Warm up docker-compose
       run: |
+        cp tests/redis/redis-cluster.yml tests/redis/redis-cluster.yml.bak
         sed -i "s/host.docker.internal/127.0.0.1/g" tests/redis/redis-cluster.yml
-        sed -i "s/ports:/network_mode: host\n    ports:/g" tests/redis/redis-cluster.yml
+        sed -z -i "s/ports:\n      - [0-9]\+:[0-9]\+/network_mode: host/g" tests/redis/redis-cluster.yml
         docker-compose -p xwarm -f tests/redis/redis-cluster.yml up -d
         docker-compose -p xwarm -f tests/redis/redis-cluster.yml ps
         docker-compose -p xwarm -f tests/redis/redis-cluster.yml down
-        sed -i "s/127.0.0.1/host.docker.internal/g" tests/redis/redis-cluster.yml
-        sed -z -i "s/network_mode: host\n    ports:/ports:/g" tests/redis/redis-cluster.yml
+        cp tests/redis/redis-cluster.yml.bak tests/redis/redis-cluster.yml
     - name: Test with pytest
       run: |
         python -m pytest -v --cov=src

@@ -1,5 +1,7 @@
 import asyncio
 from pathlib import Path
+import re
+import shutil
 import sys
 from typing import (
     AsyncIterator,
@@ -50,9 +52,10 @@ async def redis_cluster(test_ns) -> AsyncIterator[Sequence[Tuple[str, int]]]:
         haproxy_cfg.write_bytes(t)
     else:
         compose_cfg = cfg_dir / 'redis-cluster.yml'
+        shutil.copy(compose_cfg, compose_cfg.with_name(f'{compose_cfg.name}.bak'))
         t = compose_cfg.read_bytes()
         t = t.replace(b'host.docker.internal', b'127.0.0.1')
-        t = t.replace(b'ports:', b'network_mode: host\n    ports:')
+        t = re.sub(br'ports:\n      - \d+:\d+', b'network_mode: host', t, flags=re.M)
         compose_cfg.write_bytes(t)
     await simple_run_cmd([
         'docker-compose',
@@ -88,11 +91,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[Sequence[Tuple[str, int]]]:
             t = t.replace(b'host.docker.internal', b'127.0.0.1')
             haproxy_cfg.write_bytes(t)
         else:
-            compose_cfg = cfg_dir / 'redis-cluster.yml'
-            t = compose_cfg.read_bytes()
-            t = t.replace(b'127.0.0.1', b'host.docker.internal')
-            t = t.replace(b'network_mode: host\n    ports:', b'ports:')
-            compose_cfg.write_bytes(t)
+            shutil.copy(compose_cfg.with_name(f'{compose_cfg.name}.bak'), compose_cfg)
 
 
 @pytest.mark.asyncio
