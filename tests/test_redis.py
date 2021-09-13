@@ -51,6 +51,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[Sequence[Tuple[str, int]]]:
     else:
         compose_cfg = cfg_dir / 'redis-cluster.yml'
         t = compose_cfg.read_bytes()
+        t = t.replace(b'host.docker.internal', b'127.0.0.1')
         t = t.replace(b'ports:', b'network_mode: host\n    ports:')
         compose_cfg.write_bytes(t)
     await simple_run_cmd([
@@ -59,7 +60,6 @@ async def redis_cluster(test_ns) -> AsyncIterator[Sequence[Tuple[str, int]]]:
         '-f', str(cfg_dir / 'redis-cluster.yml'),
         'up', '-d',
     ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-    print()
     await asyncio.sleep(0.2)
     await simple_run_cmd([
         'docker-compose',
@@ -68,7 +68,6 @@ async def redis_cluster(test_ns) -> AsyncIterator[Sequence[Tuple[str, int]]]:
         'ps',
     ])
     await simple_run_cmd(['docker', 'logs', f'{test_ns}_backendai-half-redis-sentinel01_1'])
-    print()
     try:
         yield [
             ('127.0.0.1', 26379),
@@ -91,6 +90,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[Sequence[Tuple[str, int]]]:
         else:
             compose_cfg = cfg_dir / 'redis-cluster.yml'
             t = compose_cfg.read_bytes()
+            t = t.replace(b'127.0.0.1', b'host.docker.internal')
             t = t.replace(b'network_mode: host\n    ports:', b'ports:')
             compose_cfg.write_bytes(t)
 
