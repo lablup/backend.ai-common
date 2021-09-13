@@ -28,7 +28,6 @@ services:
       --min-slaves-max-lag 10
     ports:
       - 16379:16379
-    cpu_count: 1
 
   backendai-half-redis-node02:
     image: redis:6-alpine
@@ -43,7 +42,6 @@ services:
       --min-slaves-max-lag 10
     ports:
       - 16380:16380
-    cpu_count: 1
 
   backendai-half-redis-node03:
     image: redis:6-alpine
@@ -58,7 +56,6 @@ services:
       --min-slaves-max-lag 10
     ports:
       - 16381:16381
-    cpu_count: 1
 
   backendai-half-redis-sentinel01:
     hostname: backendai-half-redis-sentinel01
@@ -76,7 +73,6 @@ services:
       - backendai-half-redis-node03
     ports:
       - 26379:26379
-    cpu_count: 1
 
   backendai-half-redis-sentinel02:
     build:
@@ -93,7 +89,6 @@ services:
       - backendai-half-redis-node03
     ports:
       - 26380:26380
-    cpu_count: 1
 
   backendai-half-redis-sentinel03:
     build:
@@ -110,4 +105,3 @@ services:
       - backendai-half-redis-node03
     ports:
       - 26381:26381
-    cpu_count: 1
