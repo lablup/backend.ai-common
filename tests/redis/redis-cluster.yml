@@ -1,0 +1,96 @@
+version: "2.4"
+
+services:
+
+  backendai-half-redis-proxy:
+    image: haproxy:2.4-alpine
+    depends_on:
+      - "backendai-half-redis-node01"
+      - "backendai-half-redis-node02"
+      - "backendai-half-redis-node03"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
+    ports:
+      - "9379:6379"
+    networks:
+      - half
+
+  # Initial master is node01.
+  backendai-half-redis-node01:
+    image: redis:6-alpine
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-develove}
+      --masterauth ${REDIS_PASSWORD:-develove}
+      --min-slaves-to-write 1
+      --min-slaves-max-lag 10
+    networks:
+      - half
+    cpu_count: 1
+
+  backendai-half-redis-sentinel01:
+    build:
+      context: .
+      dockerfile: redis-sentinel.dockerfile
+      cache_from:
+        - redis:5-alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
+    networks:
+      - half
+    cpu_count: 1
+
+  backendai-half-redis-node02:
+    image: redis:6-alpine
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-develove}
+      --masterauth ${REDIS_PASSWORD:-develove}
+      --slaveof backendai-half-redis-node01 6379
+      --min-slaves-to-write 1
+      --min-slaves-max-lag 10
+    networks:
+      - half
+    cpu_count: 1
+
+  backendai-half-redis-sentinel02:
+    build:
+      context: .
+      dockerfile: redis-sentinel.dockerfile
+      cache_from:
+        - redis:6-alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
+    networks:
+      - half
+    cpu_count: 1
+
+  backendai-half-redis-node03:
+    image: redis:6-alpine
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-develove}
+      --masterauth ${REDIS_PASSWORD:-develove}
+      --slaveof backendai-half-redis-node01 6379
+      --min-slaves-to-write 1
+      --min-slaves-max-lag 10
+    networks:
+      - half
+    cpu_count: 1
+
+  backendai-half-redis-sentinel03:
+    build:
+      context: .
+      dockerfile: redis-sentinel.dockerfile
+      cache_from:
+        - redis:6-alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
+    networks:
+      - half
+    cpu_count: 1
+
+networks:
+  half:
