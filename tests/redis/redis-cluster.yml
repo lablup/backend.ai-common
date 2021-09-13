@@ -1,36 +1,67 @@
-version: "2.4"
+version: "3.7"
 
 services:
 
   backendai-half-redis-proxy:
     image: haproxy:2.4-alpine
     depends_on:
-      - "backendai-half-redis-node01"
-      - "backendai-half-redis-node02"
-      - "backendai-half-redis-node03"
+      - backendai-half-redis-node01
+      - backendai-half-redis-node02
+      - backendai-half-redis-node03
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    ports:
+      - 9379:9379
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
-    ports:
-      - "9379:6379"
-    networks:
-      - half
 
   # Initial master is node01.
   backendai-half-redis-node01:
     image: redis:6-alpine
     command: >
       redis-server
+      --port 16379
       --requirepass ${REDIS_PASSWORD:-develove}
       --masterauth ${REDIS_PASSWORD:-develove}
+      --cluster-announce-ip host.docker.internal
       --min-slaves-to-write 1
       --min-slaves-max-lag 10
-    networks:
-      - half
+    ports:
+      - 16379:16379
+    cpu_count: 1
+
+  backendai-half-redis-node02:
+    image: redis:6-alpine
+    command: >
+      redis-server
+      --port 16380
+      --requirepass ${REDIS_PASSWORD:-develove}
+      --masterauth ${REDIS_PASSWORD:-develove}
+      --slaveof host.docker.internal 16379
+      --cluster-announce-ip host.docker.internal
+      --min-slaves-to-write 1
+      --min-slaves-max-lag 10
+    ports:
+      - 16380:16380
+    cpu_count: 1
+
+  backendai-half-redis-node03:
+    image: redis:6-alpine
+    command: >
+      redis-server
+      --port 16381
+      --requirepass ${REDIS_PASSWORD:-develove}
+      --masterauth ${REDIS_PASSWORD:-develove}
+      --slaveof host.docker.internal 16379
+      --cluster-announce-ip host.docker.internal
+      --min-slaves-to-write 1
+      --min-slaves-max-lag 10
+    ports:
+      - 16381:16381
     cpu_count: 1
 
   backendai-half-redis-sentinel01:
+    hostname: backendai-half-redis-sentinel01
     build:
       context: .
       dockerfile: redis-sentinel.dockerfile
@@ -38,21 +69,13 @@ services:
         - redis:5-alpine
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
-    networks:
-      - half
-    cpu_count: 1
-
-  backendai-half-redis-node02:
-    image: redis:6-alpine
-    command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD:-develove}
-      --masterauth ${REDIS_PASSWORD:-develove}
-      --slaveof backendai-half-redis-node01 6379
-      --min-slaves-to-write 1
-      --min-slaves-max-lag 10
-    networks:
-      - half
+      - REDIS_PORT=26379
+    depends_on:
+      - backendai-half-redis-node01
+      - backendai-half-redis-node02
+      - backendai-half-redis-node03
+    ports:
+      - 26379:26379
     cpu_count: 1
 
   backendai-half-redis-sentinel02:
@@ -63,21 +86,13 @@ services:
         - redis:6-alpine
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
-    networks:
-      - half
-    cpu_count: 1
-
-  backendai-half-redis-node03:
-    image: redis:6-alpine
-    command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD:-develove}
-      --masterauth ${REDIS_PASSWORD:-develove}
-      --slaveof backendai-half-redis-node01 6379
-      --min-slaves-to-write 1
-      --min-slaves-max-lag 10
-    networks:
-      - half
+      - REDIS_PORT=26380
+    depends_on:
+      - backendai-half-redis-node01
+      - backendai-half-redis-node02
+      - backendai-half-redis-node03
+    ports:
+      - 26380:26380
     cpu_count: 1
 
   backendai-half-redis-sentinel03:
@@ -88,9 +103,11 @@ services:
         - redis:6-alpine
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
-    networks:
-      - half
+      - REDIS_PORT=26381
+    depends_on:
+      - backendai-half-redis-node01
+      - backendai-half-redis-node02
+      - backendai-half-redis-node03
+    ports:
+      - 26381:26381
     cpu_count: 1
-
-networks:
-  half:
