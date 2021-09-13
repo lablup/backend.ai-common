@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+import sys
 from typing import (
     AsyncIterator,
     Sequence,
@@ -41,6 +42,12 @@ async def redis_container(test_ns) -> AsyncIterator[str]:
 @pytest.fixture
 async def redis_cluster(test_ns) -> AsyncIterator[Sequence[Tuple[str, int]]]:
     cfg_dir = Path(__file__).parent / 'redis'
+    if sys.platform.startswith('darwin'):
+        # docker for mac
+        haproxy_cfg = cfg_dir / 'haproxy.cfg'
+        t = haproxy_cfg.read_bytes()
+        t = t.replace(b'127.0.0.1', b'host.docker.internal')
+        haproxy_cfg.write_bytes(t)
     await simple_run_cmd([
         'docker-compose',
         '-p', test_ns,
@@ -70,6 +77,12 @@ async def redis_cluster(test_ns) -> AsyncIterator[Sequence[Tuple[str, int]]]:
             '-f', str(cfg_dir / 'redis-cluster.yml'),
             'down',
         ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        if sys.platform.startswith('darwin'):
+            # docker for mac
+            haproxy_cfg = cfg_dir / 'haproxy.cfg'
+            t = haproxy_cfg.read_bytes()
+            t = t.replace(b'host.docker.internal', b'127.0.0.1')
+            haproxy_cfg.write_bytes(t)
 
 
 @pytest.mark.asyncio
