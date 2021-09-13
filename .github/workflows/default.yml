@@ -99,6 +99,15 @@ jobs:
          --initial-cluster-token backendai-etcd-token \
          --initial-cluster-state new \
          --auto-compaction-retention 1
+    - name: Warm up docker-compose
+      run: |
+        sed -i "s/host.docker.internal/127.0.0.1/g" tests/redis/redis-cluster.yml
+        sed -i "s/ports:/network_mode: host\n    ports:/g" tests/redis/redis-cluster.yml
+        docker-compose -p xwarm -f tests/redis/redis-cluster.yml up -d
+        docker-compose -p xwarm -f tests/redis/redis-cluster.yml ps
+        docker-compose -p xwarm -f tests/redis/redis-cluster.yml down
+        sed -i "s/127.0.0.1/host.docker.internal/g" tests/redis/redis-cluster.yml
+        sed -z -i "s/network_mode: host\n    ports:/ports:/g" tests/redis/redis-cluster.yml
     - name: Test with pytest
       run: |
         python -m pytest -v --cov=src
