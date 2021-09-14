@@ -76,46 +76,46 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
         t = re.sub(br'ports:\n      - \d+:\d+', b'network_mode: host', t, flags=re.M)
         compose_cfg.write_bytes(t)
     await simple_run_cmd([
-        'docker-compose',
+        'docker', 'compose',
         '-p', test_ns,
         '-f', str(cfg_dir / 'redis-cluster.yml'),
         'up', '-d',
     ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
     await asyncio.sleep(0.2)
-    p = await asyncio.create_subprocess_exec(*[
-        'docker-compose',
-        '-p', test_ns,
-        '-f', str(cfg_dir / 'redis-cluster.yml'),
-        'ps',
-        '--format', 'json',
-    ], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-    ps_output = json.loads(await p.stdout.read())
-    await p.wait()
-    haproxy = ''
-    workers = {}
-    sentinels = {}
-
-    def find_port_node(item):
-        if m := re.search(r"--port (\d+) ", item['Command']):
-            return int(m.group(1))
-        return None
-
-    def find_port_sentinel(item):
-        if m := re.search(r"redis-sentinel(\d+)_", item['Name']):
-            return 26379 + (int(m.group(1)) - 1)
-        return None
-
-    for item in ps_output:
-        if 'redis-proxy' in item['Name']:
-            haproxy = item['ID']
-        elif 'redis-node' in item['Name']:
-            port = find_port_node(item)
-            workers[port] = item['ID']
-        elif 'redis-sentinel' in item['Name']:
-            port = find_port_sentinel(item)
-            sentinels[port] = item['ID']
-
     try:
+        p = await asyncio.create_subprocess_exec(*[
+            'docker', 'compose',
+            '-p', test_ns,
+            '-f', str(cfg_dir / 'redis-cluster.yml'),
+            'ps',
+            '--format', 'json',
+        ], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        ps_output = json.loads(await p.stdout.read())
+        await p.wait()
+        haproxy = ''
+        workers = {}
+        sentinels = {}
+
+        def find_port_node(item):
+            if m := re.search(r"--port (\d+) ", item['Command']):
+                return int(m.group(1))
+            return None
+
+        def find_port_sentinel(item):
+            if m := re.search(r"redis-sentinel(\d+)_", item['Name']):
+                return 26379 + (int(m.group(1)) - 1)
+            return None
+
+        for item in ps_output:
+            if 'redis-proxy' in item['Name']:
+                haproxy = item['ID']
+            elif 'redis-node' in item['Name']:
+                port = find_port_node(item)
+                workers[port] = item['ID']
+            elif 'redis-sentinel' in item['Name']:
+                port = find_port_sentinel(item)
+                sentinels[port] = item['ID']
+
         yield RedisClusterInfo(
             haproxy_addr=('127.0.0.1', 9379),
             haproxy_container=haproxy,
@@ -142,7 +142,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
         )
     finally:
         await simple_run_cmd([
-            'docker-compose',
+            'docker', 'compose',
             '-p', test_ns,
             '-f', str(cfg_dir / 'redis-cluster.yml'),
             'down',
