@@ -448,7 +448,6 @@ async def test_connect_cluster_haproxy(redis_cluster: RedisClusterInfo) -> None:
 
 @pytest.mark.asyncio
 async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
-    print(redis_cluster.sentinel_addrs)
     s = aioredis.sentinel.Sentinel(
         redis_cluster.sentinel_addrs,
         password='develove',
@@ -462,8 +461,13 @@ async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None
     await slave.ping()
 
 
+# @pytest.mark.asyncio
+# async def test_pubsub_cluster_sentinel(redis_cluster):
+#     pass
+
+
 @pytest.mark.asyncio
-async def test_pubsub_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
+async def test_blist_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
     do_pause = asyncio.Event()
     paused = asyncio.Event()
     do_unpause = asyncio.Event()
@@ -472,10 +476,10 @@ async def test_pubsub_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
 
     async def interrupt() -> None:
         await do_pause.wait()
-        await simple_run_cmd(['docker', 'stop', redis_container])
+        await simple_run_cmd(['docker', 'stop', redis_cluster.worker_containers[0]])
         paused.set()
         await do_unpause.wait()
-        await simple_run_cmd(['docker', 'start', redis_container])
+        await simple_run_cmd(['docker', 'start', redis_cluster.worker_containers[0]])
         # The pub-sub channel may loose some messages while starting up.
         # Make a pause here to wait until the container actually begins to listen.
         await asyncio.sleep(0.5)
@@ -492,10 +496,15 @@ async def test_pubsub_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
         except asyncio.CancelledError:
             pass
 
-    r = await redis.connect_with_retries(url='redis://localhost:9379', socket_timeout=0.5)
+    s = aioredis.sentinel.Sentinel(
+        redis_cluster.sentinel_addrs,
+        password='develove',
+        socket_timeout=0.5,
+    )
+    r = s.master_for("mymaster")
     await r.delete("bl1")
 
-    pop_task = asyncio.create_task(pop(r, "bl1"))
+    pop_task = asyncio.create_task(pop(s.slave_for("mymaster"), "bl1"))
     interrupt_task = asyncio.create_task(interrupt())
     await asyncio.sleep(0)
 
@@ -526,8 +535,3 @@ async def test_pubsub_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
     assert pop_task.done()
 
     assert [*map(int, received_messages)] == [*range(0, 15)]
-#
-#
-# @pytest.mark.asyncio
-# async def test_blist_cluster_sentinel(redis_cluster):
-#     pass
