@@ -2,18 +2,26 @@ import asyncio
 import inspect
 from typing import (
     Any,
+    AsyncIterator,
     Sequence,
     Dict,
 )
 
 import aioredis
+import aioredis.client
+import aioredis.exceptions
 
 __all__ = (
     'connect_with_retries',
     'execute_with_retries',
+    'subscribe',
 )
 
 _scripts: Dict[str, str] = {}
+
+
+class ConnectionNotAvailable(Exception):
+    pass
 
 
 def _calc_delay_exp_backoff(initial_delay: float, retry_count: float, time_limit: float) -> float:
@@ -35,6 +43,38 @@ async def connect_with_retries(
     '''
     # aioredis v2 supports auto reconnection & retries with deferred connection.
     return aioredis.from_url(*args, **kwargs)
+
+
+async def subscribe(
+    channel: aioredis.client.PubSub,
+    *,
+    reconnect_poll_interval: float = 0.3,
+) -> AsyncIterator[Any]:
+    """
+    An async-generator wrapper for pub-sub channel subscription.
+    It automatically recovers from server shutdowns until explicitly cancelled.
+    """
+    while True:
+        try:
+            if not channel.connection:
+                raise ConnectionNotAvailable
+            message = await channel.get_message(ignore_subscribe_messages=True, timeout=1.0)
+            if message is not None:
+                data = message["data"]
+                yield data
+        except (ConnectionNotAvailable, aioredis.exceptions.ConnectionError):
+            await asyncio.sleep(reconnect_poll_interval)
+            channel.connection = None
+            try:
+                await channel.ping()
+            except aioredis.exceptions.ConnectionError:
+                pass
+            else:
+                assert channel.connection is not None
+                await channel.on_connect(channel.connection)
+            continue
+        except asyncio.CancelledError:
+            break
 
 
 async def execute_with_retries(

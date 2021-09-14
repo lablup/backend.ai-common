@@ -110,7 +110,6 @@ async def test_pubsub(redis_container: str) -> None:
     paused = asyncio.Event()
     do_unpause = asyncio.Event()
     unpaused = asyncio.Event()
-    STOPWORD = "STOP"
     received_messages: List[str] = []
 
     async def interrupt() -> None:
@@ -125,58 +124,44 @@ async def test_pubsub(redis_container: str) -> None:
         unpaused.set()
 
     async def subscribe(pubsub: aioredis.client.PubSub) -> None:
-        while True:
-            try:
-                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                if message is not None:
-                    data = message["data"].decode()
-                    if data == STOPWORD:
-                        break
-                    received_messages.append(data)
-            except (RuntimeError, aioredis.exceptions.ConnectionError):
-                await asyncio.sleep(0.3)
-                pubsub.connection = None
-                try:
-                    await pubsub.ping()
-                except aioredis.exceptions.ConnectionError:
-                    pass
-                else:
-                    assert pubsub.connection is not None
-                    await pubsub.on_connect(pubsub.connection)
-                continue
-            except asyncio.CancelledError:
-                break
+        try:
+            async with aiotools.aclosing(redis.subscribe(pubsub)) as agen:
+                async for raw_msg in agen:
+                    msg = raw_msg.decode()
+                    received_messages.append(msg)
+        except asyncio.CancelledError:
+            pass
 
     r = await redis.connect_with_retries(url='redis://localhost:9379', socket_timeout=0.5)
     pubsub = r.pubsub()
-    await pubsub.subscribe("ch1")
+    async with pubsub:
+        await pubsub.subscribe("ch1")
 
-    subscribe_task = asyncio.create_task(subscribe(pubsub))
-    interrupt_task = asyncio.create_task(interrupt())
-    await asyncio.sleep(0)
+        subscribe_task = asyncio.create_task(subscribe(pubsub))
+        interrupt_task = asyncio.create_task(interrupt())
+        await asyncio.sleep(0)
 
-    for i in range(5):
-        await r.publish("ch1", str(i))
-        await asyncio.sleep(0.1)
-    do_pause.set()
-    await paused.wait()
-    for i in range(5):
-        # The Redis server is dead temporarily...
-        with pytest.raises(aioredis.exceptions.ConnectionError):
-            await r.publish("ch1", str(5 + i))
-        await asyncio.sleep(0.1)
-    do_unpause.set()
-    await unpaused.wait()
-    for i in range(5):
-        await r.publish("ch1", str(10 + i))
-        await asyncio.sleep(0.1)
+        for i in range(5):
+            await r.publish("ch1", str(i))
+            await asyncio.sleep(0.1)
+        do_pause.set()
+        await paused.wait()
+        for i in range(5):
+            # The Redis server is dead temporarily...
+            with pytest.raises(aioredis.exceptions.ConnectionError):
+                await r.publish("ch1", str(5 + i))
+            await asyncio.sleep(0.1)
+        do_unpause.set()
+        await unpaused.wait()
+        for i in range(5):
+            await r.publish("ch1", str(10 + i))
+            await asyncio.sleep(0.1)
 
-    await interrupt_task
-    await r.publish("ch1", STOPWORD)
-    await subscribe_task
+        await interrupt_task
+        subscribe_task.cancel()
+        await subscribe_task
 
     assert [*map(int, received_messages)] == [*range(0, 5), *range(10, 15)]
-
 
 
 @pytest.mark.asyncio
