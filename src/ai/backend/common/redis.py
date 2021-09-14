@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import time
 from typing import (
     Any,
     AsyncIterator,
@@ -58,10 +59,9 @@ async def subscribe(
         try:
             if not channel.connection:
                 raise ConnectionNotAvailable
-            message = await channel.get_message(ignore_subscribe_messages=True, timeout=1.0)
+            message = await channel.get_message(ignore_subscribe_messages=True, timeout=10.0)
             if message is not None:
-                data = message["data"]
-                yield data
+                yield message["data"]
         except (ConnectionNotAvailable, aioredis.exceptions.ConnectionError):
             await asyncio.sleep(reconnect_poll_interval)
             channel.connection = None
@@ -74,7 +74,36 @@ async def subscribe(
                 await channel.on_connect(channel.connection)
             continue
         except asyncio.CancelledError:
-            break
+            raise
+        finally:
+            await asyncio.sleep(0)
+
+
+async def blpop(
+    r: aioredis.Redis,
+    key: str,
+    *,
+    reconnect_poll_interval: float = 0.3,
+) -> AsyncIterator[Any]:
+    """
+    An async-generator wrapper for blpop (blocking left pop).
+    It automatically recovers from server shutdowns until explicitly cancelled.
+    """
+    while True:
+        try:
+            raw_msg = await r.blpop(key, timeout=10.0)
+            if not raw_msg:
+                continue
+            yield raw_msg[1]
+        except aioredis.exceptions.ConnectionError:
+            await asyncio.sleep(reconnect_poll_interval)
+            continue
+        except asyncio.TimeoutError:
+            continue
+        except asyncio.CancelledError:
+            raise
+        finally:
+            await asyncio.sleep(0)
 
 
 async def execute_with_retries(
@@ -90,8 +119,8 @@ async def execute_with_retries(
     The Redis commands must be generated as a ``aioredis.commands.Pipeline`` object
     or as a coroutine to execute single-shot aioredis commands by *func*.
     '''
-    # begin = time.monotonic()
-    # num_retries = 0
+    begin = time.monotonic()
+    num_retries = 0
     while True:
         try:
             if inspect.iscoroutinefunction(func):
@@ -108,30 +137,20 @@ async def execute_with_retries(
             else:
                 raise TypeError('The return value must be an awaitable'
                                 'or aioredis.commands.Pipeline object')
+        except aioredis.exceptions.ConnectionError:
+            # Other cases mean server disconnection.
+            if max_retries > 0 and num_retries >= max_retries:
+                raise asyncio.TimeoutError('Exceeded the maximum retry count')
+            if retry_timeout > 0 and time.monotonic() - begin >= retry_timeout:
+                raise asyncio.TimeoutError('Too much delayed for retries')
+            delay = _calc_delay_exp_backoff(
+                retry_delay, num_retries, retry_timeout,
+            ) if exponential_backoff else retry_delay
+            await asyncio.sleep(delay)
+            num_retries += 1
+            continue
         except asyncio.CancelledError:
             raise
-        # except (aioredis.errors.PoolClosedError,
-        #         aioredis.errors.ConnectionForcedCloseError):
-        #     # This happens when we shut down the connection/pool.
-        #     if suppress_force_closed:
-        #         return None
-        #     else:
-        #         raise
-        # except (ConnectionResetError,
-        #         ConnectionRefusedError,
-        #         aioredis.errors.ConnectionClosedError,
-        #         aioredis.errors.PipelineError):
-        #     # Other cases mean server disconnection.
-        #     if max_retries > 0 and num_retries >= max_retries:
-        #         raise asyncio.TimeoutError('Exceeded the maximum retry count')
-        #     if retry_timeout > 0 and time.monotonic() - begin >= retry_timeout:
-        #         raise asyncio.TimeoutError('Too much delayed for retries')
-        #     delay = _calc_delay_exp_backoff(
-        #         retry_delay, num_retries, retry_timeout,
-        #     ) if exponential_backoff else retry_delay
-        #     await asyncio.sleep(delay)
-        #     num_retries += 1
-        #     continue
         finally:
             await asyncio.sleep(0)
 
