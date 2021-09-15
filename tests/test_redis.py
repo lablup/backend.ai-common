@@ -485,7 +485,8 @@ async def test_blist_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
         await asyncio.sleep(0.5)
         unpaused.set()
 
-    async def pop(r: aioredis.Redis, key: str) -> None:
+    async def pop(s: aioredis.sentinel.Sentinel, key: str) -> None:
+        r = s.slave_for("mymaster")
         try:
             async with aiotools.aclosing(
                 redis.blpop(r, key, reconnect_poll_interval=0.3)
@@ -504,12 +505,13 @@ async def test_blist_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
     r = s.master_for("mymaster")
     await r.delete("bl1")
 
-    pop_task = asyncio.create_task(pop(s.slave_for("mymaster"), "bl1"))
+    pop_task = asyncio.create_task(pop(s, "bl1"))
     interrupt_task = asyncio.create_task(interrupt())
     await asyncio.sleep(0)
 
     for i in range(5):
-        await redis.execute_with_retries(lambda: r.rpush("bl1", str(i)))
+        r = s.master_for("mymaster")
+        await r.rpush("bl1", str(i))
         await asyncio.sleep(0.1)
     do_pause.set()
     await paused.wait()
@@ -520,13 +522,15 @@ async def test_blist_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
 
     wakeup_task = asyncio.create_task(wakeup())
     for i in range(5):
-        await redis.execute_with_retries(lambda: r.rpush("bl1", str(5 + i)))
+        r = s.master_for("mymaster")
+        await r.rpush("bl1", str(5 + i))
         await asyncio.sleep(0.1)
     await wakeup_task
 
     await unpaused.wait()
     for i in range(5):
-        await redis.execute_with_retries(lambda: r.rpush("bl1", str(10 + i)))
+        r = s.master_for("mymaster")
+        await r.rpush("bl1", str(10 + i))
         await asyncio.sleep(0.1)
 
     await interrupt_task
