@@ -1,15 +1,20 @@
+from __future__ import annotations
+
 import asyncio
 import inspect
 import time
 from typing import (
     Any,
     AsyncIterator,
+    Awaitable,
+    Callable,
     Sequence,
     Dict,
 )
 
 import aioredis
 import aioredis.client
+import aioredis.sentinel
 import aioredis.exceptions
 
 __all__ = (
@@ -31,21 +36,6 @@ def _calc_delay_exp_backoff(initial_delay: float, retry_count: float, time_limit
     return min(initial_delay * (2 ** retry_count), 30.0)
 
 
-async def connect_with_retries(
-    *args,
-    retry_delay: float = 0.5,
-    retry_timeout: float = 60.0,
-    max_retries: int = 0,
-    exponential_backoff: bool = True,
-    **kwargs,
-) -> aioredis.Redis:
-    '''
-    Create a Redis connection pool with multiple retries.
-    '''
-    # aioredis v2 supports auto reconnection & retries with deferred connection.
-    return aioredis.from_url(*args, **kwargs)
-
-
 async def subscribe(
     channel: aioredis.client.PubSub,
     *,
@@ -62,7 +52,13 @@ async def subscribe(
             message = await channel.get_message(ignore_subscribe_messages=True, timeout=10.0)
             if message is not None:
                 yield message["data"]
-        except (ConnectionNotAvailable, aioredis.exceptions.ConnectionError):
+        except (
+            aioredis.exceptions.ConnectionError,
+            aioredis.sentinel.MasterNotFoundError,
+            aioredis.exceptions.ReadOnlyError,
+            aioredis.exceptions.ResponseError,
+            ConnectionNotAvailable,
+        ):
             await asyncio.sleep(reconnect_poll_interval)
             channel.connection = None
             try:
@@ -73,6 +69,8 @@ async def subscribe(
                 assert channel.connection is not None
                 await channel.on_connect(channel.connection)
             continue
+        except asyncio.TimeoutError:
+            continue
         except asyncio.CancelledError:
             raise
         finally:
@@ -80,22 +78,33 @@ async def subscribe(
 
 
 async def blpop(
-    r: aioredis.Redis,
+    redis: aioredis.Redis | aioredis.sentinel.Sentinel,
     key: str,
     *,
+    service_name: str = None,
     reconnect_poll_interval: float = 0.3,
 ) -> AsyncIterator[Any]:
     """
     An async-generator wrapper for blpop (blocking left pop).
     It automatically recovers from server shutdowns until explicitly cancelled.
     """
+    if isinstance(redis, aioredis.sentinel.Sentinel):
+        assert service_name is not None
+        r = redis.master_for(service_name, socket_timeout=reconnect_poll_interval)
+    else:
+        r = redis
     while True:
         try:
             raw_msg = await r.blpop(key, timeout=10.0)
             if not raw_msg:
                 continue
             yield raw_msg[1]
-        except aioredis.exceptions.ConnectionError:
+        except (
+            aioredis.exceptions.ConnectionError,
+            aioredis.sentinel.MasterNotFoundError,
+            aioredis.exceptions.ReadOnlyError,
+            aioredis.exceptions.ResponseError,
+        ):
             await asyncio.sleep(reconnect_poll_interval)
             continue
         except asyncio.TimeoutError:
@@ -106,27 +115,26 @@ async def blpop(
             await asyncio.sleep(0)
 
 
-async def execute_with_retries(
-    func: Any,
-    retry_delay: float = 0.5,
-    retry_timeout: float = 60.0,
-    max_retries: int = 0,
-    exponential_backoff: bool = True,
-    suppress_force_closed: bool = True,
+async def execute(
+    redis: aioredis.Redis | aioredis.sentinel.Sentinel,
+    func: Callable[[aioredis.Redis], Awaitable[Any]],
+    *,
+    service_name: str = None,
+    read_only: bool = False,
+    reconnect_poll_interval: float = 0.3,
 ) -> Any:
-    '''
-    Execute the given Redis commands with multiple retries.
-    The Redis commands must be generated as a ``aioredis.commands.Pipeline`` object
-    or as a coroutine to execute single-shot aioredis commands by *func*.
-    '''
-    begin = time.monotonic()
-    num_retries = 0
+    if isinstance(redis, aioredis.sentinel.Sentinel):
+        assert service_name is not None
+        if read_only:
+            r = redis.slave_for(service_name, socket_timeout=reconnect_poll_interval)
+        else:
+            r = redis.master_for(service_name, socket_timeout=reconnect_poll_interval)
+    else:
+        r = redis
     while True:
         try:
-            if inspect.iscoroutinefunction(func):
-                aw_or_pipe = await func()
-            elif callable(func):
-                aw_or_pipe = func()
+            if callable(func):
+                aw_or_pipe = func(r)
             else:
                 raise TypeError('The func must be a function or a coroutinefunction '
                                 'with no arguments.')
@@ -137,18 +145,18 @@ async def execute_with_retries(
             else:
                 raise TypeError('The return value must be an awaitable'
                                 'or aioredis.commands.Pipeline object')
-        except aioredis.exceptions.ConnectionError:
-            # Other cases mean server disconnection.
-            if max_retries > 0 and num_retries >= max_retries:
-                raise asyncio.TimeoutError('Exceeded the maximum retry count')
-            if retry_timeout > 0 and time.monotonic() - begin >= retry_timeout:
-                raise asyncio.TimeoutError('Too much delayed for retries')
-            delay = _calc_delay_exp_backoff(
-                retry_delay, num_retries, retry_timeout,
-            ) if exponential_backoff else retry_delay
-            await asyncio.sleep(delay)
-            num_retries += 1
+        except (
+            aioredis.exceptions.ConnectionError,
+            aioredis.sentinel.MasterNotFoundError,
+            aioredis.exceptions.ReadOnlyError,
+            aioredis.exceptions.ResponseError,
+        ) as e:
+            print("EXECUTE-RETRY", repr(func), repr(e))
+            await asyncio.sleep(reconnect_poll_interval)
             continue
+        except asyncio.TimeoutError:
+            print("EXECUTE-RETRY", repr(func), "timeout")
+            return
         except asyncio.CancelledError:
             raise
         finally:
