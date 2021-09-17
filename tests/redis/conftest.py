@@ -67,7 +67,7 @@ async def redis_cluster() -> AsyncIterator[RedisClusterInfo]:
 
 @pytest.fixture
 async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
-    cfg_dir = Path(__file__).parent / 'redis'
+    cfg_dir = Path(__file__).parent
     if sys.platform.startswith('darwin'):
         # docker for mac
         haproxy_cfg = cfg_dir / 'haproxy.cfg'
