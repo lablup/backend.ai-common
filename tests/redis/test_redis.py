@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from typing import (
-    Final,
     List,
 )
 
@@ -15,20 +14,8 @@ import pytest
 
 from ai.backend.common import redis
 
-from .types import RedisClusterInfo
+from .types import RedisClusterInfo, disruptions
 from .utils import simple_run_cmd
-
-
-disruptions: Final = {
-    'stop': {
-        'begin': 'stop',
-        'end': 'start',
-    },
-    'pause': {
-        'begin': 'pause',
-        'end': 'unpause',
-    },
-}
 
 
 @pytest.mark.asyncio
