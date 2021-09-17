@@ -1,0 +1,107 @@
+version: "3.7"
+
+services:
+
+  backendai-half-redis-proxy:
+    image: haproxy:2.4-alpine
+    depends_on:
+      - backendai-half-redis-node01
+      - backendai-half-redis-node02
+      - backendai-half-redis-node03
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    ports:
+      - 9379:9379
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
+
+  # Initial master is node01.
+  backendai-half-redis-node01:
+    image: redis:6-alpine
+    command: >
+      redis-server
+      --port 16379
+      --requirepass ${REDIS_PASSWORD:-develove}
+      --masterauth ${REDIS_PASSWORD:-develove}
+      --cluster-announce-ip host.docker.internal
+      --min-slaves-to-write 1
+      --min-slaves-max-lag 10
+    ports:
+      - 16379:16379
+
+  backendai-half-redis-node02:
+    image: redis:6-alpine
+    command: >
+      redis-server
+      --port 16380
+      --requirepass ${REDIS_PASSWORD:-develove}
+      --masterauth ${REDIS_PASSWORD:-develove}
+      --slaveof host.docker.internal 16379
+      --cluster-announce-ip host.docker.internal
+      --min-slaves-to-write 1
+      --min-slaves-max-lag 10
+    ports:
+      - 16380:16380
+
+  backendai-half-redis-node03:
+    image: redis:6-alpine
+    command: >
+      redis-server
+      --port 16381
+      --requirepass ${REDIS_PASSWORD:-develove}
+      --masterauth ${REDIS_PASSWORD:-develove}
+      --slaveof host.docker.internal 16379
+      --cluster-announce-ip host.docker.internal
+      --min-slaves-to-write 1
+      --min-slaves-max-lag 10
+    ports:
+      - 16381:16381
+
+  backendai-half-redis-sentinel01:
+    hostname: backendai-half-redis-sentinel01
+    build:
+      context: .
+      dockerfile: redis-sentinel.dockerfile
+      cache_from:
+        - redis:5-alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
+      - REDIS_PORT=26379
+    depends_on:
+      - backendai-half-redis-node01
+      - backendai-half-redis-node02
+      - backendai-half-redis-node03
+    ports:
+      - 26379:26379
+
+  backendai-half-redis-sentinel02:
+    build:
+      context: .
+      dockerfile: redis-sentinel.dockerfile
+      cache_from:
+        - redis:6-alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
+      - REDIS_PORT=26380
+    depends_on:
+      - backendai-half-redis-node01
+      - backendai-half-redis-node02
+      - backendai-half-redis-node03
+    ports:
+      - 26380:26380
+
+  backendai-half-redis-sentinel03:
+    build:
+      context: .
+      dockerfile: redis-sentinel.dockerfile
+      cache_from:
+        - redis:6-alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
+      - REDIS_PORT=26381
+    depends_on:
+      - backendai-half-redis-node01
+      - backendai-half-redis-node02
+      - backendai-half-redis-node03
+    ports:
+      - 26381:26381

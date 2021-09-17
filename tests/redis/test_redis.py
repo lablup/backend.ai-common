@@ -1,15 +1,9 @@
+from __future__ import annotations
+
 import asyncio
-import json
-from pathlib import Path
-import re
-import shutil
-import sys
 from typing import (
-    AsyncIterator,
     Final,
     List,
-    Sequence,
-    Tuple,
 )
 
 import aioredis
@@ -17,26 +11,12 @@ import aioredis.client
 import aioredis.exceptions
 import aioredis.sentinel
 import aiotools
-import attr
 import pytest
 
 from ai.backend.common import redis
 
-
-@attr.define
-class RedisClusterInfo:
-    haproxy_addr: Tuple[str, int]
-    haproxy_container: str
-    worker_addrs: Sequence[Tuple[str, int]]
-    worker_containers: Sequence[str]
-    sentinel_addrs: Sequence[Tuple[str, int]]
-    sentinel_containers: Sequence[str]
-
-
-async def simple_run_cmd(cmdargs: Sequence[str], **kwargs) -> asyncio.subprocess.Process:
-    p = await asyncio.create_subprocess_exec(*cmdargs, **kwargs)
-    await p.wait()
-    return p
+from .types import RedisClusterInfo
+from .utils import simple_run_cmd
 
 
 disruptions: Final = {
@@ -49,153 +29,6 @@ disruptions: Final = {
         'end': 'unpause',
     },
 }
-
-
-@pytest.fixture
-async def redis_container(test_ns) -> AsyncIterator[str]:
-    p = await asyncio.create_subprocess_exec(*[
-        'docker', 'run',
-        '-d',
-        '--name', f'bai-common.{test_ns}',
-        '-p', '9379:6379',
-        'redis:6-alpine',
-    ], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-    assert p.stdout is not None
-    stdout = await p.stdout.read()
-    await p.wait()
-    cid = stdout.decode().strip()
-    try:
-        yield cid
-    finally:
-        await simple_run_cmd(['docker', 'rm', '-f', cid])
-
-
-r"""
-@pytest.fixture
-async def redis_cluster() -> AsyncIterator[RedisClusterInfo]:
-    yield RedisClusterInfo(
-        haproxy_addr=('127.0.0.1', 9379),
-        haproxy_container='testing_backendai-half-redis-proxy_1',
-        worker_addrs=[
-            ('127.0.0.1', 16379),
-            ('127.0.0.1', 16380),
-            ('127.0.0.1', 16381),
-        ],
-        worker_containers=[
-            'testing_backendai-half-redis-node01_1',
-            'testing_backendai-half-redis-node02_1',
-            'testing_backendai-half-redis-node03_1',
-        ],
-        sentinel_addrs=[
-            ('127.0.0.1', 26379),
-            ('127.0.0.1', 26380),
-            ('127.0.0.1', 26381),
-        ],
-        sentinel_containers=[
-            'testing_backendai-half-redis-sentinel01_1',
-            'testing_backendai-half-redis-sentinel02_1',
-            'testing_backendai-half-redis-sentinel03_1',
-        ],
-    )
-"""
-
-
-@pytest.fixture
-async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
-    cfg_dir = Path(__file__).parent / 'redis'
-    if sys.platform.startswith('darwin'):
-        # docker for mac
-        haproxy_cfg = cfg_dir / 'haproxy.cfg'
-        t = haproxy_cfg.read_bytes()
-        t = t.replace(b'127.0.0.1', b'host.docker.internal')
-        haproxy_cfg.write_bytes(t)
-    else:
-        compose_cfg = cfg_dir / 'redis-cluster.yml'
-        shutil.copy(compose_cfg, compose_cfg.with_name(f'{compose_cfg.name}.bak'))
-        t = compose_cfg.read_bytes()
-        t = t.replace(b'host.docker.internal', b'127.0.0.1')
-        t = re.sub(br'ports:\n      - \d+:\d+', b'network_mode: host', t, flags=re.M)
-        compose_cfg.write_bytes(t)
-    await simple_run_cmd([
-        'docker', 'compose',
-        '-p', test_ns,
-        '-f', str(cfg_dir / 'redis-cluster.yml'),
-        'up', '-d',
-    ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-    await asyncio.sleep(0.2)
-    try:
-        p = await asyncio.create_subprocess_exec(*[
-            'docker', 'compose',
-            '-p', test_ns,
-            '-f', str(cfg_dir / 'redis-cluster.yml'),
-            'ps',
-            '--format', 'json',
-        ], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-        ps_output = json.loads(await p.stdout.read())
-        await p.wait()
-        haproxy = ''
-        workers = {}
-        sentinels = {}
-
-        def find_port_node(item):
-            if m := re.search(r"--port (\d+) ", item['Command']):
-                return int(m.group(1))
-            return None
-
-        def find_port_sentinel(item):
-            if m := re.search(r"redis-sentinel(\d+)_", item['Name']):
-                return 26379 + (int(m.group(1)) - 1)
-            return None
-
-        for item in ps_output:
-            if 'redis-proxy' in item['Name']:
-                haproxy = item['ID']
-            elif 'redis-node' in item['Name']:
-                port = find_port_node(item)
-                workers[port] = item['ID']
-            elif 'redis-sentinel' in item['Name']:
-                port = find_port_sentinel(item)
-                sentinels[port] = item['ID']
-
-        yield RedisClusterInfo(
-            haproxy_addr=('127.0.0.1', 9379),
-            haproxy_container=haproxy,
-            worker_addrs=[
-                ('127.0.0.1', 16379),
-                ('127.0.0.1', 16380),
-                ('127.0.0.1', 16381),
-            ],
-            worker_containers=[
-                workers[16379],
-                workers[16380],
-                workers[16381],
-            ],
-            sentinel_addrs=[
-                ('127.0.0.1', 26379),
-                ('127.0.0.1', 26380),
-                ('127.0.0.1', 26381),
-            ],
-            sentinel_containers=[
-                sentinels[26379],
-                sentinels[26380],
-                sentinels[26381],
-            ],
-        )
-    finally:
-        await simple_run_cmd([
-            'docker', 'compose',
-            '-p', test_ns,
-            '-f', str(cfg_dir / 'redis-cluster.yml'),
-            'down',
-        ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-        if sys.platform.startswith('darwin'):
-            # docker for mac
-            haproxy_cfg = cfg_dir / 'haproxy.cfg'
-            t = haproxy_cfg.read_bytes()
-            t = t.replace(b'host.docker.internal', b'127.0.0.1')
-            haproxy_cfg.write_bytes(t)
-        else:
-            shutil.copy(compose_cfg.with_name(f'{compose_cfg.name}.bak'), compose_cfg)
 
 
 @pytest.mark.asyncio
@@ -275,7 +108,7 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
     if disruption_method == 'stop':
         assert (
             [*map(int, received_messages)] == [*range(0, 5), *range(10, 15)]
-            or
+            or  # noqa
             [*map(int, received_messages)] == [*range(0, 5), *range(11, 15)]
         )
     elif disruption_method == 'pause':
@@ -468,7 +301,7 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
     await paused.wait()
 
     async def wakeup():
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(2.0)
         do_unpause.set()
 
     wakeup_task = asyncio.create_task(wakeup())
@@ -553,6 +386,7 @@ async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None
     await interrupt_task
 
 
+r"""
 @pytest.mark.asyncio
 async def test_pubsub_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
     do_pause = asyncio.Event()
@@ -607,7 +441,7 @@ async def test_pubsub_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
         await paused.wait()
 
         async def wakeup():
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(2.0)
             do_unpause.set()
 
         wakeup_task = asyncio.create_task(wakeup())
@@ -627,10 +461,15 @@ async def test_pubsub_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
         assert subscribe_task.done()
 
     assert [*map(int, received_messages)] == [*range(0, 15)]
+"""
 
 
 @pytest.mark.asyncio
-async def test_blist_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
+@pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
+async def test_blist_cluster_sentinel(
+    redis_cluster: RedisClusterInfo,
+    disruption_method: str,
+) -> None:
     do_pause = asyncio.Event()
     paused = asyncio.Event()
     do_unpause = asyncio.Event()
@@ -639,10 +478,10 @@ async def test_blist_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
 
     async def interrupt() -> None:
         await do_pause.wait()
-        await simple_run_cmd(['docker', 'stop', redis_cluster.worker_containers[0]])
+        await simple_run_cmd(['docker', disruptions[disruption_method]['begin'], redis_cluster.worker_containers[0]])
         paused.set()
         await do_unpause.wait()
-        await simple_run_cmd(['docker', 'start', redis_cluster.worker_containers[0]])
+        await simple_run_cmd(['docker', disruptions[disruption_method]['end'], redis_cluster.worker_containers[0]])
         # The pub-sub channel may loose some messages while starting up.
         # Make a pause here to wait until the container actually begins to listen.
         await asyncio.sleep(0.5)
@@ -685,7 +524,7 @@ async def test_blist_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
     await paused.wait()
 
     async def wakeup():
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(2.0)
         do_unpause.set()
 
     wakeup_task = asyncio.create_task(wakeup())

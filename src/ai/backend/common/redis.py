@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import time
 from typing import (
     Any,
     AsyncIterator,
@@ -18,9 +17,9 @@ import aioredis.sentinel
 import aioredis.exceptions
 
 __all__ = (
-    'connect_with_retries',
-    'execute_with_retries',
+    'execute',
     'subscribe',
+    'blpop',
 )
 
 _scripts: Dict[str, str] = {}
