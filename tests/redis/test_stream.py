@@ -199,17 +199,14 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
     for t in consumer_tasks:
         assert t.done()
 
-    # assert [*map(int, received_messages["c1"])] == [*range(0, 15)]
-    # assert [*map(int, received_messages["c2"])] == [*range(0, 15)]
     if disruption_method == "stop":
-        # loss happens
-        assert [*map(int, received_messages["c1"])] == [*range(0, 5), *range(10, 15)]
-        assert [*map(int, received_messages["c2"])] == [*range(0, 5), *range(10, 15)]
-    else:
-        # loss does not happen
-        # pause keeps the TCP connection and the messages are delivered late.
+        # loss does not happen due to retries
         assert [*map(int, received_messages["c1"])] == [*range(0, 15)]
         assert [*map(int, received_messages["c2"])] == [*range(0, 15)]
+    else:
+        # loss happens during failover
+        assert [*map(int, received_messages["c1"])] == [*range(0, 5), *range(10, 15)]
+        assert [*map(int, received_messages["c2"])] == [*range(0, 5), *range(10, 15)]
 
 
 @pytest.mark.asyncio
