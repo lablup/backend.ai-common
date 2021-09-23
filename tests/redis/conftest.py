@@ -81,8 +81,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
         'docker', 'compose',
         '-p', test_ns,
         '-f', str(cfg_dir / 'redis-cluster.yml'),
-        '--build',
-        'up', '-d',
+        'up', '-d', '--build',
     ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
     await asyncio.sleep(0.2)
     try:
