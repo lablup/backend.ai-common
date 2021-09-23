@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import traceback
 from typing import (
     Dict,
@@ -17,9 +18,6 @@ from ai.backend.common import redis
 
 from .types import RedisClusterInfo, disruptions
 from .utils import simple_run_cmd
-
-
-import asyncio
 
 
 @pytest.mark.asyncio
