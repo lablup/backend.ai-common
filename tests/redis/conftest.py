@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from json.decoder import JSONDecodeError
 from pathlib import Path
 import re
 import shutil
@@ -80,6 +81,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
         'docker', 'compose',
         '-p', test_ns,
         '-f', str(cfg_dir / 'redis-cluster.yml'),
+        '--build',
         'up', '-d',
     ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
     await asyncio.sleep(0.2)
@@ -92,7 +94,11 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
             '--format', 'json',
         ], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
         assert p.stdout is not None
-        ps_output = json.loads(await p.stdout.read())
+        try:
+            ps_output = json.loads(await p.stdout.read())
+        except json.JSONDecodeError:
+            pytest.fail("Cannot parse \"docker compose ... ps --format json\" output. "
+                        "You may need to upgrade to docker-compose v2.0.0.rc.3 or later")
         await p.wait()
         workers = {}
         sentinels = {}
@@ -107,6 +113,8 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
                 return 26379 + (int(m.group(1)) - 1)
             return None
 
+        if not ps_output:
+            pytest.fail("Cannot detect the temporary Redis cluster running as docker compose containers")
         for item in ps_output:
             if 'redis-node' in item['Name']:
                 port = find_port_node(item)
