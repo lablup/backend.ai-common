@@ -39,8 +39,6 @@ r"""
 @pytest.fixture
 async def redis_cluster() -> AsyncIterator[RedisClusterInfo]:
     yield RedisClusterInfo(
-        haproxy_addr=('127.0.0.1', 9379),
-        haproxy_container='testing_backendai-half-redis-proxy_1',
         worker_addrs=[
             ('127.0.0.1', 16379),
             ('127.0.0.1', 16380),
@@ -70,10 +68,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
     cfg_dir = Path(__file__).parent
     if sys.platform.startswith('darwin'):
         # docker for mac
-        haproxy_cfg = cfg_dir / 'haproxy.cfg'
-        t = haproxy_cfg.read_bytes()
-        t = t.replace(b'127.0.0.1', b'host.docker.internal')
-        haproxy_cfg.write_bytes(t)
+        pass
     else:
         compose_cfg = cfg_dir / 'redis-cluster.yml'
         shutil.copy(compose_cfg, compose_cfg.with_name(f'{compose_cfg.name}.bak'))
@@ -99,7 +94,6 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
         assert p.stdout is not None
         ps_output = json.loads(await p.stdout.read())
         await p.wait()
-        haproxy = ''
         workers = {}
         sentinels = {}
 
@@ -114,9 +108,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
             return None
 
         for item in ps_output:
-            if 'redis-proxy' in item['Name']:
-                haproxy = item['ID']
-            elif 'redis-node' in item['Name']:
+            if 'redis-node' in item['Name']:
                 port = find_port_node(item)
                 workers[port] = item['ID']
             elif 'redis-sentinel' in item['Name']:
@@ -124,8 +116,6 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
                 sentinels[port] = item['ID']
 
         yield RedisClusterInfo(
-            haproxy_addr=('127.0.0.1', 9379),
-            haproxy_container=haproxy,
             worker_addrs=[
                 ('127.0.0.1', 16379),
                 ('127.0.0.1', 16380),
@@ -156,9 +146,6 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
         ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
         if sys.platform.startswith('darwin'):
             # docker for mac
-            haproxy_cfg = cfg_dir / 'haproxy.cfg'
-            t = haproxy_cfg.read_bytes()
-            t = t.replace(b'host.docker.internal', b'127.0.0.1')
-            haproxy_cfg.write_bytes(t)
+            pass
         else:
             shutil.copy(compose_cfg.with_name(f'{compose_cfg.name}.bak'), compose_cfg)

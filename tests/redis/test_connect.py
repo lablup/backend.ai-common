@@ -19,21 +19,6 @@ async def test_connect(redis_container: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_connect_cluster_haproxy(redis_cluster: RedisClusterInfo) -> None:
-    with pytest.raises(aioredis.exceptions.AuthenticationError):
-        r = aioredis.from_url(
-            url=f'redis://localhost:{redis_cluster.haproxy_addr[1]}',
-            # without password
-        )
-        await r.ping()
-    r = aioredis.from_url(
-        url=f'redis://localhost:{redis_cluster.haproxy_addr[1]}',
-        password='develove',
-    )
-    await r.ping()
-
-
-@pytest.mark.asyncio
 async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
 
     async def interrupt() -> None:
@@ -52,20 +37,24 @@ async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None
     interrupt_task = asyncio.create_task(interrupt())
     await asyncio.sleep(0)
 
-    # master_addr = await s.discover_master('mymaster')
-    # assert master_addr[1] == 16379
-    for _ in range(30):
-        # master = s.master_for('mymaster', db=9)
-        # await master.ping()
-        try:
-            master_addr = await s.discover_master('mymaster')
-            print("MASTER", master_addr)
-        except aioredis.sentinel.MasterNotFoundError:
-            print("MASTER (not found)")
-        slave_addrs = await s.discover_slaves('mymaster')
-        print("SLAVE", slave_addrs)
-        slave = s.slave_for('mymaster', db=9)
-        await slave.ping()
-        await asyncio.sleep(1)
+    await simple_run_cmd(["docker", "ps"])
 
-    await interrupt_task
+    try:
+        # master_addr = await s.discover_master('mymaster')
+        # assert master_addr[1] == 16379
+        for _ in range(30):
+            print(f"CONNECT REPEAT {_}")
+            # master = s.master_for('mymaster', db=9)
+            # await master.ping()
+            try:
+                master_addr = await s.discover_master('mymaster')
+                print("MASTER", master_addr)
+            except aioredis.sentinel.MasterNotFoundError:
+                print("MASTER (not found)")
+            slave_addrs = await s.discover_slaves('mymaster')
+            print("SLAVE", slave_addrs)
+            slave = s.slave_for('mymaster', db=9)
+            await slave.ping()
+            await asyncio.sleep(1)
+    finally:
+        await interrupt_task

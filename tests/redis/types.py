@@ -10,8 +10,6 @@ import attr
 
 @attr.define
 class RedisClusterInfo:
-    haproxy_addr: Tuple[str, int]
-    haproxy_container: str
     worker_addrs: Sequence[Tuple[str, int]]
     worker_containers: Sequence[str]
     sentinel_addrs: Sequence[Tuple[str, int]]

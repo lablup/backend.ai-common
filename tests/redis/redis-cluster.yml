@@ -2,19 +2,6 @@ version: "3.7"
 
 services:
 
-  backendai-half-redis-proxy:
-    image: haproxy:2.4-alpine
-    depends_on:
-      - backendai-half-redis-node01
-      - backendai-half-redis-node02
-      - backendai-half-redis-node03
-    volumes:
-      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
-    ports:
-      - 9379:9379
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-develove}
-
   # Initial master is node01.
   backendai-half-redis-node01:
     image: redis:6-alpine
