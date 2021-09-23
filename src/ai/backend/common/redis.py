@@ -132,18 +132,19 @@ async def execute(
         r = redis
     while True:
         try:
-            if callable(func):
-                aw_or_pipe = func(r)
-            else:
-                raise TypeError('The func must be a function or a coroutinefunction '
-                                'with no arguments.')
-            if isinstance(aw_or_pipe, aioredis.client.Pipeline):
-                return await aw_or_pipe.execute()
-            elif inspect.isawaitable(aw_or_pipe):
-                return await aw_or_pipe
-            else:
-                raise TypeError('The return value must be an awaitable'
-                                'or aioredis.commands.Pipeline object')
+            async with r:
+                if callable(func):
+                    aw_or_pipe = func(r)
+                else:
+                    raise TypeError('The func must be a function or a coroutinefunction '
+                                    'with no arguments.')
+                if isinstance(aw_or_pipe, aioredis.client.Pipeline):
+                    return await aw_or_pipe.execute()
+                elif inspect.isawaitable(aw_or_pipe):
+                    return await aw_or_pipe
+                else:
+                    raise TypeError('The return value must be an awaitable'
+                                    'or aioredis.commands.Pipeline object')
         except (
             aioredis.exceptions.ConnectionError,
             aioredis.sentinel.MasterNotFoundError,
