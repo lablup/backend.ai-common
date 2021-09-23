@@ -392,12 +392,12 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
     await paused.wait()
     for i in range(5):
         # The Redis server is dead temporarily...
-        await _execute(lambda r: r.xadd("stream1", {"idx": 5 +i}))
+        await _execute(lambda r: r.xadd("stream1", {"idx": 5 + i}))
         await asyncio.sleep(0.1)
     do_unpause.set()
     await unpaused.wait()
     for i in range(5):
-        await _execute(lambda r: r.xadd("stream1", {"idx": 10 +i}))
+        await _execute(lambda r: r.xadd("stream1", {"idx": 10 + i}))
         await asyncio.sleep(0.1)
 
     await interrupt_task
