@@ -87,6 +87,7 @@ async def interrupt(
         #stderr=asyncio.subprocess.DEVNULL,
     )
     await wait_redis_ready(*container_addr, password=redis_password)
+    await asyncio.sleep(0.6)
     print(f"STARTED {container_id[:12]}")
     unpaused.set()
 
