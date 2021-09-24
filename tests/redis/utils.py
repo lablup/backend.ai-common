@@ -1,6 +1,18 @@
+from __future__ import annotations
+
 import asyncio
+import functools
+from typing import (
+    Awaitable,
+    Callable,
+)
+from typing_extensions import (
+    ParamSpec,
+)
+import async_timeout
 import traceback
 from typing import (
+    Callable,
     Final,
     Sequence,
     Tuple,
@@ -76,3 +88,18 @@ async def interrupt(
     await wait_redis_ready(*container_addr, password=redis_password)
     print(f"STARTED {container_id[:12]}")
     unpaused.set()
+
+
+InnerParams = ParamSpec['InnerParams']
+
+
+def with_timeout(t: float) -> Callable[InnerParams, Awaitable[None]]:
+    def wrapper(
+        corofunc: Callable[InnerParams, Awaitable[None]],
+    ) -> Callable[InnerParams, Awaitable[None]]:
+        @functools.wraps(corofunc)
+        async def run(*args: InnerParams.args, **kwargs: InnerParams.kwargs) -> None:
+            with async_timeout.timeout(t):
+                return await corofunc(*args, **kwargs)
+        return run
+    return wrapper

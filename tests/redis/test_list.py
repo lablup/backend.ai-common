@@ -15,7 +15,7 @@ import pytest
 from ai.backend.common import redis
 
 from .types import RedisClusterInfo
-from .utils import interrupt
+from .utils import interrupt, with_timeout
 
 
 @pytest.mark.asyncio
@@ -155,6 +155,7 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
+@with_timeout(30.0)
 async def test_blist_cluster_sentinel(
     redis_cluster: RedisClusterInfo,
     disruption_method: str,

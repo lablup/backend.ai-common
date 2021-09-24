@@ -82,11 +82,10 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
         assert subscribe_task.done()
 
     if disruption_method == 'stop':
-        assert (
-            [*map(int, received_messages)] == [*range(0, 5), *range(10, 15)]
-            or  # noqa
-            [*map(int, received_messages)] == [*range(0, 5), *range(11, 15)]
-        )
+        all_messages = set(map(int, received_messages))
+        assert set(range(0, 5)) <= all_messages
+        assert set(range(13, 15)) <= all_messages  # more msgs may be lost during restart
+        assert all_messages <= set(range(0, 15))
     elif disruption_method == 'pause':
         # Temporary pause of the container makes the kernel TCP stack to keep the packets.
         assert [*map(int, received_messages)] == [*range(0, 15)]
@@ -159,8 +158,8 @@ async def test_pubsub_with_retrying_pub(redis_container: str, disruption_method:
         assert subscribe_task.done()
 
     all_messages = set(map(int, received_messages))
-    assert set(range(0, 5)) < all_messages
-    assert set(range(13, 15)) < all_messages  # more msgs may be lost during restart
+    assert set(range(0, 5)) <= all_messages
+    assert set(range(13, 15)) <= all_messages  # more msgs may be lost during restart
     assert all_messages <= set(range(0, 15))
 
 

@@ -10,7 +10,7 @@ import aiotools
 import pytest
 
 from .types import RedisClusterInfo
-from .utils import simple_run_cmd, interrupt
+from .utils import simple_run_cmd, interrupt, with_timeout
 
 
 @pytest.mark.asyncio
@@ -20,6 +20,7 @@ async def test_connect(redis_container: str) -> None:
 
 
 @pytest.mark.asyncio
+@with_timeout(30.0)
 async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
     do_pause = asyncio.Event()
     paused = asyncio.Event()

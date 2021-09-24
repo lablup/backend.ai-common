@@ -17,7 +17,7 @@ import pytest
 from ai.backend.common import redis
 
 from .types import RedisClusterInfo
-from .utils import simple_run_cmd, interrupt
+from .utils import interrupt, with_timeout
 
 
 @pytest.mark.asyncio
@@ -114,6 +114,7 @@ async def test_stream_fanout(redis_container: str, disruption_method: str) -> No
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
+@with_timeout(30.0)
 async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption_method: str) -> None:
     do_pause = asyncio.Event()
     paused = asyncio.Event()
@@ -204,6 +205,7 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
+@with_timeout(30.0)
 async def test_stream_loadbalance(redis_container: str, disruption_method: str) -> None:
     do_pause = asyncio.Event()
     paused = asyncio.Event()
