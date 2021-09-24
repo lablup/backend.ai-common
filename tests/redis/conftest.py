@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from json.decoder import JSONDecodeError
 import os
 from pathlib import Path
 import re
@@ -12,6 +11,7 @@ from typing import (
     AsyncIterator,
 )
 
+import async_timeout
 import pytest
 
 from .types import RedisClusterInfo
@@ -79,13 +79,16 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
         t = t.replace(b'context: .', os.fsencode(f'context: {cfg_dir}'))
         t = re.sub(br'ports:\n      - \d+:\d+', b'network_mode: host', t, flags=re.M)
         modified_compose_cfg.write_bytes(t)
-    p = await simple_run_cmd([
-        'docker', 'compose',
-        '-p', f"{test_ns}.{test_case_ns}",
-        '-f', os.fsencode(modified_compose_cfg),
-        'up', '-d', '--build',
-    ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-    assert p.returncode == 0, "Compose cluster creation has failed."
+
+    with async_timeout.timeout(30.0):
+        p = await simple_run_cmd([
+            'docker', 'compose',
+            '-p', f"{test_ns}.{test_case_ns}",
+            '-f', os.fsencode(modified_compose_cfg),
+            'up', '-d', '--build',
+        ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        assert p.returncode == 0, "Compose cluster creation has failed."
+
     await asyncio.sleep(0.2)
     try:
         p = await asyncio.create_subprocess_exec(*[
@@ -148,9 +151,10 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
             ],
         )
     finally:
-        await simple_run_cmd([
-            'docker', 'compose',
-            '-p', f"{test_ns}.{test_case_ns}",
-            '-f', os.fsencode(modified_compose_cfg),
-            'down',
-        ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        with async_timeout.timeout(30.0):
+            await simple_run_cmd([
+                'docker', 'compose',
+                '-p', f"{test_ns}.{test_case_ns}",
+                '-f', os.fsencode(modified_compose_cfg),
+                'down',
+            ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
