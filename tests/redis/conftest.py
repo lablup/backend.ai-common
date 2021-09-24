@@ -18,11 +18,11 @@ from .utils import simple_run_cmd
 
 
 @pytest.fixture
-async def redis_container(test_ns) -> AsyncIterator[str]:
+async def redis_container(test_ns, test_case_ns) -> AsyncIterator[str]:
     p = await asyncio.create_subprocess_exec(*[
         'docker', 'run',
         '-d',
-        '--name', f'bai-common.{test_ns}',
+        '--name', f'bai-common.{test_ns}.{test_case_ns}',
         '-p', '9379:6379',
         'redis:6-alpine',
     ], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
@@ -65,7 +65,7 @@ async def redis_cluster() -> AsyncIterator[RedisClusterInfo]:
 
 
 @pytest.fixture
-async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
+async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo]:
     cfg_dir = Path(__file__).parent
     if sys.platform.startswith('darwin'):
         # docker for mac
@@ -79,7 +79,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
         compose_cfg.write_bytes(t)
     await simple_run_cmd([
         'docker', 'compose',
-        '-p', test_ns,
+        '-p', f"{test_ns}.{test_case_ns}",
         '-f', str(cfg_dir / 'redis-cluster.yml'),
         'up', '-d', '--build',
     ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
@@ -87,7 +87,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
     try:
         p = await asyncio.create_subprocess_exec(*[
             'docker', 'compose',
-            '-p', test_ns,
+            '-p', f"{test_ns}.{test_case_ns}",
             '-f', str(cfg_dir / 'redis-cluster.yml'),
             'ps',
             '--format', 'json',
@@ -147,7 +147,7 @@ async def redis_cluster(test_ns) -> AsyncIterator[RedisClusterInfo]:
     finally:
         await simple_run_cmd([
             'docker', 'compose',
-            '-p', test_ns,
+            '-p', f"{test_ns}.{test_case_ns}",
             '-f', str(cfg_dir / 'redis-cluster.yml'),
             'down',
         ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)

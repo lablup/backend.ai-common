@@ -17,9 +17,14 @@ def etcd_addr():
     return host_port_pair('localhost:2379')
 
 
-@pytest.fixture
+@pytest.fixture(scope="session", autouse=True)
 def test_ns():
     return f'test-{secrets.token_hex(8)}'
+
+
+@pytest.fixture
+def test_case_ns():
+    return secrets.token_hex(8)
 
 
 @pytest.fixture
