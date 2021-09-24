@@ -5,6 +5,7 @@ import functools
 from typing import (
     Awaitable,
     Callable,
+    TypeVar,
 )
 from typing_extensions import (
     ParamSpec,
@@ -90,15 +91,21 @@ async def interrupt(
     unpaused.set()
 
 
-InnerParams = ParamSpec['InnerParams']
+_TReturn = TypeVar('_TReturn')
+_PInner = ParamSpec('_PInner')
 
 
-def with_timeout(t: float) -> Callable[InnerParams, Awaitable[None]]:
+# FIXME: mypy 0.910 does not support PEP-612 (ParamSpec) yet...
+
+def with_timeout(t: float) -> Callable[        # type: ignore
+    [Callable[_PInner, Awaitable[_TReturn]]],
+    Callable[_PInner, Awaitable[_TReturn]]
+]:
     def wrapper(
-        corofunc: Callable[InnerParams, Awaitable[None]],
-    ) -> Callable[InnerParams, Awaitable[None]]:
+        corofunc: Callable[_PInner, Awaitable[_TReturn]],  # type: ignore
+    ) -> Callable[_PInner, Awaitable[_TReturn]]:           # type: ignore
         @functools.wraps(corofunc)
-        async def run(*args: InnerParams.args, **kwargs: InnerParams.kwargs) -> None:
+        async def run(*args: _PInner.args, **kwargs: _PInner.kwargs) -> _TReturn:  # type: ignore
             with async_timeout.timeout(t):
                 return await corofunc(*args, **kwargs)
         return run
