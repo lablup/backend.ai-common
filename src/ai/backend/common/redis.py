@@ -13,6 +13,7 @@ from typing import (
 
 import aioredis
 import aioredis.client
+from aioredis.connection import Connection
 import aioredis.sentinel
 import aioredis.exceptions
 
@@ -56,6 +57,7 @@ async def subscribe(
             aioredis.sentinel.MasterNotFoundError,
             aioredis.exceptions.ReadOnlyError,
             aioredis.exceptions.ResponseError,
+            ConnectionResetError,
             ConnectionNotAvailable,
         ):
             await asyncio.sleep(reconnect_poll_interval)
@@ -103,6 +105,7 @@ async def blpop(
             aioredis.sentinel.MasterNotFoundError,
             aioredis.exceptions.ReadOnlyError,
             aioredis.exceptions.ResponseError,
+            ConnectionResetError,
         ):
             await asyncio.sleep(reconnect_poll_interval)
             continue
@@ -150,6 +153,7 @@ async def execute(
             aioredis.sentinel.MasterNotFoundError,
             aioredis.exceptions.ReadOnlyError,
             aioredis.exceptions.ResponseError,
+            ConnectionResetError,
         ) as e:
             print("EXECUTE-RETRY", repr(func), repr(e))
             await asyncio.sleep(reconnect_poll_interval)
