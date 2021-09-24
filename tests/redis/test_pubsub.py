@@ -13,8 +13,7 @@ import pytest
 
 from ai.backend.common import redis
 
-from .types import disruptions
-from .utils import simple_run_cmd
+from .utils import simple_run_cmd, interrupt
 
 
 @pytest.mark.asyncio
@@ -25,17 +24,6 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
     do_unpause = asyncio.Event()
     unpaused = asyncio.Event()
     received_messages: List[str] = []
-
-    async def interrupt() -> None:
-        await do_pause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['begin'], redis_container])
-        paused.set()
-        await do_unpause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['end'], redis_container])
-        # The pub-sub channel may loose some messages while starting up.
-        # Make a pause here to wait until the container actually begins to listen.
-        await asyncio.sleep(0.5)
-        unpaused.set()
 
     async def subscribe(pubsub: aioredis.client.PubSub) -> None:
         try:
@@ -55,7 +43,15 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
         await pubsub.subscribe("ch1")
 
         subscribe_task = asyncio.create_task(subscribe(pubsub))
-        interrupt_task = asyncio.create_task(interrupt())
+        interrupt_task = asyncio.create_task(interrupt(
+            disruption_method,
+            redis_container,
+            ('localhost', 9379),
+            do_pause=do_pause,
+            do_unpause=do_unpause,
+            paused=paused,
+            unpaused=unpaused,
+        ))
         await asyncio.sleep(0)
 
         for i in range(5):
@@ -107,17 +103,6 @@ async def test_pubsub_with_retrying_pub(redis_container: str, disruption_method:
     unpaused = asyncio.Event()
     received_messages: List[str] = []
 
-    async def interrupt() -> None:
-        await do_pause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['begin'], redis_container])
-        paused.set()
-        await do_unpause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['end'], redis_container])
-        # The pub-sub channel may loose some messages while starting up.
-        # Make a pause here to wait until the container actually begins to listen.
-        await asyncio.sleep(0.5)
-        unpaused.set()
-
     async def subscribe(pubsub: aioredis.client.PubSub) -> None:
         try:
             async with aiotools.aclosing(
@@ -136,7 +121,15 @@ async def test_pubsub_with_retrying_pub(redis_container: str, disruption_method:
         await pubsub.subscribe("ch1")
 
         subscribe_task = asyncio.create_task(subscribe(pubsub))
-        interrupt_task = asyncio.create_task(interrupt())
+        interrupt_task = asyncio.create_task(interrupt(
+            disruption_method,
+            redis_container,
+            ('localhost', 9379),
+            do_pause=do_pause,
+            do_unpause=do_unpause,
+            paused=paused,
+            unpaused=unpaused,
+        ))
         await asyncio.sleep(0)
 
         for i in range(5):

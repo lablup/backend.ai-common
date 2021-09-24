@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import (
-    Final,
     Sequence,
     Tuple,
 )
@@ -14,15 +13,3 @@ class RedisClusterInfo:
     worker_containers: Sequence[str]
     sentinel_addrs: Sequence[Tuple[str, int]]
     sentinel_containers: Sequence[str]
-
-
-disruptions: Final = {
-    'stop': {
-        'begin': 'stop',
-        'end': 'start',
-    },
-    'pause': {
-        'begin': 'pause',
-        'end': 'unpause',
-    },
-}

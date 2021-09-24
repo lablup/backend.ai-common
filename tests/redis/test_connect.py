@@ -6,10 +6,11 @@ import aioredis
 import aioredis.client
 import aioredis.exceptions
 import aioredis.sentinel
+import aiotools
 import pytest
 
 from .types import RedisClusterInfo
-from .utils import simple_run_cmd
+from .utils import simple_run_cmd, interrupt
 
 
 @pytest.mark.asyncio
@@ -20,32 +21,41 @@ async def test_connect(redis_container: str) -> None:
 
 @pytest.mark.asyncio
 async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
+    do_pause = asyncio.Event()
+    paused = asyncio.Event()
+    do_unpause = asyncio.Event()
+    unpaused = asyncio.Event()
 
-    async def interrupt() -> None:
-        await asyncio.sleep(5)
-        await simple_run_cmd(['docker', 'stop', redis_cluster.worker_containers[0]])
-        print("STOPPED node01")
-        await asyncio.sleep(5)
-        await simple_run_cmd(['docker', 'start', redis_cluster.worker_containers[0]])
-        print("STARTED node01")
+    async def control_interrupt() -> None:
+        await asyncio.sleep(1)
+        do_pause.set()
+        await paused.wait()
+        await asyncio.sleep(2)
+        do_unpause.set()
+        await unpaused.wait()
 
     s = aioredis.sentinel.Sentinel(
         redis_cluster.sentinel_addrs,
         password='develove',
         socket_timeout=0.5,
     )
-    interrupt_task = asyncio.create_task(interrupt())
-    await asyncio.sleep(0)
+    async with aiotools.TaskGroup() as tg:
+        tg.create_task(control_interrupt())
+        tg.create_task(interrupt(
+            'stop',
+            redis_cluster.worker_containers[0],
+            redis_cluster.worker_addrs[0],
+            do_pause=do_pause,
+            do_unpause=do_unpause,
+            paused=paused,
+            unpaused=unpaused,
+            redis_password='develove',
+        ))
+        await asyncio.sleep(0)
+        await simple_run_cmd(["docker", "ps"])
 
-    await simple_run_cmd(["docker", "ps"])
-
-    try:
-        # master_addr = await s.discover_master('mymaster')
-        # assert master_addr[1] == 16379
-        for _ in range(30):
+        for _ in range(5):
             print(f"CONNECT REPEAT {_}")
-            # master = s.master_for('mymaster', db=9)
-            # await master.ping()
             try:
                 master_addr = await s.discover_master('mymaster')
                 print("MASTER", master_addr)
@@ -56,5 +66,3 @@ async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None
             slave = s.slave_for('mymaster', db=9)
             await slave.ping()
             await asyncio.sleep(1)
-    finally:
-        await interrupt_task

@@ -16,8 +16,8 @@ import pytest
 
 from ai.backend.common import redis
 
-from .types import RedisClusterInfo, disruptions
-from .utils import simple_run_cmd
+from .types import RedisClusterInfo
+from .utils import simple_run_cmd, interrupt
 
 
 @pytest.mark.asyncio
@@ -31,17 +31,6 @@ async def test_stream_fanout(redis_container: str, disruption_method: str) -> No
         "c1": [],
         "c2": [],
     }
-
-    async def interrupt() -> None:
-        await do_pause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['begin'], redis_container])
-        paused.set()
-        await do_unpause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['end'], redis_container])
-        # The pub-sub channel may loose some messages while starting up.
-        # Make a pause here to wait until the container actually begins to listen.
-        await asyncio.sleep(0.5)
-        unpaused.set()
 
     async def consume(
         consumer_id: str,
@@ -72,7 +61,15 @@ async def test_stream_fanout(redis_container: str, disruption_method: str) -> No
         asyncio.create_task(consume("c1", r, "stream1")),
         asyncio.create_task(consume("c2", r, "stream1")),
     ]
-    interrupt_task = asyncio.create_task(interrupt())
+    interrupt_task = asyncio.create_task(interrupt(
+        disruption_method,
+        redis_container,
+        ('localhost', 9379),
+        do_pause=do_pause,
+        do_unpause=do_unpause,
+        paused=paused,
+        unpaused=unpaused,
+    ))
     await asyncio.sleep(0)
 
     for i in range(5):
@@ -127,17 +124,6 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
         "c2": [],
     }
 
-    async def interrupt() -> None:
-        await do_pause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['begin'], redis_cluster.worker_containers[0]])
-        paused.set()
-        await do_unpause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['end'], redis_cluster.worker_containers[0]])
-        # The pub-sub channel may loose some messages while starting up.
-        # Make a pause here to wait until the container actually begins to listen.
-        await asyncio.sleep(0.5)
-        unpaused.set()
-
     async def consume(
         consumer_id: str,
         r: aioredis.Redis | aioredis.sentinel.Sentinel,
@@ -173,7 +159,16 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
         asyncio.create_task(consume("c1", s, "stream1")),
         asyncio.create_task(consume("c2", s, "stream1")),
     ]
-    interrupt_task = asyncio.create_task(interrupt())
+    interrupt_task = asyncio.create_task(interrupt(
+        disruption_method,
+        redis_cluster.worker_containers[0],
+        redis_cluster.worker_addrs[0],
+        do_pause=do_pause,
+        do_unpause=do_unpause,
+        paused=paused,
+        unpaused=unpaused,
+        redis_password='develove',
+    ))
     await asyncio.sleep(0)
 
     for i in range(5):
@@ -219,17 +214,6 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str) 
         "c2": [],
     }
 
-    async def interrupt() -> None:
-        await do_pause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['begin'], redis_container])
-        paused.set()
-        await do_unpause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['end'], redis_container])
-        # The pub-sub channel may loose some messages while starting up.
-        # Make a pause here to wait until the container actually begins to listen.
-        await asyncio.sleep(0.5)
-        unpaused.set()
-
     async def consume(
         group_name: str,
         consumer_id: str,
@@ -270,7 +254,15 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str) 
         asyncio.create_task(consume("group1", "c1", r, "stream1")),
         asyncio.create_task(consume("group1", "c2", r, "stream1")),
     ]
-    interrupt_task = asyncio.create_task(interrupt())
+    interrupt_task = asyncio.create_task(interrupt(
+        disruption_method,
+        redis_container,
+        ('localhost', 9379),
+        do_pause=do_pause,
+        do_unpause=do_unpause,
+        paused=paused,
+        unpaused=unpaused,
+    ))
     await asyncio.sleep(0)
 
     for i in range(5):
@@ -319,17 +311,6 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
         "c1": [],
         "c2": [],
     }
-
-    async def interrupt() -> None:
-        await do_pause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['begin'], redis_cluster.worker_containers[0]])
-        paused.set()
-        await do_unpause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['end'], redis_cluster.worker_containers[0]])
-        # The pub-sub channel may loose some messages while starting up.
-        # Make a pause here to wait until the container actually begins to listen.
-        await asyncio.sleep(0.5)
-        unpaused.set()
 
     async def consume(
         group_name: str,
@@ -380,7 +361,16 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
         asyncio.create_task(consume("group1", "c1", s, "stream1")),
         asyncio.create_task(consume("group1", "c2", s, "stream1")),
     ]
-    interrupt_task = asyncio.create_task(interrupt())
+    interrupt_task = asyncio.create_task(interrupt(
+        disruption_method,
+        redis_cluster.worker_containers[0],
+        redis_cluster.worker_addrs[0],
+        do_pause=do_pause,
+        do_unpause=do_unpause,
+        paused=paused,
+        unpaused=unpaused,
+        redis_password='develove',
+    ))
     await asyncio.sleep(0)
 
     for i in range(5):

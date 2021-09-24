@@ -14,8 +14,8 @@ import pytest
 
 from ai.backend.common import redis
 
-from .types import RedisClusterInfo, disruptions
-from .utils import simple_run_cmd
+from .types import RedisClusterInfo
+from .utils import interrupt
 
 
 @pytest.mark.asyncio
@@ -26,17 +26,6 @@ async def test_blist(redis_container: str, disruption_method: str) -> None:
     do_unpause = asyncio.Event()
     unpaused = asyncio.Event()
     received_messages: List[str] = []
-
-    async def interrupt() -> None:
-        await do_pause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['begin'], redis_container])
-        paused.set()
-        await do_unpause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['end'], redis_container])
-        # The pub-sub channel may loose some messages while starting up.
-        # Make a pause here to wait until the container actually begins to listen.
-        await asyncio.sleep(0.5)
-        unpaused.set()
 
     async def pop(r: aioredis.Redis, key: str) -> None:
         try:
@@ -53,7 +42,15 @@ async def test_blist(redis_container: str, disruption_method: str) -> None:
     await r.delete("bl1")
 
     pop_task = asyncio.create_task(pop(r, "bl1"))
-    interrupt_task = asyncio.create_task(interrupt())
+    interrupt_task = asyncio.create_task(interrupt(
+        disruption_method,
+        redis_container,
+        ('localhost', 9379),
+        do_pause=do_pause,
+        do_unpause=do_unpause,
+        paused=paused,
+        unpaused=unpaused,
+    ))
     await asyncio.sleep(0)
 
     for i in range(5):
@@ -98,17 +95,6 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
     unpaused = asyncio.Event()
     received_messages: List[str] = []
 
-    async def interrupt() -> None:
-        await do_pause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['begin'], redis_container])
-        paused.set()
-        await do_unpause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['end'], redis_container])
-        # The pub-sub channel may loose some messages while starting up.
-        # Make a pause here to wait until the container actually begins to listen.
-        await asyncio.sleep(0.5)
-        unpaused.set()
-
     async def pop(r: aioredis.Redis, key: str) -> None:
         try:
             async with aiotools.aclosing(
@@ -124,7 +110,15 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
     await r.delete("bl1")
 
     pop_task = asyncio.create_task(pop(r, "bl1"))
-    interrupt_task = asyncio.create_task(interrupt())
+    interrupt_task = asyncio.create_task(interrupt(
+        disruption_method,
+        redis_container,
+        ('localhost', 9379),
+        do_pause=do_pause,
+        do_unpause=do_unpause,
+        paused=paused,
+        unpaused=unpaused,
+    ))
     await asyncio.sleep(0)
 
     for i in range(5):
@@ -171,17 +165,6 @@ async def test_blist_cluster_sentinel(
     unpaused = asyncio.Event()
     received_messages: List[str] = []
 
-    async def interrupt() -> None:
-        await do_pause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['begin'], redis_cluster.worker_containers[0]])
-        paused.set()
-        await do_unpause.wait()
-        await simple_run_cmd(['docker', disruptions[disruption_method]['end'], redis_cluster.worker_containers[0]])
-        # The pub-sub channel may loose some messages while starting up.
-        # Make a pause here to wait until the container actually begins to listen.
-        await asyncio.sleep(0.5)
-        unpaused.set()
-
     async def pop(s: aioredis.sentinel.Sentinel, key: str) -> None:
         try:
             async with aiotools.aclosing(
@@ -205,7 +188,16 @@ async def test_blist_cluster_sentinel(
     await redis.execute(s, lambda r: r.delete("bl1"), service_name="mymaster")
 
     pop_task = asyncio.create_task(pop(s, "bl1"))
-    interrupt_task = asyncio.create_task(interrupt())
+    interrupt_task = asyncio.create_task(interrupt(
+        disruption_method,
+        redis_cluster.worker_containers[0],
+        redis_cluster.worker_addrs[0],
+        do_pause=do_pause,
+        do_unpause=do_unpause,
+        paused=paused,
+        unpaused=unpaused,
+        redis_password='develove',
+    ))
     await asyncio.sleep(0)
 
     for i in range(5):
