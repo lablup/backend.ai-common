@@ -34,7 +34,9 @@ async def redis_container(test_ns, test_case_ns) -> AsyncIterator[str]:
     try:
         yield cid
     finally:
+        await asyncio.sleep(0.2)
         await simple_run_cmd(['docker', 'rm', '-f', cid])
+        await asyncio.sleep(0.2)
 
 
 r"""
@@ -151,6 +153,7 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
             ],
         )
     finally:
+        await asyncio.sleep(0.2)
         with async_timeout.timeout(30.0):
             await simple_run_cmd([
                 'docker', 'compose',
@@ -158,3 +161,4 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
                 '-f', os.fsencode(modified_compose_cfg),
                 'down',
             ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        await asyncio.sleep(0.2)

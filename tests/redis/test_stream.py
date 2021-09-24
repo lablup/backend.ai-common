@@ -293,8 +293,7 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str) 
     for t in consumer_tasks:
         t.cancel()
         await t
-    for t in consumer_tasks:
-        assert t.done()
+    await asyncio.gather(*consumer_tasks, return_exceptions=True)
 
     # loss happens
     all_messages = set(map(int, received_messages["c1"])) | set(map(int, received_messages["c2"]))
@@ -393,9 +392,7 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
     await interrupt_task
     for t in consumer_tasks:
         t.cancel()
-        await t
-    for t in consumer_tasks:
-        assert t.done()
+    await asyncio.gather(*consumer_tasks, return_exceptions=True)
 
     if disruption_method == "stop":
         # loss happens
