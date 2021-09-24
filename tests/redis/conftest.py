@@ -3,10 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 from json.decoder import JSONDecodeError
+import os
 from pathlib import Path
 import re
-import shutil
 import sys
+import tempfile
 from typing import (
     AsyncIterator,
 )
@@ -71,24 +72,26 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
         # docker for mac
         pass
     else:
-        compose_cfg = cfg_dir / 'redis-cluster.yml'
-        shutil.copy(compose_cfg, compose_cfg.with_name(f'{compose_cfg.name}.bak'))
-        t = compose_cfg.read_bytes()
+        orig_compose_cfg = cfg_dir / 'redis-cluster.yml'
+        modified_compose_cfg = Path(tempfile.gettempdir()) / f'redis-cluster.{test_ns}.{test_case_ns}.yml'
+        t = orig_compose_cfg.read_bytes()
         t = t.replace(b'host.docker.internal', b'127.0.0.1')
+        t = t.replace(b'context: .', os.fsencode(f'context: {cfg_dir}'))
         t = re.sub(br'ports:\n      - \d+:\d+', b'network_mode: host', t, flags=re.M)
-        compose_cfg.write_bytes(t)
-    await simple_run_cmd([
+        modified_compose_cfg.write_bytes(t)
+    p = await simple_run_cmd([
         'docker', 'compose',
         '-p', f"{test_ns}.{test_case_ns}",
-        '-f', str(cfg_dir / 'redis-cluster.yml'),
+        '-f', os.fsencode(modified_compose_cfg),
         'up', '-d', '--build',
     ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+    assert p.returncode == 0, "Compose cluster creation has failed."
     await asyncio.sleep(0.2)
     try:
         p = await asyncio.create_subprocess_exec(*[
             'docker', 'compose',
             '-p', f"{test_ns}.{test_case_ns}",
-            '-f', str(cfg_dir / 'redis-cluster.yml'),
+            '-f', os.fsencode(modified_compose_cfg),
             'ps',
             '--format', 'json',
         ], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
@@ -148,11 +151,6 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
         await simple_run_cmd([
             'docker', 'compose',
             '-p', f"{test_ns}.{test_case_ns}",
-            '-f', str(cfg_dir / 'redis-cluster.yml'),
+            '-f', os.fsencode(modified_compose_cfg),
             'down',
         ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-        if sys.platform.startswith('darwin'):
-            # docker for mac
-            pass
-        else:
-            shutil.copy(compose_cfg.with_name(f'{compose_cfg.name}.bak'), compose_cfg)
