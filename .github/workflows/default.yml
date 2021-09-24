@@ -112,6 +112,7 @@ jobs:
         docker compose -p xwarm -f tests/redis/redis-cluster.yml down
         cp tests/redis/redis-cluster.yml.bak tests/redis/redis-cluster.yml
     - name: Test with pytest
+      timeout-minutes: 6
       run: |
         python -m pytest -v --cov=src
     - name: Send code coverage report
