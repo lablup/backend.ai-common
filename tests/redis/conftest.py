@@ -70,7 +70,7 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
     cfg_dir = Path(__file__).parent
     if sys.platform.startswith('darwin'):
         # docker for mac
-        pass
+        modified_compose_cfg = cfg_dir / 'redis-cluster.yml'
     else:
         orig_compose_cfg = cfg_dir / 'redis-cluster.yml'
         modified_compose_cfg = Path(tempfile.gettempdir()) / f'redis-cluster.{test_ns}.{test_case_ns}.yml'
