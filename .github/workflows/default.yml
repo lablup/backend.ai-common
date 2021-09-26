@@ -118,6 +118,9 @@ jobs:
         python -m pytest -v --cov=src
     - name: Send code coverage report
       uses: codecov/codecov-action@v1
+    - name: Clean up
+      run: |
+        docker rm -f backendai-etcd
 
   deploy-to-pypi:
     needs: [lint, typecheck, test]
