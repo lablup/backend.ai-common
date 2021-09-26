@@ -25,7 +25,7 @@ def etcd_addr():
 def event_loop():
     # uvloop.install()
     loop = asyncio.new_event_loop()
-    setup_child_watcher()
+    # setup_child_watcher()
     yield loop
     loop.close()
 
