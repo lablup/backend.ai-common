@@ -4,6 +4,7 @@ import os
 import secrets
 import time
 
+from aiotools.server import setup_child_watcher
 import uvloop
 
 from ai.backend.common.argparse import host_port_pair
@@ -22,8 +23,9 @@ def etcd_addr():
 
 @pytest.fixture(scope="session", autouse=True)
 def event_loop():
-    uvloop.install()
+    # uvloop.install()
     loop = asyncio.new_event_loop()
+    setup_child_watcher()
     yield loop
     loop.close()
 
