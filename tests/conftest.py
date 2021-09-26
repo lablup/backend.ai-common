@@ -1,7 +1,10 @@
+import asyncio
 from decimal import Decimal
 import os
 import secrets
 import time
+
+import uvloop
 
 from ai.backend.common.argparse import host_port_pair
 from ai.backend.common.etcd import AsyncEtcd, ConfigScopes
@@ -15,6 +18,14 @@ def etcd_addr():
     if env_addr is not None:
         return host_port_pair(env_addr)
     return host_port_pair('localhost:2379')
+
+
+@pytest.fixture(scope="session", autouse=True)
+def event_loop():
+    uvloop.install()
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 
 @pytest.fixture(scope="session", autouse=True)
