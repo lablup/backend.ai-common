@@ -13,7 +13,6 @@ from typing import (
 
 import aioredis
 import aioredis.client
-from aioredis.connection import Connection
 import aioredis.sentinel
 import aioredis.exceptions
 
@@ -55,6 +54,7 @@ async def subscribe(
         except (
             aioredis.exceptions.ConnectionError,
             aioredis.sentinel.MasterNotFoundError,
+            aioredis.sentinel.SlaveNotFoundError,
             aioredis.exceptions.ReadOnlyError,
             aioredis.exceptions.ResponseError,
             ConnectionResetError,
@@ -151,6 +151,7 @@ async def execute(
         except (
             aioredis.exceptions.ConnectionError,
             aioredis.sentinel.MasterNotFoundError,
+            aioredis.sentinel.SlaveNotFoundError,
             aioredis.exceptions.ReadOnlyError,
             aioredis.exceptions.ResponseError,
             ConnectionResetError,
