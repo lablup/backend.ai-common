@@ -100,6 +100,11 @@ jobs:
          --initial-cluster-token backendai-etcd-token \
          --initial-cluster-state new \
          --auto-compaction-retention 1
+    - name: Register post-action to clean the temporary etcd container
+      uses: webiny/action-post-run@2.0.1
+      id: clean-temporary-etcd-container
+      with:
+        run: docker rm -f backendai-etcd
     - name: Warm up docker-compose
       run: |
         mkdir -p $HOME/.docker/cli-plugins
@@ -118,9 +123,6 @@ jobs:
         python -m pytest -v --cov=src
     - name: Send code coverage report
       uses: codecov/codecov-action@v1
-    - name: Clean up
-      run: |
-        docker rm -f backendai-etcd
 
   deploy-to-pypi:
     needs: [lint, typecheck, test]
