@@ -1,4 +1,5 @@
 import asyncio
+from asyncio.exceptions import CancelledError
 from decimal import Decimal
 import os
 import secrets
@@ -71,6 +72,26 @@ async def gateway_etcd(etcd_addr, test_ns):
     finally:
         await etcd.delete_prefix('', scope=ConfigScopes.GLOBAL)
         del etcd
+
+
+@pytest.fixture
+async def chaos_generator():
+
+    async def _chaos():
+        try:
+            while True:
+                await asyncio.sleep(0.001)
+        except asyncio.CancelledError:
+            return
+
+    tasks = []
+    for i in range(20):
+        tasks.append(asyncio.create_task(_chaos()))
+    yield
+    for i in range(20):
+        tasks[i].cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+
 
 
 @pytest.fixture

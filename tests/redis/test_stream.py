@@ -22,7 +22,7 @@ from .utils import interrupt, with_timeout
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
-async def test_stream_fanout(redis_container: str, disruption_method: str) -> None:
+async def test_stream_fanout(redis_container: str, disruption_method: str, chaos_generator) -> None:
     do_pause = asyncio.Event()
     paused = asyncio.Event()
     do_unpause = asyncio.Event()
@@ -115,7 +115,7 @@ async def test_stream_fanout(redis_container: str, disruption_method: str) -> No
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 @with_timeout(30.0)
-async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption_method: str) -> None:
+async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption_method: str, chaos_generator) -> None:
     do_pause = asyncio.Event()
     paused = asyncio.Event()
     do_unpause = asyncio.Event()
@@ -206,7 +206,7 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 @with_timeout(30.0)
-async def test_stream_loadbalance(redis_container: str, disruption_method: str) -> None:
+async def test_stream_loadbalance(redis_container: str, disruption_method: str, chaos_generator) -> None:
     do_pause = asyncio.Event()
     paused = asyncio.Event()
     do_unpause = asyncio.Event()
@@ -303,7 +303,7 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str) 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
-async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disruption_method: str) -> None:
+async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disruption_method: str, chaos_generator) -> None:
     do_pause = asyncio.Event()
     paused = asyncio.Event()
     do_unpause = asyncio.Event()
