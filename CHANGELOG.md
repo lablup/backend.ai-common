@@ -16,6 +16,12 @@ Changes
 
 .. towncrier release notes start
 
+## 21.09.0a2 (2021-09-28)
+
+### Features
+* Add support for kubernetes mount types ([eda7a5fa652](https://github.com/lablup/backend.ai-common/commit/eda7a5fa652bdfd07f9478cc75a1dc40a5637be7))
+
+
 ## 21.09.0a1 (2021-08-25)
 
 ### Features
