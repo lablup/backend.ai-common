@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import socket
 from typing import (
     Any,
     AsyncIterator,
@@ -21,6 +22,17 @@ __all__ = (
     'subscribe',
     'blpop',
 )
+
+_default_conn_opts = {
+    'socket_timeout': 3.0,
+    'socket_connect_timeout': 0.3,
+    'socket_keepalive': True,
+    'socket_keepalive_options': {
+        socket.TCP_KEEPIDLE: 20,
+        socket.TCP_KEEPINTVL: 5,
+        socket.TCP_KEEPCNT: 3,
+    },
+}
 
 _scripts: Dict[str, str] = {}
 
@@ -89,9 +101,13 @@ async def blpop(
     An async-generator wrapper for blpop (blocking left pop).
     It automatically recovers from server shutdowns until explicitly cancelled.
     """
+    _conn_opts = {
+        **_default_conn_opts,
+        'socket_timeout': reconnect_poll_interval,
+    }
     if isinstance(redis, aioredis.sentinel.Sentinel):
         assert service_name is not None
-        r = redis.master_for(service_name, socket_timeout=reconnect_poll_interval)
+        r = redis.master_for(service_name, **_conn_opts)
     else:
         r = redis
     while True:
@@ -125,12 +141,16 @@ async def execute(
     read_only: bool = False,
     reconnect_poll_interval: float = 0.3,
 ) -> Any:
+    _conn_opts = {
+        **_default_conn_opts,
+        'socket_timeout': reconnect_poll_interval,
+    }
     if isinstance(redis, aioredis.sentinel.Sentinel):
         assert service_name is not None
         if read_only:
-            r = redis.slave_for(service_name, socket_timeout=reconnect_poll_interval)
+            r = redis.slave_for(service_name, **_conn_opts)
         else:
-            r = redis.master_for(service_name, socket_timeout=reconnect_poll_interval)
+            r = redis.master_for(service_name, **_conn_opts)
     else:
         r = redis
     while True:
@@ -169,7 +189,7 @@ async def execute(
 
 
 async def execute_script(
-    conn: aioredis.Redis,
+    redis: aioredis.Redis | aioredis.sentinel.Sentinel,
     script_id: str,
     script: str,
     keys: Sequence[str],
@@ -191,16 +211,16 @@ async def execute_script(
     script_hash = _scripts.get(script_id, 'x')
     while True:
         try:
-            ret = await execute_with_retries(lambda: conn.evalsha(
+            ret = await execute(redis, lambda r: r.evalsha(
                 script_hash,
                 keys=keys,
                 args=args,
             ))
             break
-        except aioredis.errors.ReplyError as e:
+        except aioredis.exceptions.ResponseError as e:
             if 'NOSCRIPT' in e.args[0]:
                 # Redis may have been restarted.
-                script_hash = await conn.script_load(script)
+                script_hash = await execute(redis, lambda r: r.script_load(script))
                 _scripts[script_id] = script_hash
             else:
                 raise
