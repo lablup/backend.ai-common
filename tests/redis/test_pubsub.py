@@ -13,8 +13,6 @@ import pytest
 
 from ai.backend.common import redis
 
-from .utils import simple_run_cmd, interrupt
-
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])

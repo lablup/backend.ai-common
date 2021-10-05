@@ -1,26 +1,22 @@
 from __future__ import annotations
 
+import aioredis
+import aioredis.exceptions
+import async_timeout
 import asyncio
 import functools
 from typing import (
     Awaitable,
     Callable,
+    Final,
+    Sequence,
     TypeVar,
+    Tuple,
+    Union,
 )
 from typing_extensions import (
     ParamSpec,
 )
-import async_timeout
-import traceback
-from typing import (
-    Callable,
-    Final,
-    Sequence,
-    Tuple,
-)
-
-import aioredis
-import aioredis.exceptions
 
 
 disruptions: Final = {
@@ -35,7 +31,7 @@ disruptions: Final = {
 }
 
 
-async def simple_run_cmd(cmdargs: Sequence[str], **kwargs) -> asyncio.subprocess.Process:
+async def simple_run_cmd(cmdargs: Sequence[Union[str, bytes]], **kwargs) -> asyncio.subprocess.Process:
     p = await asyncio.create_subprocess_exec(*cmdargs, **kwargs)
     await p.wait()
     return p
@@ -75,16 +71,16 @@ async def interrupt(
     await do_pause.wait()
     await simple_run_cmd(
         ['docker', disruptions[disruption_method]['begin'], container_id],
-        #stdout=asyncio.subprocess.DEVNULL,
-        #stderr=asyncio.subprocess.DEVNULL,
+        # stdout=asyncio.subprocess.DEVNULL,
+        # stderr=asyncio.subprocess.DEVNULL,
     )
     print(f"STOPPED {container_id[:12]}")
     paused.set()
     await do_unpause.wait()
     await simple_run_cmd(
         ['docker', disruptions[disruption_method]['end'], container_id],
-        #stdout=asyncio.subprocess.DEVNULL,
-        #stderr=asyncio.subprocess.DEVNULL,
+        # stdout=asyncio.subprocess.DEVNULL,
+        # stderr=asyncio.subprocess.DEVNULL,
     )
     await wait_redis_ready(*container_addr, password=redis_password)
     await asyncio.sleep(0.6)
