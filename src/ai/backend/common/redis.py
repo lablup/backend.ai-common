@@ -8,6 +8,9 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Mapping,
+    MutableMapping,
+    Optional,
     Sequence,
     Dict,
 )
@@ -23,16 +26,27 @@ __all__ = (
     'blpop',
 )
 
-_default_conn_opts = {
+_keepalive_options: MutableMapping[int, int] = {}
+
+# macOS does not support several TCP_ options
+# so check if socket package includes TCP options before adding it
+if hasattr(socket, 'TCP_KEEPIDLE'):
+    _keepalive_options[socket.TCP_KEEPIDLE] = 20
+
+if hasattr(socket, 'TCP_KEEPINTVL'):
+    _keepalive_options[socket.TCP_KEEPINTVL] = 20
+
+if hasattr(socket, 'TCP_KEEPCNT'):
+    _keepalive_options[socket.TCP_KEEPCNT] = 20
+
+
+_default_conn_opts: Mapping[str, Any] = {
     'socket_timeout': 3.0,
     'socket_connect_timeout': 0.3,
     'socket_keepalive': True,
-    'socket_keepalive_options': {
-        socket.TCP_KEEPIDLE: 20,
-        socket.TCP_KEEPINTVL: 5,
-        socket.TCP_KEEPCNT: 3,
-    },
+    'socket_keepalive_options': _keepalive_options,
 }
+
 
 _scripts: Dict[str, str] = {}
 
@@ -140,6 +154,7 @@ async def execute(
     service_name: str = None,
     read_only: bool = False,
     reconnect_poll_interval: float = 0.3,
+    encoding: Optional[str] = None,
 ) -> Any:
     _conn_opts = {
         **_default_conn_opts,
@@ -162,18 +177,27 @@ async def execute(
                     raise TypeError('The func must be a function or a coroutinefunction '
                                     'with no arguments.')
                 if isinstance(aw_or_pipe, aioredis.client.Pipeline):
-                    return await aw_or_pipe.execute()
+                    result = await aw_or_pipe.execute()
                 elif inspect.isawaitable(aw_or_pipe):
-                    return await aw_or_pipe
+                    result = await aw_or_pipe
                 else:
                     raise TypeError('The return value must be an awaitable'
                                     'or aioredis.commands.Pipeline object')
+                if encoding:
+                    if isinstance(result, bytes):
+                        return result.decode(encoding)
+                    elif isinstance(result, dict):
+                        newdict = {}
+                        for k, v in result.items():
+                            newdict[k.decode(encoding)] = v.decode(encoding)
+                        return newdict
+                else:
+                    return result
         except (
             aioredis.exceptions.ConnectionError,
             aioredis.sentinel.MasterNotFoundError,
             aioredis.sentinel.SlaveNotFoundError,
             aioredis.exceptions.ReadOnlyError,
-            aioredis.exceptions.ResponseError,
             ConnectionResetError,
         ) as e:
             print("EXECUTE-RETRY", repr(func), repr(e))
@@ -213,10 +237,14 @@ async def execute_script(
         try:
             ret = await execute(redis, lambda r: r.evalsha(
                 script_hash,
-                keys=keys,
-                args=args,
+                len(keys),
+                *keys, *args,
             ))
             break
+        except aioredis.exceptions.NoScriptError:
+            # Redis may have been restarted.
+            script_hash = await execute(redis, lambda r: r.script_load(script))
+            _scripts[script_id] = script_hash
         except aioredis.exceptions.ResponseError as e:
             if 'NOSCRIPT' in e.args[0]:
                 # Redis may have been restarted.
