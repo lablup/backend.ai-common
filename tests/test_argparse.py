@@ -84,6 +84,10 @@ def test_host_port_pair_direct_creation():
 
 def test_host_port_pair_parse():
     with pytest.raises(argparse.ArgumentTypeError):
+        host_port_pair('oihasdfoih')
+    with pytest.raises(argparse.ArgumentTypeError):
+        host_port_pair('99999')
+    with pytest.raises(argparse.ArgumentTypeError):
         host_port_pair('oihasdfoih:oixzcghboihx')
     with pytest.raises(argparse.ArgumentTypeError):
         host_port_pair('oihasdfoih:-1')
