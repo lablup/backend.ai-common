@@ -26,11 +26,13 @@ import uuid
 import weakref
 
 import aioredis
+import aioredis.sentinel
 import attr
 
 from . import msgpack, redis
 from .logging import BraceStyleAdapter
 from .types import (
+    EtcdRedisConfig,
     aobject,
     AgentId,
     KernelId,
@@ -585,20 +587,32 @@ class EventDispatcher(aobject):
 
     consumers: defaultdict[str, set[EventHandler[Any, AbstractEvent]]]
     subscribers: defaultdict[str, set[EventHandler[Any, AbstractEvent]]]
-    redis_pool: aioredis.ConnectionPool
     redis_client: aioredis.Redis
     consumer_loop_task: asyncio.Task
     subscriber_loop_task: asyncio.Task
     consumer_taskset: weakref.WeakSet[asyncio.Task]
     subscriber_taskset: weakref.WeakSet[asyncio.Task]
 
-    _connector: RedisConnectorFunc
     _log_events: bool
     _consumer_name: str
     _consume_next_id: str
 
-    def __init__(self, connector: RedisConnectorFunc, log_events: bool = False) -> None:
-        self._connector = connector
+    def __init__(self,
+                 connector: EtcdRedisConfig,
+                 db: int = 0,
+                 log_events: bool = False) -> None:
+        redis_client = redis.get_redis_object(connector, db=db)
+        if isinstance(redis_client, aioredis.sentinel.Sentinel):
+            service_name = connector.get('service_name')
+            assert service_name is not None
+            self.redis_client = redis_client.master_for(
+                service_name,
+                redis_class=aioredis.Redis,
+                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                **redis._default_conn_opts
+            )
+        else:
+            self.redis_client = redis_client
         self._log_events = log_events
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
@@ -606,22 +620,20 @@ class EventDispatcher(aobject):
         self._consume_next_id = '$'
 
     async def __ainit__(self) -> None:
-        self.redis_pool = self._connector()
-        self.redis_client = aioredis.Redis(connection_pool=self.redis_pool)
-        self.consumer_loop_task = asyncio.create_task(self._consume_loop())
-        self.subscriber_loop_task = asyncio.create_task(self._subscribe_loop())
-        self.consumer_taskset = weakref.WeakSet()
-        self.subscriber_taskset = weakref.WeakSet()
-
         try:
             async with self.redis_client.client() as conn:
                 await conn.xgroup_create(
-                    'events.loadbalance',
-                    'loadbalance',
+                    'events.consumer',
+                    'consumer',
                     mkstream=True
                 )
         except:
             pass
+
+        self.consumer_loop_task = asyncio.create_task(self._consume_loop())
+        self.subscriber_loop_task = asyncio.create_task(self._subscribe_loop())
+        self.consumer_taskset = weakref.WeakSet()
+        self.subscriber_taskset = weakref.WeakSet()
 
     async def close(self) -> None:
         cancelled_tasks = []
@@ -637,7 +649,6 @@ class EventDispatcher(aobject):
         self.subscriber_loop_task.cancel()
         cancelled_tasks.append(self.consumer_loop_task)
         cancelled_tasks.append(self.subscriber_loop_task)
-        await self.redis_pool.disconnect()
         await asyncio.gather(*cancelled_tasks, return_exceptions=True)
 
     def consume(
@@ -734,9 +745,9 @@ class EventDispatcher(aobject):
                 reply = await redis.execute(
                     self.redis_client,
                     lambda r: r.xreadgroup(
-                        'loadbalance',
+                        'consumer',
                         self._consumer_name,  # TODO: Generate consumer ID per event client
-                        {'events.loadbalance': b">"},
+                        {'events.consumer': b">"},
                         block=10_000,
                         count=1,
                     )
@@ -747,14 +758,15 @@ class EventDispatcher(aobject):
                 source = msg['source']
                 if isinstance(source, bytes):
                     source = source.decode()
-
-                await self.dispatch_consumers(msg['name'],
-                                              source,
-                                              msg['args'])
-                await redis.execute(
-                    self.redis_client,
-                    lambda r: r.xack('events.loadbalance', 'loadbalance', reply[0][1][0][0])
-                )
+                try:
+                    await self.dispatch_consumers(msg['name'],
+                                                  source,
+                                                  msg['args'])
+                finally:
+                    await redis.execute(
+                        self.redis_client,
+                        lambda r: r.xack('events.consumer', 'consumer', reply[0][1][0][0])
+                    )
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -789,25 +801,35 @@ class EventDispatcher(aobject):
 
 
 class EventProducer(aobject):
-    redis_pool: aioredis.ConnectionPool
     redis_client: aioredis.Redis
 
-    _connector: RedisConnectorFunc
     _log_events: bool
 
-    def __init__(self, connector: RedisConnectorFunc, log_events: bool = False) -> None:
-        self._connector = connector
+    def __init__(self,
+                 connector: EtcdRedisConfig,
+                 db: int = 0,
+                 log_events: bool = False,
+                 service_name: str = None) -> None:
+
+        redis_client = redis.get_redis_object(connector, db=db)
+        if isinstance(redis_client, aioredis.sentinel.Sentinel):
+            service_name = connector.get('service_name')
+            assert service_name is not None
+            self.redis_client = redis_client.master_for(
+                service_name,
+                redis_class=aioredis.Redis,
+                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                **redis._default_conn_opts
+            )
+        else:
+            self.redis_client = redis_client
         self._log_events = log_events
 
     async def __ainit__(self) -> None:
-        self.redis_pool = self._connector()
-        self.redis_client = aioredis.Redis(connection_pool=self.redis_pool)
+        pass
 
     async def close(self) -> None:
-        # aioredis v2 has no 'close' methods
-        # since connector object is a connection info
-        # instead an active connection
-        await self.redis_pool.disconnect()
+        pass
 
     async def produce_event(
         self,

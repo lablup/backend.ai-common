@@ -19,6 +19,9 @@ import aioredis
 import aioredis.client
 import aioredis.sentinel
 import aioredis.exceptions
+import yarl
+
+from .types import EtcdRedisConfig
 
 __all__ = (
     'execute',
@@ -121,7 +124,10 @@ async def blpop(
     }
     if isinstance(redis, aioredis.sentinel.Sentinel):
         assert service_name is not None
-        r = redis.master_for(service_name, **_conn_opts)
+        r = redis.master_for(service_name,
+                             redis_class=aioredis.Redis,
+                             connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                             **_conn_opts)
     else:
         r = redis
     while True:
@@ -163,9 +169,15 @@ async def execute(
     if isinstance(redis, aioredis.sentinel.Sentinel):
         assert service_name is not None
         if read_only:
-            r = redis.slave_for(service_name, **_conn_opts)
+            r = redis.slave_for(service_name,
+                                redis_class=aioredis.Redis,
+                                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                                **_conn_opts)
         else:
-            r = redis.master_for(service_name, **_conn_opts)
+            r = redis.master_for(service_name,
+                                 redis_class=aioredis.Redis,
+                                 connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                                 **_conn_opts)
     else:
         r = redis
     while True:
@@ -254,3 +266,20 @@ async def execute_script(
                 raise
             continue
     return ret
+
+
+def get_redis_object(redis_connection_info: EtcdRedisConfig, db: int = 0) -> aioredis.Redis | aioredis.sentinel.Sentinel:
+    if sentinel_addresses := redis_connection_info.get('sentinel'):
+        sentinel = aioredis.sentinel.Sentinel(
+            sentinel_addresses,
+            sentinel_kwargs={'password': redis_connection_info.get('password'), 'db': str(db)}
+        )
+        return sentinel
+    else:
+        redis_url = redis_connection_info.get('addr')
+        assert redis_url is not None
+        url = (yarl.URL('redis://host')
+                .with_host(str(redis_url[0]))
+                .with_port(redis_url[1])
+                .with_password(redis_connection_info.get('password')) / str(db))
+        return aioredis.Redis.from_url(str(url))

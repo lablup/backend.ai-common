@@ -779,3 +779,10 @@ class Sentinel(enum.Enum):
 class QueueSentinel(enum.Enum):
     CLOSED = 0
     TIMEOUT = 1
+
+
+class EtcdRedisConfig(TypedDict):
+    addr: Optional[HostPortPair]
+    sentinel: Optional[List[HostPortPair]]
+    service_name: Optional[str]
+    password: Optional[str]
