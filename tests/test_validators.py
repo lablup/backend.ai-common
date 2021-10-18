@@ -4,6 +4,8 @@ from datetime import timedelta
 import enum
 import multidict
 import pickle
+import os
+import pwd
 
 import pytest
 import trafaret as t
@@ -314,9 +316,31 @@ def test_port_range():
         r = iv.check('x-y')
 
 
-def test_uid():
-    # TODO: write tests
-    pass
+def test_user_id():
+    iv = tx.UserID()
+    assert iv.check(123) == 123
+    assert iv.check('123') == 123
+    assert iv.check(os.getuid()) == os.getuid()
+    assert iv.check(None) == os.getuid()
+    assert iv.check('') == os.getuid()
+
+    iv = tx.UserID(default_uid=1)
+    assert iv.check(os.getuid()) == os.getuid()
+    assert iv.check(None) == 1
+    assert iv.check(1) == 1
+    assert iv.check(123) == 123
+    assert iv.check('123') == 123
+    assert iv.check('') == 1
+    assert iv.check(pwd.getpwuid(os.getuid())[0]) == os.getuid()
+    assert iv.check(-1) == os.getuid()
+    assert iv.check('-1') == os.getuid()
+
+    with pytest.raises(t.DataError):
+        r = iv.check('nonExistentUserName')
+    with pytest.raises(t.DataError):
+        r = iv.check([1, 2])
+    with pytest.raises(t.DataError):
+        r = iv.check((1, 2))
 
 
 def test_slug():
