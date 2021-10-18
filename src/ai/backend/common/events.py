@@ -215,6 +215,32 @@ class KernelPullingEvent(KernelCreationEventArgs, AbstractEvent):
     name = "kernel_pulling"
 
 
+@attr.s(auto_attribs=True, slots=True)
+class KernelPullProgressEvent(AbstractEvent):
+    name = "kernel_pull_progress"
+    kernel_id: uuid.UUID = attr.ib()
+    current_progress: float = attr.ib()
+    total_progress: float = attr.ib()
+    message: Optional[str] = attr.ib(default=None)
+
+    def serialize(self) -> tuple:
+        return (
+            str(self.kernel_id),
+            self.current_progress,
+            self.total_progress,
+            self.message,
+        )
+
+    @classmethod
+    def deserialize(cls, value: tuple):
+        return cls(
+            uuid.UUID(value[0]),
+            value[1],
+            value[2],
+            value[3],
+        )
+
+
 class KernelCreatingEvent(KernelCreationEventArgs, AbstractEvent):
     name = "kernel_creating"
 
