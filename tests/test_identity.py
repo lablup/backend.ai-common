@@ -72,7 +72,7 @@ async def test_get_instance_id(mocker, provider):
                 payload={
                     'compute': {
                         'vmId': random_id,
-                    }
+                    },
                 })
             ret = await ai.backend.common.identity.get_instance_id()
             assert ret == random_id

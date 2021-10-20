@@ -11,6 +11,7 @@ import aioredis.exceptions
 import aiotools
 import pytest
 
+from .utils import interrupt
 from ai.backend.common import redis
 
 
