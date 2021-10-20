@@ -874,5 +874,5 @@ class EventProducer(aobject):
         )
         await redis.execute(
             self.redis_client,
-            lambda r: r.xadd('events.loadbalance', {'event': raw_msg})
+            lambda r: r.xadd('events.consumer', {'event': raw_msg})
         )
