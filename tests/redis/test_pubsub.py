@@ -26,7 +26,7 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
     async def subscribe(pubsub: aioredis.client.PubSub) -> None:
         try:
             async with aiotools.aclosing(
-                redis.subscribe(pubsub, reconnect_poll_interval=0.3)
+                redis.subscribe(pubsub, reconnect_poll_interval=0.3),
             ) as agen:
                 async for raw_msg in agen:
                     msg = raw_msg.decode()
@@ -103,7 +103,7 @@ async def test_pubsub_with_retrying_pub(redis_container: str, disruption_method:
     async def subscribe(pubsub: aioredis.client.PubSub) -> None:
         try:
             async with aiotools.aclosing(
-                redis.subscribe(pubsub, reconnect_poll_interval=0.3)
+                redis.subscribe(pubsub, reconnect_poll_interval=0.3),
             ) as agen:
                 async for raw_msg in agen:
                     msg = raw_msg.decode()

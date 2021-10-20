@@ -139,7 +139,7 @@ class BasePluginContext(Generic[P]):
         scanned_plugins = self.discover_plugins(self.plugin_group)
         for plugin_name, plugin_entry in scanned_plugins:
             plugin_config = await self.etcd.get_prefix(
-                f"config/plugins/{self._group_key}/{plugin_name}/"
+                f"config/plugins/{self._group_key}/{plugin_name}/",
             )
             try:
                 plugin_instance = plugin_entry(plugin_config, self.local_config)
@@ -172,7 +172,7 @@ class BasePluginContext(Generic[P]):
             if ev is QueueSentinel.TIMEOUT:
                 if has_changes:
                     new_config = await self.etcd.get_prefix(
-                        f"config/plugins/{self._group_key}/{plugin_name}/"
+                        f"config/plugins/{self._group_key}/{plugin_name}/",
                     )
                     await self.plugins[plugin_name].update_plugin_config(new_config)
                 has_changes = False

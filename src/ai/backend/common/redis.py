@@ -272,7 +272,7 @@ def get_redis_object(redis_connection_info: EtcdRedisConfig, db: int = 0) -> aio
     if sentinel_addresses := redis_connection_info.get('sentinel'):
         sentinel = aioredis.sentinel.Sentinel(
             sentinel_addresses,
-            sentinel_kwargs={'password': redis_connection_info.get('password'), 'db': str(db)}
+            sentinel_kwargs={'password': redis_connection_info.get('password'), 'db': str(db)},
         )
         return sentinel
     else:

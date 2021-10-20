@@ -185,7 +185,7 @@ async def test_get_instance_type(mocker, provider):
                 payload={
                     'compute': {
                         'vmSize': random_type,
-                    }
+                    },
                 })
             ret = await ai.backend.common.identity.get_instance_type()
             assert ret == random_type

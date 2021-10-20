@@ -96,7 +96,7 @@ _PInner = ParamSpec('_PInner')
 
 def with_timeout(t: float) -> Callable[        # type: ignore
     [Callable[_PInner, Awaitable[_TReturn]]],
-    Callable[_PInner, Awaitable[_TReturn]]
+    Callable[_PInner, Awaitable[_TReturn]],
 ]:
     def wrapper(
         corofunc: Callable[_PInner, Awaitable[_TReturn]],  # type: ignore

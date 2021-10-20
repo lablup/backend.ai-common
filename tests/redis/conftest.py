@@ -93,13 +93,12 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
 
     await asyncio.sleep(0.2)
     try:
-        p = await asyncio.create_subprocess_exec(*[
-            'docker', 'compose',
-            '-p', f"{test_ns}.{test_case_ns}",
-            '-f', os.fsencode(modified_compose_cfg),
-            'ps',
-            '--format', 'json',
-        ], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        p = await asyncio.create_subprocess_exec(
+                'docker', 'compose',
+                '-p', f"{test_ns}.{test_case_ns}",
+                '-f', os.fsencode(modified_compose_cfg),
+                'ps',
+                '--format', 'json', stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
         assert p.stdout is not None
         try:
             ps_output = json.loads(await p.stdout.read())

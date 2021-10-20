@@ -30,7 +30,7 @@ async def test_blist(redis_container: str, disruption_method: str) -> None:
     async def pop(r: aioredis.Redis, key: str) -> None:
         try:
             async with aiotools.aclosing(
-                redis.blpop(r, key, reconnect_poll_interval=0.3)
+                redis.blpop(r, key, reconnect_poll_interval=0.3),
             ) as agen:
                 async for raw_msg in agen:
                     msg = raw_msg.decode()
@@ -98,7 +98,7 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
     async def pop(r: aioredis.Redis, key: str) -> None:
         try:
             async with aiotools.aclosing(
-                redis.blpop(r, key, reconnect_poll_interval=0.3)
+                redis.blpop(r, key, reconnect_poll_interval=0.3),
             ) as agen:
                 async for raw_msg in agen:
                     msg = raw_msg.decode()
@@ -173,7 +173,7 @@ async def test_blist_cluster_sentinel(
                     s, key,
                     reconnect_poll_interval=0.3,
                     service_name="mymaster",
-                )
+                ),
             ) as agen:
                 async for raw_msg in agen:
                     msg = raw_msg.decode()

@@ -415,7 +415,7 @@ class DoSyncKernelStatsEvent(AbstractEvent):
         return cls(
             kernel_ids=tuple(
                 KernelId(uuid.UUID(item)) for item in value[0]
-            )
+            ),
         )
 
 
@@ -522,7 +522,7 @@ TContext = TypeVar('TContext', contravariant=True)
 
 EventCallback = Union[
     Callable[[TContext, AgentId, TEvent], Coroutine[Any, Any, None]],
-    Callable[[TContext, AgentId, TEvent], None]
+    Callable[[TContext, AgentId, TEvent], None],
 ]
 
 
@@ -635,7 +635,7 @@ class EventDispatcher(aobject):
                 service_name,
                 redis_class=aioredis.Redis,
                 connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                **redis._default_conn_opts
+                **redis._default_conn_opts,
             )
         else:
             self.redis_client = redis_client
@@ -651,7 +651,7 @@ class EventDispatcher(aobject):
                 await conn.xgroup_create(
                     'events.consumer',
                     'consumer',
-                    mkstream=True
+                    mkstream=True,
                 )
         except:
             pass
@@ -747,7 +747,7 @@ class EventDispatcher(aobject):
             log.debug('DISPATCH_CONSUMERS(ev:{}, ag:{})', event_name, source)
         for consumer in self.consumers[event_name]:
             self.consumer_taskset.add(asyncio.create_task(
-                self.handle("CONSUMER", consumer, source, args)
+                self.handle("CONSUMER", consumer, source, args),
             ))
             await asyncio.sleep(0)
 
@@ -761,7 +761,7 @@ class EventDispatcher(aobject):
             log.debug('DISPATCH_SUBSCRIBERS(ev:{}, ag:{})', event_name, source)
         for subscriber in self.subscribers[event_name]:
             self.subscriber_taskset.add(asyncio.create_task(
-                self.handle("SUBSCRIBER", subscriber, source, args)
+                self.handle("SUBSCRIBER", subscriber, source, args),
             ))
             await asyncio.sleep(0)
 
@@ -776,7 +776,7 @@ class EventDispatcher(aobject):
                         {'events.consumer': b">"},
                         block=10_000,
                         count=1,
-                    )
+                    ),
                 )
                 if not reply:
                     continue
@@ -791,7 +791,7 @@ class EventDispatcher(aobject):
                 finally:
                     await redis.execute(
                         self.redis_client,
-                        lambda r: r.xack('events.consumer', 'consumer', reply[0][1][0][0])
+                        lambda r: r.xack('events.consumer', 'consumer', reply[0][1][0][0]),
                     )
             except asyncio.CancelledError:
                 break
@@ -806,7 +806,7 @@ class EventDispatcher(aobject):
                     lambda r: r.xread(
                         {'events.subscribe': self._consume_next_id},
                         block=10_000,
-                    )
+                    ),
                 )
                 if not replies:
                     continue
@@ -845,7 +845,7 @@ class EventProducer(aobject):
                 service_name,
                 redis_class=aioredis.Redis,
                 connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                **redis._default_conn_opts
+                **redis._default_conn_opts,
             )
         else:
             self.redis_client = redis_client
@@ -870,9 +870,9 @@ class EventProducer(aobject):
         })
         await redis.execute(
             self.redis_client,
-            lambda r: r.xadd('events.subscribe', {'event': raw_msg})
+            lambda r: r.xadd('events.subscribe', {'event': raw_msg}),
         )
         await redis.execute(
             self.redis_client,
-            lambda r: r.xadd('events.consumer', {'event': raw_msg})
+            lambda r: r.xadd('events.consumer', {'event': raw_msg}),
         )

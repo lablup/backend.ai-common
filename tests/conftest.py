@@ -1,12 +1,8 @@
 import asyncio
-from asyncio.exceptions import CancelledError
 from decimal import Decimal
 import os
 import secrets
 import time
-
-from aiotools.server import setup_child_watcher
-import uvloop
 
 from ai.backend.common.argparse import host_port_pair
 from ai.backend.common.etcd import AsyncEtcd, ConfigScopes
@@ -91,7 +87,6 @@ async def chaos_generator():
     for i in range(20):
         tasks[i].cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
-
 
 
 @pytest.fixture
