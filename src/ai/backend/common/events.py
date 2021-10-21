@@ -413,7 +413,7 @@ class DoSyncKernelStatsEvent(AbstractEvent):
         return cls(
             kernel_ids=tuple(
                 KernelId(uuid.UUID(item)) for item in value[0]
-            )
+            ),
         )
 
 
@@ -520,7 +520,7 @@ TContext = TypeVar('TContext', contravariant=True)
 
 EventCallback = Union[
     Callable[[TContext, AgentId, TEvent], Coroutine[Any, Any, None]],
-    Callable[[TContext, AgentId, TEvent], None]
+    Callable[[TContext, AgentId, TEvent], None],
 ]
 
 
@@ -725,7 +725,7 @@ class EventDispatcher(aobject):
             log.debug('DISPATCH_CONSUMERS(ev:{}, ag:{})', event_name, source)
         for consumer in self.consumers[event_name]:
             self.consumer_taskset.add(asyncio.create_task(
-                self.handle("CONSUMER", consumer, source, args)
+                self.handle("CONSUMER", consumer, source, args),
             ))
             await asyncio.sleep(0)
 
@@ -739,7 +739,7 @@ class EventDispatcher(aobject):
             log.debug('DISPATCH_SUBSCRIBERS(ev:{}, ag:{})', event_name, source)
         for subscriber in self.subscribers[event_name]:
             self.subscriber_taskset.add(asyncio.create_task(
-                self.handle("SUBSCRIBER", subscriber, source, args)
+                self.handle("SUBSCRIBER", subscriber, source, args),
             ))
             await asyncio.sleep(0)
 

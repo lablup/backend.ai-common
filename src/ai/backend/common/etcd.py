@@ -245,7 +245,7 @@ class AsyncEtcd:
                 [self.etcd_sync.transactions.put(
                     self._mangle_key(f'{_slash(scope_prefix)}{k}'), str(v).encode(self.encoding))
                     for k, v in flattened_dict.items()],
-                []
+                [],
             ))
 
     @reconn_reauth_adaptor
@@ -271,7 +271,7 @@ class AsyncEtcd:
                 [self.etcd_sync.transactions.put(
                     self._mangle_key(f'{_slash(scope_prefix)}{k}'), str(v).encode(self.encoding))
                  for k, v in dict_obj.items()],
-                []
+                [],
             ))
 
     @reconn_reauth_adaptor
@@ -441,7 +441,7 @@ class AsyncEtcd:
                 [],
                 [self.etcd_sync.transactions.delete(self._mangle_key(f'{_slash(scope_prefix)}{k}'))
                  for k in keys],
-                []
+                [],
             ))
 
     @reconn_reauth_adaptor
@@ -550,10 +550,12 @@ class AsyncEtcd:
         while True:
             try:
                 async with aclosing(
-                    self._watch_impl(mangled_key,
-                                     ready_event,
-                                     cleanup_event,
-                                     timeout=wait_timeout)
+                    self._watch_impl(
+                        mangled_key,
+                        ready_event,
+                        cleanup_event,
+                        timeout=wait_timeout,
+                    ),
                 ) as agen:
                     async for ev in agen:
                         if ev is QueueSentinel.CLOSED:
@@ -586,11 +588,13 @@ class AsyncEtcd:
         while True:
             try:
                 async with aclosing(
-                    self._watch_impl(mangled_key_prefix,
-                                     ready_event,
-                                     cleanup_event,
-                                     prefix=True,
-                                     timeout=wait_timeout)
+                    self._watch_impl(
+                        mangled_key_prefix,
+                        ready_event,
+                        cleanup_event,
+                        prefix=True,
+                        timeout=wait_timeout,
+                    ),
                 ) as agen:
                     async for ev in agen:
                         if ev is QueueSentinel.CLOSED:

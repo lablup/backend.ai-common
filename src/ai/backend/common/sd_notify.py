@@ -66,7 +66,7 @@ class SystemdNotifier():
                     asyncudp._SocketProtocol,
                     family=socket.AF_UNIX,
                     remote_addr=self.address,  # type: ignore
-                ))
+                )),
             )
         self.socket.sendto(raw_msg)
 
