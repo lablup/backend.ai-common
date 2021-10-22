@@ -19,13 +19,11 @@ import aioredis
 import aioredis.client
 import aioredis.sentinel
 import aioredis.exceptions
-import attr
 import yarl
 
-from .types import EtcdRedisConfig
+from .types import EtcdRedisConfig, RedisConnectionInfo
 
 __all__ = (
-    'RedisConnectionInfo',
     'execute',
     'subscribe',
     'blpop',
@@ -61,12 +59,6 @@ class ConnectionNotAvailable(Exception):
     pass
 
 
-@attr.s(auto_attribs=True)
-class RedisConnectionInfo:
-    client: aioredis.Redis | aioredis.sentinel.Sentinel
-    service_name: Optional[str]
-
-
 def _calc_delay_exp_backoff(initial_delay: float, retry_count: float, time_limit: float) -> float:
     if time_limit > 0:
         return min(initial_delay * (2 ** retry_count), time_limit / 2)
@@ -82,6 +74,16 @@ async def subscribe(
     An async-generator wrapper for pub-sub channel subscription.
     It automatically recovers from server shutdowns until explicitly cancelled.
     """
+    async def _reset_chan():
+        channel.connection = None
+        try:
+            await channel.ping()
+        except aioredis.exceptions.ConnectionError:
+            pass
+        else:
+            assert channel.connection is not None
+            await channel.on_connect(channel.connection)
+
     while True:
         try:
             if not channel.connection:
@@ -99,15 +101,14 @@ async def subscribe(
             ConnectionNotAvailable,
         ):
             await asyncio.sleep(reconnect_poll_interval)
-            channel.connection = None
-            try:
-                await channel.ping()
-            except aioredis.exceptions.ConnectionError:
-                pass
-            else:
-                assert channel.connection is not None
-                await channel.on_connect(channel.connection)
+            await _reset_chan()
             continue
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS "):
+                await asyncio.sleep(reconnect_poll_interval)
+                await _reset_chan()
+                continue
+            raise
         except asyncio.TimeoutError:
             continue
         except asyncio.CancelledError:
@@ -134,10 +135,12 @@ async def blpop(
     if isinstance(redis.client, aioredis.sentinel.Sentinel):
         service_name = service_name or redis.service_name
         assert service_name is not None
-        r = redis.client.master_for(service_name,
-                             redis_class=aioredis.Redis,
-                             connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                             **_conn_opts)
+        r = redis.client.master_for(
+            service_name,
+            redis_class=aioredis.Redis,
+            connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+            **_conn_opts,
+        )
     else:
         r = redis.client
     while True:
@@ -155,6 +158,11 @@ async def blpop(
         ):
             await asyncio.sleep(reconnect_poll_interval)
             continue
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS "):
+                await asyncio.sleep(reconnect_poll_interval)
+                continue
+            raise
         except asyncio.TimeoutError:
             continue
         except asyncio.CancelledError:
@@ -164,7 +172,7 @@ async def blpop(
 
 
 async def execute(
-    redis: RedisConnectionInfo,
+    redis: RedisConnectionInfo | aioredis.Redis | aioredis.sentinel.Sentinel,
     func: Callable[[aioredis.Redis], Awaitable[Any]],
     *,
     service_name: str = None,
@@ -176,21 +184,30 @@ async def execute(
         **_default_conn_opts,
         'socket_timeout': reconnect_poll_interval,
     }
-    if isinstance(redis.client, aioredis.sentinel.Sentinel):
+    if isinstance(redis, RedisConnectionInfo):
+        redis_client = redis.client
+    else:
+        redis_client = redis
+
+    if isinstance(redis_client, aioredis.sentinel.Sentinel):
         service_name = service_name or redis.service_name
         assert service_name is not None
         if read_only:
-            r = redis.client.slave_for(service_name,
-                                       redis_class=aioredis.Redis,
-                                       connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                                       **_conn_opts)
+            r = redis_client.slave_for(
+                service_name,
+                redis_class=aioredis.Redis,
+                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                **_conn_opts,
+            )
         else:
-            r = redis.client.master_for(service_name,
-                                        redis_class=aioredis.Redis,
-                                        connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                                        **_conn_opts)
+            r = redis_client.master_for(
+                service_name,
+                redis_class=aioredis.Redis,
+                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                **_conn_opts,
+            )
     else:
-        r = redis.client
+        r = redis_client
     while True:
         try:
             async with r:
@@ -226,6 +243,12 @@ async def execute(
             print("EXECUTE-RETRY", repr(func), repr(e))
             await asyncio.sleep(reconnect_poll_interval)
             continue
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS "):
+                print("EXECUTE-RETRY", repr(func), repr(e))
+                await asyncio.sleep(reconnect_poll_interval)
+                continue
+            raise
         except asyncio.TimeoutError:
             print("EXECUTE-RETRY", repr(func), "timeout")
             return

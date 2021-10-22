@@ -28,6 +28,9 @@ from typing import (
     overload,
 )
 import uuid
+import aioredis
+import aioredis.sentinel
+import attr
 
 import typeguard
 
@@ -63,6 +66,8 @@ __all__ = (
     'ClusterMode',
     'ClusterSSHKeyPair',
     'check_typed_dict',
+    'EtcdRedisConfig',
+    'RedisConnectionInfo',
 )
 
 if TYPE_CHECKING:
@@ -786,3 +791,9 @@ class EtcdRedisConfig(TypedDict, total=False):
     sentinel: Optional[List[HostPortPair]]
     service_name: Optional[str]
     password: Optional[str]
+
+
+@attr.s(auto_attribs=True)
+class RedisConnectionInfo:
+    client: aioredis.Redis | aioredis.sentinel.Sentinel
+    service_name: Optional[str]

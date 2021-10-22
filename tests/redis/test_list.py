@@ -13,12 +13,14 @@ import aiotools
 import pytest
 
 from ai.backend.common import redis
+from ai.backend.common.types import RedisConnectionInfo
 
 from .types import RedisClusterInfo
 from .utils import interrupt, with_timeout
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 async def test_blist(redis_container: str, disruption_method: str) -> None:
     do_pause = asyncio.Event()
@@ -27,7 +29,7 @@ async def test_blist(redis_container: str, disruption_method: str) -> None:
     unpaused = asyncio.Event()
     received_messages: List[str] = []
 
-    async def pop(r: redis.RedisConnectionInfo, key: str) -> None:
+    async def pop(r: RedisConnectionInfo, key: str) -> None:
         try:
             async with aiotools.aclosing(
                 redis.blpop(r, key, reconnect_poll_interval=0.3),
@@ -38,7 +40,7 @@ async def test_blist(redis_container: str, disruption_method: str) -> None:
         except asyncio.CancelledError:
             pass
 
-    r = redis.RedisConnectionInfo(aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5), service_name=None)
+    r = RedisConnectionInfo(aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5), service_name=None)
     assert isinstance(r.client, aioredis.Redis)
     await r.client.delete("bl1")
 
@@ -88,6 +90,7 @@ async def test_blist(redis_container: str, disruption_method: str) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 async def test_blist_with_retrying_rpush(redis_container: str, disruption_method: str) -> None:
     do_pause = asyncio.Event()
@@ -96,7 +99,7 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
     unpaused = asyncio.Event()
     received_messages: List[str] = []
 
-    async def pop(r: redis.RedisConnectionInfo, key: str) -> None:
+    async def pop(r: RedisConnectionInfo, key: str) -> None:
         try:
             async with aiotools.aclosing(
                 redis.blpop(r, key, reconnect_poll_interval=0.3),
@@ -107,7 +110,7 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
         except asyncio.CancelledError:
             pass
 
-    r = redis.RedisConnectionInfo(aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5), service_name=None)
+    r = RedisConnectionInfo(aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5), service_name=None)
     assert isinstance(r.client, aioredis.Redis)
     await r.client.delete("bl1")
 
@@ -156,6 +159,7 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 @with_timeout(30.0)
 async def test_blist_cluster_sentinel(
@@ -168,7 +172,7 @@ async def test_blist_cluster_sentinel(
     unpaused = asyncio.Event()
     received_messages: List[str] = []
 
-    async def pop(s: redis.RedisConnectionInfo, key: str) -> None:
+    async def pop(s: RedisConnectionInfo, key: str) -> None:
         try:
             async with aiotools.aclosing(
                 redis.blpop(
@@ -183,7 +187,7 @@ async def test_blist_cluster_sentinel(
         except asyncio.CancelledError:
             pass
 
-    s = redis.RedisConnectionInfo(
+    s = RedisConnectionInfo(
         aioredis.sentinel.Sentinel(
             redis_cluster.sentinel_addrs,
             password='develove',

@@ -550,10 +550,12 @@ class AsyncEtcd:
         while True:
             try:
                 async with aclosing(
-                    self._watch_impl(mangled_key,
-                                     ready_event,
-                                     cleanup_event,
-                                     timeout=wait_timeout),
+                    self._watch_impl(
+                        mangled_key,
+                        ready_event,
+                        cleanup_event,
+                        timeout=wait_timeout,
+                    ),
                 ) as agen:
                     async for ev in agen:
                         if ev is QueueSentinel.CLOSED:
@@ -586,11 +588,13 @@ class AsyncEtcd:
         while True:
             try:
                 async with aclosing(
-                    self._watch_impl(mangled_key_prefix,
-                                     ready_event,
-                                     cleanup_event,
-                                     prefix=True,
-                                     timeout=wait_timeout),
+                    self._watch_impl(
+                        mangled_key_prefix,
+                        ready_event,
+                        cleanup_event,
+                        prefix=True,
+                        timeout=wait_timeout,
+                    ),
                 ) as agen:
                     async for ev in agen:
                         if ev is QueueSentinel.CLOSED:

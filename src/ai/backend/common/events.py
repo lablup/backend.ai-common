@@ -33,6 +33,7 @@ from . import msgpack, redis
 from .logging import BraceStyleAdapter
 from .types import (
     EtcdRedisConfig,
+    RedisConnectionInfo,
     aobject,
     AgentId,
     KernelId,
@@ -613,7 +614,7 @@ class EventDispatcher(aobject):
 
     consumers: defaultdict[str, set[EventHandler[Any, AbstractEvent]]]
     subscribers: defaultdict[str, set[EventHandler[Any, AbstractEvent]]]
-    redis_client: redis.RedisConnectionInfo
+    redis_client: RedisConnectionInfo
     consumer_loop_task: asyncio.Task
     subscriber_loop_task: asyncio.Task
     consumer_taskset: weakref.WeakSet[asyncio.Task]
@@ -811,7 +812,7 @@ class EventDispatcher(aobject):
 
 
 class EventProducer(aobject):
-    redis_client: redis.RedisConnectionInfo
+    redis_client: RedisConnectionInfo
     _log_events: bool
 
     def __init__(self,
