@@ -781,7 +781,7 @@ class QueueSentinel(enum.Enum):
     TIMEOUT = 1
 
 
-class EtcdRedisConfig(TypedDict):
+class EtcdRedisConfig(TypedDict, total=False):
     addr: Optional[HostPortPair]
     sentinel: Optional[List[HostPortPair]]
     service_name: Optional[str]

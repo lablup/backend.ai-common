@@ -19,14 +19,17 @@ import aioredis
 import aioredis.client
 import aioredis.sentinel
 import aioredis.exceptions
+import attr
 import yarl
 
 from .types import EtcdRedisConfig
 
 __all__ = (
+    'RedisConnectionInfo',
     'execute',
     'subscribe',
     'blpop',
+    'get_redis_object',
 )
 
 _keepalive_options: MutableMapping[int, int] = {}
@@ -56,6 +59,12 @@ _scripts: Dict[str, str] = {}
 
 class ConnectionNotAvailable(Exception):
     pass
+
+
+@attr.s(auto_attribs=True)
+class RedisConnectionInfo:
+    client: aioredis.Redis | aioredis.sentinel.Sentinel
+    service_name: Optional[str]
 
 
 def _calc_delay_exp_backoff(initial_delay: float, retry_count: float, time_limit: float) -> float:
@@ -108,7 +117,7 @@ async def subscribe(
 
 
 async def blpop(
-    redis: aioredis.Redis | aioredis.sentinel.Sentinel,
+    redis: RedisConnectionInfo,
     key: str,
     *,
     service_name: str = None,
@@ -122,14 +131,15 @@ async def blpop(
         **_default_conn_opts,
         'socket_timeout': reconnect_poll_interval,
     }
-    if isinstance(redis, aioredis.sentinel.Sentinel):
+    if isinstance(redis.client, aioredis.sentinel.Sentinel):
+        service_name = service_name or redis.service_name
         assert service_name is not None
-        r = redis.master_for(service_name,
+        r = redis.client.master_for(service_name,
                              redis_class=aioredis.Redis,
                              connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
                              **_conn_opts)
     else:
-        r = redis
+        r = redis.client
     while True:
         try:
             raw_msg = await r.blpop(key, timeout=10.0)
@@ -154,7 +164,7 @@ async def blpop(
 
 
 async def execute(
-    redis: aioredis.Redis | aioredis.sentinel.Sentinel,
+    redis: RedisConnectionInfo,
     func: Callable[[aioredis.Redis], Awaitable[Any]],
     *,
     service_name: str = None,
@@ -166,20 +176,21 @@ async def execute(
         **_default_conn_opts,
         'socket_timeout': reconnect_poll_interval,
     }
-    if isinstance(redis, aioredis.sentinel.Sentinel):
+    if isinstance(redis.client, aioredis.sentinel.Sentinel):
+        service_name = service_name or redis.service_name
         assert service_name is not None
         if read_only:
-            r = redis.slave_for(service_name,
-                                redis_class=aioredis.Redis,
-                                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                                **_conn_opts)
+            r = redis.client.slave_for(service_name,
+                                       redis_class=aioredis.Redis,
+                                       connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                                       **_conn_opts)
         else:
-            r = redis.master_for(service_name,
-                                 redis_class=aioredis.Redis,
-                                 connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                                 **_conn_opts)
+            r = redis.client.master_for(service_name,
+                                        redis_class=aioredis.Redis,
+                                        connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                                        **_conn_opts)
     else:
-        r = redis
+        r = redis.client
     while True:
         try:
             async with r:
@@ -225,7 +236,7 @@ async def execute(
 
 
 async def execute_script(
-    redis: aioredis.Redis | aioredis.sentinel.Sentinel,
+    redis: RedisConnectionInfo,
     script_id: str,
     script: str,
     keys: Sequence[str],
@@ -268,13 +279,16 @@ async def execute_script(
     return ret
 
 
-def get_redis_object(redis_connection_info: EtcdRedisConfig, db: int = 0) -> aioredis.Redis | aioredis.sentinel.Sentinel:
+def get_redis_object(redis_connection_info: EtcdRedisConfig,
+                     db: int = 0,
+                     **kwargs) -> RedisConnectionInfo:
     if sentinel_addresses := redis_connection_info.get('sentinel'):
+        assert redis_connection_info.get('service_name') is not None
         sentinel = aioredis.sentinel.Sentinel(
             sentinel_addresses,
             sentinel_kwargs={'password': redis_connection_info.get('password'), 'db': str(db)},
         )
-        return sentinel
+        return RedisConnectionInfo(client=sentinel, service_name=redis_connection_info.get('service_name'))
     else:
         redis_url = redis_connection_info.get('addr')
         assert redis_url is not None
@@ -282,4 +296,4 @@ def get_redis_object(redis_connection_info: EtcdRedisConfig, db: int = 0) -> aio
                 .with_host(str(redis_url[0]))
                 .with_port(redis_url[1])
                 .with_password(redis_connection_info.get('password')) / str(db))
-        return aioredis.Redis.from_url(str(url))
+        return RedisConnectionInfo(client=aioredis.Redis.from_url(str(url), **kwargs), service_name=None)

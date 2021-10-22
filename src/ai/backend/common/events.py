@@ -613,7 +613,7 @@ class EventDispatcher(aobject):
 
     consumers: defaultdict[str, set[EventHandler[Any, AbstractEvent]]]
     subscribers: defaultdict[str, set[EventHandler[Any, AbstractEvent]]]
-    redis_client: aioredis.Redis
+    redis_client: redis.RedisConnectionInfo
     consumer_loop_task: asyncio.Task
     subscriber_loop_task: asyncio.Task
     consumer_taskset: weakref.WeakSet[asyncio.Task]
@@ -627,18 +627,7 @@ class EventDispatcher(aobject):
                  connector: EtcdRedisConfig,
                  db: int = 0,
                  log_events: bool = False) -> None:
-        redis_client = redis.get_redis_object(connector, db=db)
-        if isinstance(redis_client, aioredis.sentinel.Sentinel):
-            service_name = connector.get('service_name')
-            assert service_name is not None
-            self.redis_client = redis_client.master_for(
-                service_name,
-                redis_class=aioredis.Redis,
-                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                **redis._default_conn_opts,
-            )
-        else:
-            self.redis_client = redis_client
+        self.redis_client = redis.get_redis_object(connector, db=db)
         self._log_events = log_events
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
@@ -647,12 +636,7 @@ class EventDispatcher(aobject):
 
     async def __ainit__(self) -> None:
         try:
-            async with self.redis_client.client() as conn:
-                await conn.xgroup_create(
-                    'events.consumer',
-                    'consumer',
-                    mkstream=True,
-                )
+            await redis.execute(self.redis_client, lambda r: r.xgroup_create('events.consumer', 'consumer', mkstream=True))
         except:
             pass
 
@@ -827,8 +811,7 @@ class EventDispatcher(aobject):
 
 
 class EventProducer(aobject):
-    redis_client: aioredis.Redis
-
+    redis_client: redis.RedisConnectionInfo
     _log_events: bool
 
     def __init__(self,
@@ -836,19 +819,10 @@ class EventProducer(aobject):
                  db: int = 0,
                  log_events: bool = False,
                  service_name: str = None) -> None:
-
-        redis_client = redis.get_redis_object(connector, db=db)
-        if isinstance(redis_client, aioredis.sentinel.Sentinel):
-            service_name = connector.get('service_name')
-            assert service_name is not None
-            self.redis_client = redis_client.master_for(
-                service_name,
-                redis_class=aioredis.Redis,
-                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                **redis._default_conn_opts,
-            )
-        else:
-            self.redis_client = redis_client
+        _connector = connector.copy()
+        if service_name:
+            _connector['service_name'] = service_name
+        self.redis_client = redis.get_redis_object(_connector, db=db)
         self._log_events = log_events
 
     async def __ainit__(self) -> None:
