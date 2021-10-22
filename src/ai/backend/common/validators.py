@@ -177,7 +177,7 @@ class DelimiterSeperatedList(t.Trafaret):
 class StringList(DelimiterSeperatedList):
 
     def __init__(self, *, delimiter: str = ',') -> None:
-        super().__init__(t.String, delimiter=delimiter)
+        super().__init__(None, delimiter=delimiter)
 
 
 T_enum = TypeVar('T_enum', bound=enum.Enum)
