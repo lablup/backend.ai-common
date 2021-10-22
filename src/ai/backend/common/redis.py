@@ -118,7 +118,7 @@ async def subscribe(
 
 
 async def blpop(
-    redis: RedisConnectionInfo,
+    redis: RedisConnectionInfo | aioredis.Redis | aioredis.sentinel.Sentinel,
     key: str,
     *,
     service_name: str = None,
@@ -132,17 +132,22 @@ async def blpop(
         **_default_conn_opts,
         'socket_timeout': reconnect_poll_interval,
     }
-    if isinstance(redis.client, aioredis.sentinel.Sentinel):
+    if isinstance(redis, RedisConnectionInfo):
+        redis_client = redis.client
         service_name = service_name or redis.service_name
+    else:
+        redis_client = redis
+
+    if isinstance(redis_client, aioredis.sentinel.Sentinel):
         assert service_name is not None
-        r = redis.client.master_for(
+        r = redis_client.master_for(
             service_name,
             redis_class=aioredis.Redis,
             connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
             **_conn_opts,
         )
     else:
-        r = redis.client
+        r = redis_client
     while True:
         try:
             raw_msg = await r.blpop(key, timeout=10.0)
@@ -186,11 +191,11 @@ async def execute(
     }
     if isinstance(redis, RedisConnectionInfo):
         redis_client = redis.client
+        service_name = service_name or redis.service_name
     else:
         redis_client = redis
 
     if isinstance(redis_client, aioredis.sentinel.Sentinel):
-        service_name = service_name or redis.service_name
         assert service_name is not None
         if read_only:
             r = redis_client.slave_for(
@@ -259,7 +264,7 @@ async def execute(
 
 
 async def execute_script(
-    redis: RedisConnectionInfo,
+    redis: RedisConnectionInfo | aioredis.Redis | aioredis.sentinel.Sentinel,
     script_id: str,
     script: str,
     keys: Sequence[str],
