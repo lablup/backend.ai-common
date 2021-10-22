@@ -90,12 +90,6 @@ async def subscribe(
             message = await channel.get_message(ignore_subscribe_messages=True, timeout=10.0)
             if message is not None:
                 yield message["data"]
-        except aioredis.exceptions.ResponseError as e:
-            if e.args[0].startswith("NOREPLICAS "):
-                await asyncio.sleep(reconnect_poll_interval)
-                await _reset_chan()
-                continue
-            raise
         except (
             aioredis.exceptions.ConnectionError,
             aioredis.sentinel.MasterNotFoundError,
@@ -108,6 +102,12 @@ async def subscribe(
             await asyncio.sleep(reconnect_poll_interval)
             await _reset_chan()
             continue
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS "):
+                await asyncio.sleep(reconnect_poll_interval)
+                await _reset_chan()
+                continue
+            raise
         except asyncio.TimeoutError:
             continue
         except asyncio.CancelledError:
@@ -145,11 +145,6 @@ async def blpop(
             if not raw_msg:
                 continue
             yield raw_msg[1]
-        except aioredis.exceptions.ResponseError as e:
-            if e.args[0].startswith("NOREPLICAS "):
-                await asyncio.sleep(reconnect_poll_interval)
-                continue
-            raise
         except (
             aioredis.exceptions.ConnectionError,
             aioredis.sentinel.MasterNotFoundError,
@@ -159,6 +154,11 @@ async def blpop(
         ):
             await asyncio.sleep(reconnect_poll_interval)
             continue
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS "):
+                await asyncio.sleep(reconnect_poll_interval)
+                continue
+            raise
         except asyncio.TimeoutError:
             continue
         except asyncio.CancelledError:
@@ -223,12 +223,6 @@ async def execute(
                         return newdict
                 else:
                     return result
-        except aioredis.exceptions.ResponseError as e:
-            if e.args[0].startswith("NOREPLICAS "):
-                print("EXECUTE-RETRY", repr(func), repr(e))
-                await asyncio.sleep(reconnect_poll_interval)
-                continue
-            raise
         except (
             aioredis.exceptions.ConnectionError,
             aioredis.sentinel.MasterNotFoundError,
@@ -239,6 +233,12 @@ async def execute(
             print("EXECUTE-RETRY", repr(func), repr(e))
             await asyncio.sleep(reconnect_poll_interval)
             continue
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS "):
+                print("EXECUTE-RETRY", repr(func), repr(e))
+                await asyncio.sleep(reconnect_poll_interval)
+                continue
+            raise
         except asyncio.TimeoutError:
             print("EXECUTE-RETRY", repr(func), "timeout")
             return
