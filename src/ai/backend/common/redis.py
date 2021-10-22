@@ -133,10 +133,12 @@ async def blpop(
     }
     if isinstance(redis, aioredis.sentinel.Sentinel):
         assert service_name is not None
-        r = redis.master_for(service_name,
-                             redis_class=aioredis.Redis,
-                             connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                             **_conn_opts)
+        r = redis.master_for(
+            service_name,
+            redis_class=aioredis.Redis,
+            connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+            **_conn_opts,
+        )
     else:
         r = redis
     while True:
