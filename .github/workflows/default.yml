@@ -62,8 +62,8 @@ jobs:
         python -m mypy --no-color-output src/ai/backend tests
 
   test:
-    # runs-on: ubuntu-latest
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    # runs-on: self-hosted
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python
