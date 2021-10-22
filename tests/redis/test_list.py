@@ -19,6 +19,7 @@ from .utils import interrupt, with_timeout
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 async def test_blist(redis_container: str, disruption_method: str) -> None:
     do_pause = asyncio.Event()
@@ -87,6 +88,7 @@ async def test_blist(redis_container: str, disruption_method: str) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 async def test_blist_with_retrying_rpush(redis_container: str, disruption_method: str) -> None:
     do_pause = asyncio.Event()

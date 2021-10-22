@@ -21,6 +21,7 @@ from .utils import interrupt, with_timeout
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 async def test_stream_fanout(redis_container: str, disruption_method: str, chaos_generator) -> None:
     do_pause = asyncio.Event()

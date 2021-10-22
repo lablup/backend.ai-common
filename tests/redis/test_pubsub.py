@@ -16,6 +16,7 @@ from ai.backend.common import redis
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 async def test_pubsub(redis_container: str, disruption_method: str) -> None:
     do_pause = asyncio.Event()
