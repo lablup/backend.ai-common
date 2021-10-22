@@ -73,6 +73,16 @@ async def subscribe(
     An async-generator wrapper for pub-sub channel subscription.
     It automatically recovers from server shutdowns until explicitly cancelled.
     """
+    async def _reset_chan():
+        channel.connection = None
+        try:
+            await channel.ping()
+        except aioredis.exceptions.ConnectionError:
+            pass
+        else:
+            assert channel.connection is not None
+            await channel.on_connect(channel.connection)
+
     while True:
         try:
             if not channel.connection:
@@ -80,6 +90,12 @@ async def subscribe(
             message = await channel.get_message(ignore_subscribe_messages=True, timeout=10.0)
             if message is not None:
                 yield message["data"]
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS"):
+                await asyncio.sleep(reconnect_poll_interval)
+                await _reset_chan()
+                continue
+            raise
         except (
             aioredis.exceptions.ConnectionError,
             aioredis.sentinel.MasterNotFoundError,
@@ -90,14 +106,7 @@ async def subscribe(
             ConnectionNotAvailable,
         ):
             await asyncio.sleep(reconnect_poll_interval)
-            channel.connection = None
-            try:
-                await channel.ping()
-            except aioredis.exceptions.ConnectionError:
-                pass
-            else:
-                assert channel.connection is not None
-                await channel.on_connect(channel.connection)
+            await _reset_chan()
             continue
         except asyncio.TimeoutError:
             continue
@@ -136,6 +145,11 @@ async def blpop(
             if not raw_msg:
                 continue
             yield raw_msg[1]
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS"):
+                await asyncio.sleep(reconnect_poll_interval)
+                continue
+            raise
         except (
             aioredis.exceptions.ConnectionError,
             aioredis.sentinel.MasterNotFoundError,
@@ -169,15 +183,19 @@ async def execute(
     if isinstance(redis, aioredis.sentinel.Sentinel):
         assert service_name is not None
         if read_only:
-            r = redis.slave_for(service_name,
-                                redis_class=aioredis.Redis,
-                                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                                **_conn_opts)
+            r = redis.slave_for(
+                service_name,
+                redis_class=aioredis.Redis,
+                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                **_conn_opts,
+            )
         else:
-            r = redis.master_for(service_name,
-                                 redis_class=aioredis.Redis,
-                                 connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
-                                 **_conn_opts)
+            r = redis.master_for(
+                service_name,
+                redis_class=aioredis.Redis,
+                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                **_conn_opts,
+            )
     else:
         r = redis
     while True:
@@ -205,6 +223,12 @@ async def execute(
                         return newdict
                 else:
                     return result
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS"):
+                print("EXECUTE-RETRY", repr(func), repr(e))
+                await asyncio.sleep(reconnect_poll_interval)
+                continue
+            raise
         except (
             aioredis.exceptions.ConnectionError,
             aioredis.sentinel.MasterNotFoundError,

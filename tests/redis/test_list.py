@@ -154,6 +154,7 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 @with_timeout(30.0)
 async def test_blist_cluster_sentinel(
