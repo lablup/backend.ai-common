@@ -62,8 +62,11 @@ async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None
                 print("MASTER", master_addr)
             except aioredis.sentinel.MasterNotFoundError:
                 print("MASTER (not found)")
-            slave_addrs = await s.discover_slaves('mymaster')
-            print("SLAVE", slave_addrs)
-            slave = s.slave_for('mymaster', db=9)
-            await slave.ping()
+            try:
+                slave_addrs = await s.discover_slaves('mymaster')
+                print("SLAVE", slave_addrs)
+                slave = s.slave_for('mymaster', db=9)
+                await slave.ping()
+            except aioredis.sentinel.SlaveNotFoundError:
+                print("SLAVE (not found)")
             await asyncio.sleep(1)
