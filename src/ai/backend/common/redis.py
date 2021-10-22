@@ -91,7 +91,7 @@ async def subscribe(
             if message is not None:
                 yield message["data"]
         except aioredis.exceptions.ResponseError as e:
-            if e.args[0].startswith("NOREPLICAS"):
+            if e.args[0].startswith("NOREPLICAS "):
                 await asyncio.sleep(reconnect_poll_interval)
                 await _reset_chan()
                 continue
@@ -146,7 +146,7 @@ async def blpop(
                 continue
             yield raw_msg[1]
         except aioredis.exceptions.ResponseError as e:
-            if e.args[0].startswith("NOREPLICAS"):
+            if e.args[0].startswith("NOREPLICAS "):
                 await asyncio.sleep(reconnect_poll_interval)
                 continue
             raise
@@ -224,7 +224,7 @@ async def execute(
                 else:
                     return result
         except aioredis.exceptions.ResponseError as e:
-            if e.args[0].startswith("NOREPLICAS"):
+            if e.args[0].startswith("NOREPLICAS "):
                 print("EXECUTE-RETRY", repr(func), repr(e))
                 await asyncio.sleep(reconnect_poll_interval)
                 continue
