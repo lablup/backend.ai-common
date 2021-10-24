@@ -10,7 +10,7 @@ import aiotools
 import pytest
 
 from .types import RedisClusterInfo
-from .utils import simple_run_cmd, interrupt, with_timeout
+from .utils import interrupt, with_timeout
 
 
 @pytest.mark.asyncio

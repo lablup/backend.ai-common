@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 from pathlib import Path
 import signal
 import textwrap
 from typing import (
     AsyncIterator,
-    List,
+    Sequence,
     Tuple,
 )
 
@@ -22,7 +23,7 @@ class NativeRedisNode(AbstractRedisNode):
 
     proc: asyncio.subprocess.Process | None
 
-    def __init__(self, node_type: str, port: int, start_args: List[str | Path]) -> None:
+    def __init__(self, node_type: str, port: int, start_args: Sequence[str | bytes]) -> None:
         self.node_type = node_type
         self.port = port
         self.start_args = start_args
@@ -110,7 +111,7 @@ class NativeRedisSentinelCluster(AbstractRedisSentinelCluster):
                     "--cluster-announce-ip", "127.0.0.1",
                     "--min-slaves-to-write", "1",
                     "--min-slaves-max-lag", "10",
-                    "--dbfilename", rdb_path,
+                    "--dbfilename", str(rdb_path),
                 ],
             )
             nodes.append(node)
@@ -124,7 +125,7 @@ class NativeRedisSentinelCluster(AbstractRedisSentinelCluster):
                 sentinel_port,
                 [
                     "redis-server",
-                    sentinel_conf_path,
+                    os.fsencode(sentinel_conf_path),
                     "--bind", "127.0.0.1",
                     "--port", str(sentinel_port),
                     "--sentinel",
