@@ -315,21 +315,28 @@ async def execute_script(
     return ret
 
 
-def get_redis_object(redis_connection_info: EtcdRedisConfig,
-                     db: int = 0,
-                     **kwargs) -> RedisConnectionInfo:
+def get_redis_object(
+    redis_connection_info: EtcdRedisConfig,
+    db: int = 0,
+    **kwargs,
+) -> RedisConnectionInfo:
     if sentinel_addresses := redis_connection_info.get('sentinel'):
         assert redis_connection_info.get('service_name') is not None
         sentinel = aioredis.sentinel.Sentinel(
             sentinel_addresses,
-            sentinel_kwargs={'password': redis_connection_info.get('password'), 'db': str(db)},
+            sentinel_kwargs={
+                'password': redis_connection_info.get('password'),
+                'db': str(db),
+            },
         )
         return RedisConnectionInfo(client=sentinel, service_name=redis_connection_info.get('service_name'))
     else:
         redis_url = redis_connection_info.get('addr')
         assert redis_url is not None
-        url = (yarl.URL('redis://host')
-                .with_host(str(redis_url[0]))
-                .with_port(redis_url[1])
-                .with_password(redis_connection_info.get('password')) / str(db))
+        url = (
+            yarl.URL('redis://host')
+            .with_host(str(redis_url[0]))
+            .with_port(redis_url[1])
+            .with_password(redis_connection_info.get('password')) / str(db)
+        )
         return RedisConnectionInfo(client=aioredis.Redis.from_url(str(url), **kwargs), service_name=None)
