@@ -100,11 +100,16 @@ class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
         await asyncio.sleep(0.2)
         try:
             p = await asyncio.create_subprocess_exec(
+                *[
                     'docker', 'compose',
                     '-p', f"{self.test_ns}.{self.test_case_ns}",
-                    '-f', os.fsencode(compose_cfg),
+                    '-f', str(compose_cfg),
                     'ps',
-                    '--format', 'json', stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+                    '--format', 'json',
+                ],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
             assert p.stdout is not None
             try:
                 ps_output = json.loads(await p.stdout.read())
@@ -121,7 +126,7 @@ class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
                 return None
 
             def find_port_sentinel(item):
-                if m := re.search(r"redis-sentinel(\d+)$", item['Name']):
+                if m := re.search(r"redis-sentinel(\d+)", item['Name']):
                     return 26379 + (int(m.group(1)) - 1)
                 return None
 
