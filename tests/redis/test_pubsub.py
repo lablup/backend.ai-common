@@ -11,8 +11,11 @@ import aioredis.exceptions
 import aiotools
 import pytest
 
+from .docker import DockerRedisNode
 from .utils import interrupt
+
 from ai.backend.common import redis
+from ai.backend.common.types import RedisConnectionInfo
 
 
 @pytest.mark.asyncio
@@ -36,17 +39,20 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
         except asyncio.CancelledError:
             pass
 
-    r = aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5)
-    await r.delete("ch1")
-    pubsub = r.pubsub()
+    r = RedisConnectionInfo(
+        aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
+        service_name=None,
+    )
+    assert isinstance(r.client, aioredis.Redis)
+    await r.client.delete("ch1")
+    pubsub = r.client.pubsub()
     async with pubsub:
         await pubsub.subscribe("ch1")
 
         subscribe_task = asyncio.create_task(subscribe(pubsub))
         interrupt_task = asyncio.create_task(interrupt(
             disruption_method,
-            redis_container,
-            ('localhost', 9379),
+            DockerRedisNode("node", 9379, redis_container),
             do_pause=do_pause,
             do_unpause=do_unpause,
             paused=paused,
@@ -55,7 +61,7 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
         await asyncio.sleep(0)
 
         for i in range(5):
-            await r.publish("ch1", str(i))
+            await r.client.publish("ch1", str(i))
             await asyncio.sleep(0.1)
         do_pause.set()
         await paused.wait()
@@ -63,17 +69,17 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
             # The Redis server is dead temporarily...
             if disruption_method == 'stop':
                 with pytest.raises(aioredis.exceptions.ConnectionError):
-                    await r.publish("ch1", str(5 + i))
+                    await r.client.publish("ch1", str(5 + i))
             elif disruption_method == 'pause':
                 with pytest.raises(asyncio.TimeoutError):
-                    await r.publish("ch1", str(5 + i))
+                    await r.client.publish("ch1", str(5 + i))
             else:
                 raise RuntimeError("should not reach here")
             await asyncio.sleep(0.1)
         do_unpause.set()
         await unpaused.wait()
         for i in range(5):
-            await r.publish("ch1", str(10 + i))
+            await r.client.publish("ch1", str(10 + i))
             await asyncio.sleep(0.1)
 
         await interrupt_task
@@ -114,17 +120,20 @@ async def test_pubsub_with_retrying_pub(redis_container: str, disruption_method:
         except asyncio.CancelledError:
             pass
 
-    r = aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5)
-    await r.delete("ch1")
-    pubsub = r.pubsub()
+    r = RedisConnectionInfo(
+        aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
+        service_name=None,
+    )
+    assert isinstance(r.client, aioredis.Redis)
+    await r.client.delete("ch1")
+    pubsub = r.client.pubsub()
     async with pubsub:
         await pubsub.subscribe("ch1")
 
         subscribe_task = asyncio.create_task(subscribe(pubsub))
         interrupt_task = asyncio.create_task(interrupt(
             disruption_method,
-            redis_container,
-            ('localhost', 9379),
+            DockerRedisNode("node", 9379, redis_container),
             do_pause=do_pause,
             do_unpause=do_unpause,
             paused=paused,

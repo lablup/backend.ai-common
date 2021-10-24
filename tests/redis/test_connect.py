@@ -44,8 +44,7 @@ async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None
         tg.create_task(control_interrupt())
         tg.create_task(interrupt(
             'stop',
-            redis_cluster.worker_containers[0],
-            redis_cluster.worker_addrs[0],
+            redis_cluster.nodes[0],
             do_pause=do_pause,
             do_unpause=do_unpause,
             paused=paused,

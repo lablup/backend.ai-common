@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import socket
+import sys
 from typing import (
     Any,
     AsyncIterator,
@@ -230,13 +231,16 @@ async def execute(
                                     'or aioredis.commands.Pipeline object')
                 if encoding:
                     if isinstance(result, bytes):
+                        print("EXECUTE-RETRY: Done", file=sys.stderr)
                         return result.decode(encoding)
                     elif isinstance(result, dict):
                         newdict = {}
                         for k, v in result.items():
                             newdict[k.decode(encoding)] = v.decode(encoding)
+                        print("EXECUTE-RETRY: Done", file=sys.stderr)
                         return newdict
                 else:
+                    print("EXECUTE-RETRY: Done", file=sys.stderr)
                     return result
         except (
             aioredis.exceptions.ConnectionError,
@@ -245,7 +249,7 @@ async def execute(
             aioredis.exceptions.ReadOnlyError,
             ConnectionResetError,
         ) as e:
-            print("EXECUTE-RETRY", repr(func), repr(e))
+            print("EXECUTE-RETRY", repr(func), repr(e), file=sys.stderr)
             await asyncio.sleep(reconnect_poll_interval)
             continue
         except aioredis.exceptions.ResponseError as e:
@@ -253,11 +257,15 @@ async def execute(
                 print("EXECUTE-RETRY", repr(func), repr(e))
                 await asyncio.sleep(reconnect_poll_interval)
                 continue
+            print("EXECUTE-RETRY: Unexpected ResponseError", repr(e), file=sys.stderr)
             raise
         except asyncio.TimeoutError:
-            print("EXECUTE-RETRY", repr(func), "timeout")
+            print("EXECUTE-RETRY", repr(func), "timeout", file=sys.stderr)
             return
         except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print("EXECUTE-RETRY: Unexpected generic exception", repr(e), file=sys.stderr)
             raise
         finally:
             await asyncio.sleep(0)

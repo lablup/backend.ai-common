@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import traceback
 from typing import (
     Dict,
@@ -17,6 +18,7 @@ import pytest
 from ai.backend.common import redis
 from ai.backend.common.types import RedisConnectionInfo
 
+from .docker import DockerRedisNode
 from .types import RedisClusterInfo
 from .utils import interrupt, with_timeout
 
@@ -50,13 +52,19 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
                     continue
                 assert reply[0][0].decode() == key
                 for msg_id, msg_data in reply[0][1]:
-                    print(f"XREAD[{consumer_id}]", msg_id, repr(msg_data))
+                    print(f"XREAD[{consumer_id}]", msg_id, repr(msg_data), file=sys.stderr)
                     received_messages[consumer_id].append(msg_data[b"idx"])
                     last_id = msg_id
             except asyncio.CancelledError:
                 return
+            except Exception as e:
+                print("STREAM_FANOUT.CONSUME: unexpected error", repr(e), file=sys.stderr)
+                raise
 
-    r = RedisConnectionInfo(aioredis.from_url('redis://localhost:9379', connection_timeout=0.5), service_name=None)
+    r = RedisConnectionInfo(
+        aioredis.from_url('redis://localhost:9379', connection_timeout=0.5),
+        service_name=None,
+    )
     assert isinstance(r.client, aioredis.Redis)
     await r.client.delete("stream1")
 
@@ -66,8 +74,7 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
     ]
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
-        redis_container,
-        ('localhost', 9379),
+        DockerRedisNode("node", 9379, redis_container),
         do_pause=do_pause,
         do_unpause=do_unpause,
         paused=paused,
@@ -146,11 +153,14 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
                     continue
                 assert reply[0][0].decode() == key
                 for msg_id, msg_data in reply[0][1]:
-                    print(f"XREAD[{consumer_id}]", msg_id, repr(msg_data))
+                    print(f"XREAD[{consumer_id}]", msg_id, repr(msg_data), file=sys.stderr)
                     received_messages[consumer_id].append(msg_data[b"idx"])
                     last_id = msg_id
             except asyncio.CancelledError:
                 return
+            except Exception as e:
+                print("STREAM_FANOUT.CONSUME: unexpected error", repr(e), file=sys.stderr)
+                raise
 
     s = RedisConnectionInfo(
         aioredis.sentinel.Sentinel(
@@ -169,8 +179,7 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
     ]
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
-        redis_cluster.worker_containers[0],
-        redis_cluster.worker_addrs[0],
+        redis_cluster.nodes[0],
         do_pause=do_pause,
         do_unpause=do_unpause,
         paused=paused,
@@ -179,26 +188,28 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
     ))
     await asyncio.sleep(0)
 
-    for i in range(5):
-        await _execute(lambda r: r.xadd("stream1", {"idx": i}))
-        await asyncio.sleep(0.1)
-    do_pause.set()
-    await paused.wait()
-    for i in range(5):
-        await _execute(lambda r: r.xadd("stream1", {"idx": 5 + i}))
-        await asyncio.sleep(0.1)
-    do_unpause.set()
-    await unpaused.wait()
-    for i in range(5):
-        await _execute(lambda r: r.xadd("stream1", {"idx": 10 + i}))
-        await asyncio.sleep(0.1)
-
-    await interrupt_task
-    for t in consumer_tasks:
-        t.cancel()
-        await t
-    for t in consumer_tasks:
-        assert t.done()
+    try:
+        for i in range(5):
+            await _execute(lambda r: r.xadd("stream1", {"idx": i}))
+            await asyncio.sleep(0.1)
+        do_pause.set()
+        await paused.wait()
+        loop = asyncio.get_running_loop()
+        loop.call_later(5.0, do_unpause.set)
+        for i in range(5):
+            await _execute(lambda r: r.xadd("stream1", {"idx": 5 + i}))
+            await asyncio.sleep(0.1)
+        await unpaused.wait()
+        for i in range(5):
+            await _execute(lambda r: r.xadd("stream1", {"idx": 10 + i}))
+            await asyncio.sleep(0.1)
+    finally:
+        await interrupt_task
+        for t in consumer_tasks:
+            t.cancel()
+            await t
+        for t in consumer_tasks:
+            assert t.done()
 
     if disruption_method == "stop":
         # loss does not happen due to retries
@@ -256,7 +267,10 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
             except Exception:
                 traceback.print_exc()
 
-    r = RedisConnectionInfo(aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5), service_name=None)
+    r = RedisConnectionInfo(
+        aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
+        service_name=None,
+    )
     assert isinstance(r.client, aioredis.Redis)
     await r.client.delete("stream1")
     await r.client.xgroup_create("stream1", "group1", b"$", mkstream=True)
@@ -267,8 +281,7 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
     ]
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
-        redis_container,
-        ('localhost', 9379),
+        DockerRedisNode("node", 9379, redis_container),
         do_pause=do_pause,
         do_unpause=do_unpause,
         paused=paused,
@@ -294,9 +307,11 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
         await asyncio.sleep(0.1)
     do_unpause.set()
     await unpaused.wait()
+    print("RESUME TEST", file=sys.stderr)
     for i in range(5):
         await r.client.xadd("stream1", {"idx": 10 + i})
         await asyncio.sleep(0.1)
+    print("RESUME TEST DONE", file=sys.stderr)
 
     await interrupt_task
     for t in consumer_tasks:
@@ -379,8 +394,7 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
     ]
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
-        redis_cluster.worker_containers[0],
-        redis_cluster.worker_addrs[0],
+        redis_cluster.nodes[0],
         do_pause=do_pause,
         do_unpause=do_unpause,
         paused=paused,
@@ -389,25 +403,27 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
     ))
     await asyncio.sleep(0)
 
-    for i in range(5):
-        await _execute(lambda r: r.xadd("stream1", {"idx": i}))
-        await asyncio.sleep(0.1)
-    do_pause.set()
-    await paused.wait()
-    for i in range(5):
-        # The Redis server is dead temporarily...
-        await _execute(lambda r: r.xadd("stream1", {"idx": 5 + i}))
-        await asyncio.sleep(0.1)
-    do_unpause.set()
-    await unpaused.wait()
-    for i in range(5):
-        await _execute(lambda r: r.xadd("stream1", {"idx": 10 + i}))
-        await asyncio.sleep(0.1)
-
-    await interrupt_task
-    for t in consumer_tasks:
-        t.cancel()
-    await asyncio.gather(*consumer_tasks, return_exceptions=True)
+    try:
+        for i in range(5):
+            await _execute(lambda r: r.xadd("stream1", {"idx": i}))
+            await asyncio.sleep(0.1)
+        do_pause.set()
+        await paused.wait()
+        loop = asyncio.get_running_loop()
+        loop.call_later(5.0, do_unpause.set)
+        for i in range(5):
+            # The Redis server is dead temporarily...
+            await _execute(lambda r: r.xadd("stream1", {"idx": 5 + i}))
+            await asyncio.sleep(0.1)
+        await unpaused.wait()
+        for i in range(5):
+            await _execute(lambda r: r.xadd("stream1", {"idx": 10 + i}))
+            await asyncio.sleep(0.1)
+    finally:
+        await interrupt_task
+        for t in consumer_tasks:
+            t.cancel()
+        await asyncio.gather(*consumer_tasks, return_exceptions=True)
 
     if disruption_method == "stop":
         # loss happens

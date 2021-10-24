@@ -5,18 +5,21 @@ import aioredis.exceptions
 import async_timeout
 import asyncio
 import functools
+import sys
 from typing import (
     Awaitable,
     Callable,
     Final,
     Sequence,
+    TYPE_CHECKING,
     TypeVar,
-    Tuple,
     Union,
 )
 from typing_extensions import (
     ParamSpec,
 )
+if TYPE_CHECKING:
+    from .types import AbstractRedisNode
 
 
 disruptions: Final = {
@@ -41,9 +44,9 @@ async def wait_redis_ready(host: str, port: int, password: str = None) -> None:
     r = aioredis.from_url(f"redis://{host}:{port}", password=password, socket_timeout=0.2)
     while True:
         try:
-            print("PING")
+            print("PING", file=sys.stderr)
             await r.ping()
-            print("PONG")
+            print("PONG", file=sys.stderr)
         except aioredis.exceptions.AuthenticationError:
             raise
         except (
@@ -59,8 +62,7 @@ async def wait_redis_ready(host: str, port: int, password: str = None) -> None:
 
 async def interrupt(
     disruption_method: str,
-    container_id: str,
-    container_addr: Tuple[str, int],
+    node: AbstractRedisNode,
     *,
     do_pause: asyncio.Event,
     do_unpause: asyncio.Event,
@@ -69,22 +71,22 @@ async def interrupt(
     redis_password: str = None,
 ) -> None:
     await do_pause.wait()
-    await simple_run_cmd(
-        ['docker', disruptions[disruption_method]['begin'], container_id],
-        # stdout=asyncio.subprocess.DEVNULL,
-        # stderr=asyncio.subprocess.DEVNULL,
-    )
-    print(f"STOPPED {container_id[:12]}")
+    print(f"STOPPING {node}", file=sys.stderr)
+    if disruption_method == "stop":
+        await node.stop(force_kill=True)
+    elif disruption_method == "pause":
+        await node.pause()
+    print(f"STOPPED {node}", file=sys.stderr)
     paused.set()
     await do_unpause.wait()
-    await simple_run_cmd(
-        ['docker', disruptions[disruption_method]['end'], container_id],
-        # stdout=asyncio.subprocess.DEVNULL,
-        # stderr=asyncio.subprocess.DEVNULL,
-    )
-    await wait_redis_ready(*container_addr, password=redis_password)
+    print(f"STARTING {node}", file=sys.stderr)
+    if disruption_method == "stop":
+        await node.start()
+    elif disruption_method == "pause":
+        await node.unpause()
+    await wait_redis_ready(*node.addr, password=redis_password)
     await asyncio.sleep(0.6)
-    print(f"STARTED {container_id[:12]}")
+    print(f"STARTED {node}", file=sys.stderr)
     unpaused.set()
 
 

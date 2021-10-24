@@ -10,11 +10,10 @@ services:
       --port 16379
       --requirepass ${REDIS_PASSWORD:-develove}
       --masterauth ${REDIS_PASSWORD:-develove}
-      --cluster-announce-ip host.docker.internal
+      --cluster-announce-ip 127.0.0.1
       --min-slaves-to-write 1
       --min-slaves-max-lag 10
-    ports:
-      - 16379:16379
+    network_mode: host
 
   backendai-half-redis-node02:
     image: redis:6-alpine
@@ -23,12 +22,11 @@ services:
       --port 16380
       --requirepass ${REDIS_PASSWORD:-develove}
       --masterauth ${REDIS_PASSWORD:-develove}
-      --slaveof host.docker.internal 16379
-      --cluster-announce-ip host.docker.internal
+      --slaveof 127.0.0.1 16379
+      --cluster-announce-ip 127.0.0.1
       --min-slaves-to-write 1
       --min-slaves-max-lag 10
-    ports:
-      - 16380:16380
+    network_mode: host
 
   backendai-half-redis-node03:
     image: redis:6-alpine
@@ -37,15 +35,13 @@ services:
       --port 16381
       --requirepass ${REDIS_PASSWORD:-develove}
       --masterauth ${REDIS_PASSWORD:-develove}
-      --slaveof host.docker.internal 16379
-      --cluster-announce-ip host.docker.internal
+      --slaveof 127.0.0.1 16379
+      --cluster-announce-ip 127.0.0.1
       --min-slaves-to-write 1
       --min-slaves-max-lag 10
-    ports:
-      - 16381:16381
+    network_mode: host
 
   backendai-half-redis-sentinel01:
-    hostname: backendai-half-redis-sentinel01
     build:
       context: .
       dockerfile: redis-sentinel.dockerfile
@@ -59,8 +55,7 @@ services:
       - backendai-half-redis-node01
       - backendai-half-redis-node02
       - backendai-half-redis-node03
-    ports:
-      - 26379:26379
+    network_mode: host
 
   backendai-half-redis-sentinel02:
     build:
@@ -76,8 +71,7 @@ services:
       - backendai-half-redis-node01
       - backendai-half-redis-node02
       - backendai-half-redis-node03
-    ports:
-      - 26380:26380
+    network_mode: host
 
   backendai-half-redis-sentinel03:
     build:
@@ -93,5 +87,4 @@ services:
       - backendai-half-redis-node01
       - backendai-half-redis-node02
       - backendai-half-redis-node03
-    ports:
-      - 26381:26381
+    network_mode: host

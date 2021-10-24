@@ -15,6 +15,7 @@ import pytest
 from ai.backend.common import redis
 from ai.backend.common.types import RedisConnectionInfo
 
+from .docker import DockerRedisNode
 from .types import RedisClusterInfo
 from .utils import interrupt, with_timeout
 
@@ -40,15 +41,17 @@ async def test_blist(redis_container: str, disruption_method: str) -> None:
         except asyncio.CancelledError:
             pass
 
-    r = RedisConnectionInfo(aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5), service_name=None)
+    r = RedisConnectionInfo(
+        aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
+        service_name=None,
+    )
     assert isinstance(r.client, aioredis.Redis)
     await r.client.delete("bl1")
 
     pop_task = asyncio.create_task(pop(r, "bl1"))
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
-        redis_container,
-        ('localhost', 9379),
+        DockerRedisNode("node", 9379, redis_container),
         do_pause=do_pause,
         do_unpause=do_unpause,
         paused=paused,
@@ -110,15 +113,17 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
         except asyncio.CancelledError:
             pass
 
-    r = RedisConnectionInfo(aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5), service_name=None)
+    r = RedisConnectionInfo(
+        aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
+        service_name=None,
+    )
     assert isinstance(r.client, aioredis.Redis)
     await r.client.delete("bl1")
 
     pop_task = asyncio.create_task(pop(r, "bl1"))
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
-        redis_container,
-        ('localhost', 9379),
+        DockerRedisNode("node", 9379, redis_container),
         do_pause=do_pause,
         do_unpause=do_unpause,
         paused=paused,
@@ -200,8 +205,7 @@ async def test_blist_cluster_sentinel(
     pop_task = asyncio.create_task(pop(s, "bl1"))
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
-        redis_cluster.worker_containers[0],
-        redis_cluster.worker_addrs[0],
+        redis_cluster.nodes[0],
         do_pause=do_pause,
         do_unpause=do_unpause,
         paused=paused,
