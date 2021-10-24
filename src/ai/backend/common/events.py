@@ -26,6 +26,7 @@ import uuid
 import weakref
 
 import aioredis
+import aioredis.exceptions
 import aioredis.sentinel
 import attr
 
@@ -624,10 +625,12 @@ class EventDispatcher(aobject):
     _consumer_name: str
     _consume_next_id: str
 
-    def __init__(self,
-                 connector: EtcdRedisConfig,
-                 db: int = 0,
-                 log_events: bool = False) -> None:
+    def __init__(
+        self,
+        connector: EtcdRedisConfig,
+        db: int = 0,
+        log_events: bool = False,
+    ) -> None:
         self.redis_client = redis.get_redis_object(connector, db=db)
         self._log_events = log_events
         self.consumers = defaultdict(set)
@@ -640,7 +643,6 @@ class EventDispatcher(aobject):
             await redis.execute(self.redis_client, lambda r: r.xgroup_create('events.consumer', 'consumer', mkstream=True))
         except:
             pass
-
         self.consumer_loop_task = asyncio.create_task(self._consume_loop())
         self.subscriber_loop_task = asyncio.create_task(self._subscribe_loop())
         self.consumer_taskset = weakref.WeakSet()
@@ -778,6 +780,28 @@ class EventDispatcher(aobject):
                         self.redis_client,
                         lambda r: r.xack('events.consumer', 'consumer', reply[0][1][0][0]),
                     )
+            except aioredis.exceptions.ResponseError as e:
+                if e.args[0].startswith("NOGROUP "):
+                    # When the Redis server restarts, consumer groups may be reset.
+                    try:
+                        await redis.execute(
+                            self.redis_client,
+                            lambda r: r.xgroup_create(
+                                "events.consumer",
+                                self._consumer_name,
+                                b"$",
+                                mkstream=True,
+                            ),
+                        )
+                    except aioredis.exceptions.ResponseError as e:
+                        if e.args[0].startswith("BUSYGROUP "):
+                            # Other consumers may have created it first.
+                            pass
+                        else:
+                            raise
+                    # Retry...
+                    continue
+                raise
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -815,11 +839,13 @@ class EventProducer(aobject):
     redis_client: RedisConnectionInfo
     _log_events: bool
 
-    def __init__(self,
-                 connector: EtcdRedisConfig,
-                 db: int = 0,
-                 log_events: bool = False,
-                 service_name: str = None) -> None:
+    def __init__(
+        self,
+        connector: EtcdRedisConfig,
+        db: int = 0,
+        log_events: bool = False,
+        service_name: str = None,
+    ) -> None:
         _connector = connector.copy()
         if service_name:
             _connector['service_name'] = service_name

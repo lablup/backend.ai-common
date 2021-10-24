@@ -37,11 +37,13 @@ class DockerRedisNode(AbstractRedisNode):
 
     async def pause(self) -> None:
         assert self.container_id is not None
+        print(f"Docker container {self.container_id[:12]} is being paused...")
         await simple_run_cmd(
             ['docker', 'pause', self.container_id],
             # stdout=asyncio.subprocess.DEVNULL,
             # stderr=asyncio.subprocess.DEVNULL,
         )
+        print(f"Docker container {self.container_id[:12]} is paused")
 
     async def unpause(self) -> None:
         assert self.container_id is not None
@@ -50,6 +52,7 @@ class DockerRedisNode(AbstractRedisNode):
             # stdout=asyncio.subprocess.DEVNULL,
             # stderr=asyncio.subprocess.DEVNULL,
         )
+        print(f"Docker container {self.container_id[:12]} is unpaused")
 
     async def stop(self, force_kill: bool = False) -> None:
         assert self.container_id is not None
@@ -59,12 +62,14 @@ class DockerRedisNode(AbstractRedisNode):
                 # stdout=asyncio.subprocess.DEVNULL,
                 # stderr=asyncio.subprocess.DEVNULL,
             )
+            print(f"Docker container {self.container_id[:12]} is killed")
         else:
             await simple_run_cmd(
                 ['docker', 'stop', self.container_id],
                 # stdout=asyncio.subprocess.DEVNULL,
                 # stderr=asyncio.subprocess.DEVNULL,
             )
+            print(f"Docker container {self.container_id[:12]} is terminated")
 
     async def start(self) -> None:
         assert self.container_id is not None
@@ -73,6 +78,7 @@ class DockerRedisNode(AbstractRedisNode):
             # stdout=asyncio.subprocess.DEVNULL,
             # stderr=asyncio.subprocess.DEVNULL,
         )
+        print(f"Docker container {self.container_id[:12]} started")
 
 
 class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
@@ -167,7 +173,7 @@ async def main():
     loop = asyncio.get_running_loop()
 
     async def redis_task():
-        native_cluster = DockerComposeRedisSentinelCluster("develove", "testing")
+        native_cluster = DockerComposeRedisSentinelCluster("testing", "testing-main", "develove", "testing")
         async with native_cluster.make_cluster():
             while True:
                 await asyncio.sleep(10)

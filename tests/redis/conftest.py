@@ -41,6 +41,6 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
         impl = NativeRedisSentinelCluster
     else:
         impl = DockerComposeRedisSentinelCluster
-    cluster = impl(test_ns, test_case_ns, "develove", "mymaster")
+    cluster = impl(test_ns, test_case_ns, password="develove", service_name="mymaster")
     async with cluster.make_cluster() as info:
         yield info

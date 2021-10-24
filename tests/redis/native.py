@@ -98,16 +98,21 @@ class NativeRedisSentinelCluster(AbstractRedisSentinelCluster):
                 node_port,
                 [
                     "redis-server",
+                    "--bind", "127.0.0.1",
                     "--port", str(node_port),
                     "--requirepass", self.password,
                     "--masterauth", self.password,
+                ] + (
+                    []
+                    if node_port == 16379
+                    else ["--slaveof", "127.0.0.1", "16379"]
+                ) + [
                     "--cluster-announce-ip", "127.0.0.1",
                     "--min-slaves-to-write", "1",
                     "--min-slaves-max-lag", "10",
                     "--dbfilename", rdb_path,
                 ],
             )
-            await node.start()
             nodes.append(node)
         for sentinel_port in [26379, 26380, 26381]:
             # Redis sentinels store their states in the config files (not rdb!),
@@ -120,12 +125,15 @@ class NativeRedisSentinelCluster(AbstractRedisSentinelCluster):
                 [
                     "redis-server",
                     sentinel_conf_path,
+                    "--bind", "127.0.0.1",
                     "--port", str(sentinel_port),
                     "--sentinel",
                 ],
             )
-            await sentinel.start()
             sentinels.append(sentinel)
+        await asyncio.gather(*[node.start() for node in nodes])
+        await asyncio.sleep(0.1)
+        await asyncio.gather(*[sentinel.start() for sentinel in sentinels])
         try:
             yield RedisClusterInfo(
                 node_addrs=[
@@ -145,6 +153,7 @@ class NativeRedisSentinelCluster(AbstractRedisSentinelCluster):
             raise
         finally:
             await asyncio.gather(*[sentinel.stop() for sentinel in sentinels])
+            await asyncio.sleep(0.1)
             await asyncio.gather(*[node.stop() for node in nodes])
 
 
@@ -152,7 +161,7 @@ async def main():
     loop = asyncio.get_running_loop()
 
     async def redis_task():
-        native_cluster = NativeRedisSentinelCluster("develove", "testing")
+        native_cluster = NativeRedisSentinelCluster("testing", "testing-main", "develove", "testing")
         async with native_cluster.make_cluster():
             while True:
                 await asyncio.sleep(10)

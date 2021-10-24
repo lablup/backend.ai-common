@@ -261,7 +261,7 @@ async def execute(
             raise
         except asyncio.TimeoutError:
             print("EXECUTE-RETRY", repr(func), "timeout", file=sys.stderr)
-            return
+            continue
         except asyncio.CancelledError:
             raise
         except Exception as e:

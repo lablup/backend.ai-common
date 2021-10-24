@@ -24,7 +24,6 @@ from .utils import interrupt, with_timeout
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 async def test_stream_fanout(redis_container: str, disruption_method: str, chaos_generator) -> None:
     do_pause = asyncio.Event()
@@ -62,7 +61,7 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
                 raise
 
     r = RedisConnectionInfo(
-        aioredis.from_url('redis://localhost:9379', connection_timeout=0.5),
+        aioredis.from_url('redis://localhost:9379', socket_timeout=0.5),
         service_name=None,
     )
     assert isinstance(r.client, aioredis.Redis)
@@ -87,6 +86,8 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
         await asyncio.sleep(0.1)
     do_pause.set()
     await paused.wait()
+    loop = asyncio.get_running_loop()
+    loop.call_later(5.0, do_unpause.set)
     for i in range(5):
         # The Redis server is dead temporarily...
         if disruption_method == 'stop':
@@ -98,7 +99,6 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
         else:
             raise RuntimeError("should not reach here")
         await asyncio.sleep(0.1)
-    do_unpause.set()
     await unpaused.wait()
     for i in range(5):
         await r.client.xadd("stream1", {"idx": 10 + i})
@@ -123,7 +123,6 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 @with_timeout(30.0)
 async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption_method: str, chaos_generator) -> None:
@@ -222,7 +221,6 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 @with_timeout(30.0)
 async def test_stream_loadbalance(redis_container: str, disruption_method: str, chaos_generator) -> None:
@@ -252,8 +250,6 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
                         block=10_000,
                     ),
                 )
-                if reply is None:
-                    continue
                 assert reply[0][0].decode() == key
                 if not reply[0][1]:
                     await asyncio.sleep(1)
@@ -264,8 +260,25 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
                     await redis.execute(r, lambda r: r.xack(key, group_name, msg_id))
             except asyncio.CancelledError:
                 return
+            except aioredis.exceptions.ResponseError as e:
+                if e.args[0].startswith("NOGROUP "):
+                    try:
+                        await redis.execute(
+                            r,
+                            lambda r: r.xgroup_create("stream1", "group1", b"$", mkstream=True),
+                        )
+                    except aioredis.exceptions.ResponseError as e:
+                        if e.args[0].startswith("BUSYGROUP "):
+                            pass
+                        else:
+                            traceback.print_exc()
+                            break
+                    continue
+                traceback.print_exc()
+                break
             except Exception:
                 traceback.print_exc()
+                break
 
     r = RedisConnectionInfo(
         aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
@@ -294,6 +307,8 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
         await asyncio.sleep(0.1)
     do_pause.set()
     await paused.wait()
+    loop = asyncio.get_running_loop()
+    loop.call_later(5.0, do_unpause.set)
     for i in range(5):
         # The Redis server is dead temporarily...
         if disruption_method == 'stop':
@@ -305,7 +320,6 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
         else:
             raise RuntimeError("should not reach here")
         await asyncio.sleep(0.1)
-    do_unpause.set()
     await unpaused.wait()
     print("RESUME TEST", file=sys.stderr)
     for i in range(5):
@@ -316,7 +330,10 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
     await interrupt_task
     for t in consumer_tasks:
         t.cancel()
-        await t
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
     await asyncio.gather(*consumer_tasks, return_exceptions=True)
 
     # loss happens
@@ -327,7 +344,6 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 @with_timeout(30.0)
 async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disruption_method: str, chaos_generator) -> None:
@@ -373,8 +389,16 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
                     )
             except asyncio.CancelledError:
                 return
+            except aioredis.exceptions.ResponseError as e:
+                if e.args[0].startswith("NOGROUP "):
+                    print("Handling NOGROUP!!!")
+                    await asyncio.sleep(1)
+                    continue
+                traceback.print_exc()
+                break
             except Exception:
                 traceback.print_exc()
+                break
 
     s = RedisConnectionInfo(
         aioredis.sentinel.Sentinel(

@@ -70,6 +70,7 @@ async def interrupt(
     unpaused: asyncio.Event,
     redis_password: str = None,
 ) -> None:
+    # Interrupt
     await do_pause.wait()
     print(f"STOPPING {node}", file=sys.stderr)
     if disruption_method == "stop":
@@ -78,6 +79,7 @@ async def interrupt(
         await node.pause()
     print(f"STOPPED {node}", file=sys.stderr)
     paused.set()
+    # Resume
     await do_unpause.wait()
     print(f"STARTING {node}", file=sys.stderr)
     if disruption_method == "stop":

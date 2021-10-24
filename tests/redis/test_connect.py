@@ -15,7 +15,10 @@ from .utils import simple_run_cmd, interrupt, with_timeout
 
 @pytest.mark.asyncio
 async def test_connect(redis_container: str) -> None:
-    r = aioredis.from_url(url='redis://localhost:9379')
+    r = aioredis.from_url(
+        url='redis://localhost:9379',
+        socket_timeout=0.5,
+    )
     await r.ping()
 
 
@@ -52,7 +55,6 @@ async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None
             redis_password='develove',
         ))
         await asyncio.sleep(0)
-        await simple_run_cmd(["docker", "ps"])
 
         for _ in range(5):
             print(f"CONNECT REPEAT {_}")
