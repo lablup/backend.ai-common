@@ -391,8 +391,17 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
                 return
             except aioredis.exceptions.ResponseError as e:
                 if e.args[0].startswith("NOGROUP "):
-                    print("Handling NOGROUP!!!")
-                    await asyncio.sleep(1)
+                    try:
+                        await redis.execute(
+                            r,
+                            lambda r: r.xgroup_create("stream1", "group1", b"$", mkstream=True),
+                        )
+                    except aioredis.exceptions.ResponseError as e:
+                        if e.args[0].startswith("BUSYGROUP "):
+                            pass
+                        else:
+                            traceback.print_exc()
+                            break
                     continue
                 traceback.print_exc()
                 break
