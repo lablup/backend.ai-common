@@ -239,8 +239,24 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
         r: RedisConnectionInfo,
         key: str,
     ) -> None:
+        last_ack = b"0-0"
         while True:
             try:
+                messages = []
+                reply = await redis.execute(
+                    r,
+                    lambda r: r.xclaim(
+                        key,
+                        group_name,
+                        consumer_id,
+                        500,
+                        [last_ack],
+                    ),
+                )
+                if reply and reply[0][1]:
+                    for msg_id, msg_data in reply[0][1]:
+                        print(f"XCLAIM[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
+                        messages.append((msg_id, msg_data))
                 reply = await redis.execute(
                     r,
                     lambda r: r.xreadgroup(
@@ -256,7 +272,11 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
                     continue
                 for msg_id, msg_data in reply[0][1]:
                     print(f"XREADGROUP[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
+                    messages.append((msg_id, msg_data))
+                for msg_id, msg_data in messages:
                     received_messages[consumer_id].append(msg_data[b"idx"])
+                    if last_ack.split(b"-") < msg_id.split(b"-"):
+                        last_ack = msg_id
                     await redis.execute(r, lambda r: r.xack(key, group_name, msg_id))
             except asyncio.CancelledError:
                 return
@@ -362,8 +382,24 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
         r: RedisConnectionInfo,
         key: str,
     ) -> None:
+        last_ack = b"0-0"
         while True:
             try:
+                messages = []
+                reply = await redis.execute(
+                    r,
+                    lambda r: r.xclaim(
+                        key,
+                        group_name,
+                        consumer_id,
+                        500,
+                        [last_ack],
+                    ),
+                )
+                if reply and reply[0][1]:
+                    for msg_id, msg_data in reply[0][1]:
+                        print(f"XCLAIM[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
+                        messages.append((msg_id, msg_data))
                 reply = await redis.execute(
                     r,
                     lambda r: r.xreadgroup(
@@ -374,15 +410,17 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
                     ),
                     service_name="mymaster",
                 )
-                if reply is None:
-                    continue
-                assert reply[0][0].decode() == key
                 if not reply[0][1]:
                     await asyncio.sleep(1)
                     continue
+                assert reply[0][0].decode() == key
                 for msg_id, msg_data in reply[0][1]:
                     print(f"XREADGROUP[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
+                    messages.append((msg_id, msg_data))
+                for msg_id, msg_data in messages:
                     received_messages[consumer_id].append(msg_data[b"idx"])
+                    if last_ack.split(b"-") < msg_id.split(b"-"):
+                        last_ack = msg_id
                     await redis.execute(
                         r, lambda r: r.xack(key, group_name, msg_id),
                         service_name="mymaster",
