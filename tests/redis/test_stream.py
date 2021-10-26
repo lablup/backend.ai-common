@@ -243,20 +243,25 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
         while True:
             try:
                 messages = []
-                reply = await redis.execute(
-                    r,
-                    lambda r: r.xclaim(
-                        key,
-                        group_name,
-                        consumer_id,
-                        500,
-                        [last_ack],
-                    ),
-                )
-                if reply and reply[0][1]:
-                    for msg_id, msg_data in reply[0][1]:
-                        print(f"XCLAIM[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
+                autoclaim_start_id = b'0-0'
+                while True:
+                    reply = await redis.execute(
+                        r,
+                        lambda r: r.execute_command(
+                            "XAUTOCLAIM",
+                            key,
+                            group_name,
+                            consumer_id,
+                            "500",  # min-idle (msec)
+                            autoclaim_start_id,
+                        ),
+                    )
+                    if reply[0] == b'0-0':
+                        break
+                    for msg_id, msg_data in reply[1]:
+                        print(f"XAUTOCLAIM[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
                         messages.append((msg_id, msg_data))
+                    autoclaim_start_id = reply[0]
                 reply = await redis.execute(
                     r,
                     lambda r: r.xreadgroup(
@@ -386,20 +391,25 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
         while True:
             try:
                 messages = []
-                reply = await redis.execute(
-                    r,
-                    lambda r: r.xclaim(
-                        key,
-                        group_name,
-                        consumer_id,
-                        500,
-                        [last_ack],
-                    ),
-                )
-                if reply and reply[0][1]:
-                    for msg_id, msg_data in reply[0][1]:
-                        print(f"XCLAIM[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
+                autoclaim_start_id = b'0-0'
+                while True:
+                    reply = await redis.execute(
+                        r,
+                        lambda r: r.execute_command(
+                            "XAUTOCLAIM",
+                            key,
+                            group_name,
+                            consumer_id,
+                            "500",  # min-idle (msec)
+                            autoclaim_start_id,
+                        ),
+                    )
+                    if reply[0] == b'0-0':
+                        break
+                    for msg_id, msg_data in reply[1]:
+                        print(f"XAUTOCLAIM[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
                         messages.append((msg_id, msg_data))
+                    autoclaim_start_id = reply[0]
                 reply = await redis.execute(
                     r,
                     lambda r: r.xreadgroup(
