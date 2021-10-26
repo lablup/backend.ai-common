@@ -65,7 +65,7 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
         service_name=None,
     )
     assert isinstance(r.client, aioredis.Redis)
-    await r.client.delete("stream1")
+    await redis.execute(r, lambda r: r.delete("stream1"))
 
     consumer_tasks = [
         asyncio.create_task(consume("c1", r, "stream1")),
@@ -312,8 +312,8 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
         service_name=None,
     )
     assert isinstance(r.client, aioredis.Redis)
-    await r.client.delete("stream1")
-    await r.client.xgroup_create("stream1", "group1", b"$", mkstream=True)
+    await redis.execute(r, lambda r: r.delete("stream1"))
+    await redis.execute(r, lambda r: r.xgroup_create("stream1", "group1", b"$", mkstream=True))
 
     consumer_tasks = [
         asyncio.create_task(consume("group1", "c1", r, "stream1")),
