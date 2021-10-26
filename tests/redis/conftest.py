@@ -11,7 +11,7 @@ import pytest
 from .types import RedisClusterInfo
 from .docker import DockerComposeRedisSentinelCluster
 from .native import NativeRedisSentinelCluster
-from .utils import simple_run_cmd
+from .utils import simple_run_cmd, wait_redis_ready
 
 
 @pytest.fixture
@@ -43,4 +43,8 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
         impl = DockerComposeRedisSentinelCluster
     cluster = impl(test_ns, test_case_ns, password="develove", service_name="mymaster")
     async with cluster.make_cluster() as info:
+        master_host, master_port = info.node_addrs[0]
+        sentinel1_host, sentinel1_port = info.sentinel_addrs[0]
+        await wait_redis_ready(master_host, master_port, "develove")
+        await wait_redis_ready(sentinel1_host, sentinel1_port, None)
         yield info
