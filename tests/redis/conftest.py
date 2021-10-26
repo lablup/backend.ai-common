@@ -5,6 +5,7 @@ import sys
 from typing import (
     AsyncIterator,
 )
+from aioredis import sentinel
 
 import pytest
 
@@ -43,8 +44,13 @@ async def redis_cluster(test_ns, test_case_ns) -> AsyncIterator[RedisClusterInfo
         impl = DockerComposeRedisSentinelCluster
     cluster = impl(test_ns, test_case_ns, password="develove", service_name="mymaster")
     async with cluster.make_cluster() as info:
-        master_host, master_port = info.node_addrs[0]
-        sentinel1_host, sentinel1_port = info.sentinel_addrs[0]
-        await wait_redis_ready(master_host, master_port, "develove")
-        await wait_redis_ready(sentinel1_host, sentinel1_port, None)
+        node_wait_tasks = [
+            wait_redis_ready(host, port, "develove")
+            for host, port in info.node_addrs
+        ]
+        sentinel_wait_tasks = [
+            wait_redis_ready(host, port, None)
+            for host, port in info.sentinel_addrs
+        ]
+        await asyncio.gather(*node_wait_tasks, *sentinel_wait_tasks)
         yield info
