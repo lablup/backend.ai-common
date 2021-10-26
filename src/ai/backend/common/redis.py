@@ -321,13 +321,16 @@ def get_redis_object(
     db: int = 0,
     **kwargs,
 ) -> RedisConnectionInfo:
-    if sentinel_addresses := redis_config.get('sentinel'):
-        if isinstance(sentinel_addresses, str):
-            sentinel_addresses = DelimiterSeperatedList(HostPortPair).check_and_return(sentinel_addresses)
+    if _sentinel_addresses := redis_config.get('sentinel'):
+        sentinel_addresses: Any = None
+        if isinstance(_sentinel_addresses, str):
+            sentinel_addresses = DelimiterSeperatedList(HostPortPair).check_and_return(_sentinel_addresses)
+        else:
+            sentinel_addresses = _sentinel_addresses
 
         assert redis_config.get('service_name') is not None
         sentinel = aioredis.sentinel.Sentinel(
-            [x.as_sockaddr() for x in sentinel_addresses],
+            [(str(host), port) for host, port in sentinel_addresses],
             password=redis_config.get('password'),
             db=str(db),
             sentinel_kwargs={

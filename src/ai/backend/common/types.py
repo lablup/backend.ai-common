@@ -788,7 +788,7 @@ class QueueSentinel(enum.Enum):
 
 class EtcdRedisConfig(TypedDict, total=False):
     addr: Optional[HostPortPair]
-    sentinel: Optional[List[HostPortPair]]
+    sentinel: Optional[Union[str, List[HostPortPair]]]
     service_name: Optional[str]
     password: Optional[str]
 
