@@ -23,6 +23,7 @@ import aioredis.exceptions
 import yarl
 
 from .types import EtcdRedisConfig, RedisConnectionInfo
+from .validators import DelimiterSeperatedList, HostPortPair
 
 __all__ = (
     'execute',
@@ -321,12 +322,15 @@ def get_redis_object(
     **kwargs,
 ) -> RedisConnectionInfo:
     if sentinel_addresses := redis_config.get('sentinel'):
+        if isinstance(sentinel_addresses, str):
+            sentinel_addresses = DelimiterSeperatedList(HostPortPair).check_and_return(sentinel_addresses)
+
         assert redis_config.get('service_name') is not None
         sentinel = aioredis.sentinel.Sentinel(
-            sentinel_addresses,
+            [x.as_sockaddr() for x in sentinel_addresses],
+            password=redis_config.get('password'),
+            db=str(db),
             sentinel_kwargs={
-                'password': redis_config.get('password'),
-                'db': str(db),
                 **kwargs,
             },
         )
