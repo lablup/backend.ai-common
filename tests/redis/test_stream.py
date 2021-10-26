@@ -257,6 +257,7 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
                         ),
                     )
                     for msg_id, msg_data in reply[1]:
+                        msg_data = aioredis.client.pairs_to_dict(msg_data)
                         print(f"XAUTOCLAIM[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
                         messages.append((msg_id, msg_data))
                     if reply[0] == b'0-0':
@@ -279,6 +280,7 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
                     print(f"XREADGROUP[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
                     messages.append((msg_id, msg_data))
                 for msg_id, msg_data in messages:
+                    print(f"-> message: {msg_id} {msg_data!r}")
                     received_messages[consumer_id].append(msg_data[b"idx"])
                     if last_ack.split(b"-") < msg_id.split(b"-"):
                         last_ack = msg_id
@@ -405,6 +407,7 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
                         ),
                     )
                     for msg_id, msg_data in reply[1]:
+                        msg_data = aioredis.client.pairs_to_dict(msg_data)
                         print(f"XAUTOCLAIM[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
                         messages.append((msg_id, msg_data))
                     if reply[0] == b'0-0':
