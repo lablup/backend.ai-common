@@ -5,7 +5,6 @@ import sys
 from typing import (
     AsyncIterator,
 )
-from aioredis import sentinel
 
 import pytest
 
