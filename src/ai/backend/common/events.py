@@ -757,14 +757,14 @@ class EventDispatcher(aobject):
         )) as agen:
             async for msg_id, msg_data in agen:
                 try:
-                    msg = msgpack.unpackb(msg_data[b'event'])
-                    source = msg['source']
+                    event = msgpack.unpackb(msg_data[b'event'])
+                    source = event['source']
                     if isinstance(source, bytes):
                         source = source.decode()
                     await self.dispatch_consumers(
-                        msg['name'],
+                        event['name'],
                         source,
-                        msg['args'],
+                        event['args'],
                     )
                 except asyncio.CancelledError:
                     raise
@@ -777,18 +777,16 @@ class EventDispatcher(aobject):
             'events.subscribe',
         )) as agen:
             async for msg_id, msg_data in agen:
-                msg = msgpack.unpackb(msg_data)
                 try:
-                    for (event_id, msg_body) in msg:
-                        msg = msgpack.unpackb(msg_body[b'event'])
-                        source = msg['source']
-                        if isinstance(source, bytes):
-                            source = source.decode()
-                        await self.dispatch_subscribers(
-                            msg['name'],
-                            source,
-                            msg['args'],
-                        )
+                    event = msgpack.unpackb(msg_data[b'event'])
+                    source = event['source']
+                    if isinstance(source, bytes):
+                        source = source.decode()
+                    await self.dispatch_subscribers(
+                        event['name'],
+                        source,
+                        event['args'],
+                    )
                 except asyncio.CancelledError:
                     break
                 except Exception:
