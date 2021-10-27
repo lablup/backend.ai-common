@@ -799,4 +799,5 @@ class RedisConnectionInfo:
     service_name: Optional[str]
 
     async def close(self) -> None:
-        await self.client.close()
+        if isinstance(self.client, aioredis.Redis):
+            await self.client.close()
