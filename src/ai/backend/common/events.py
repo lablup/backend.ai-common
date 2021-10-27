@@ -630,11 +630,14 @@ class EventDispatcher(aobject):
         connector: EtcdRedisConfig,
         db: int = 0,
         log_events: bool = False,
+        *,
+        consumer_group: str = "manager",
     ) -> None:
         self.redis_client = redis.get_redis_object(connector, db=db)
         self._log_events = log_events
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
+        self._consumer_group = consumer_group
         self._consumer_name = secrets.token_urlsafe(16)
 
     async def __ainit__(self) -> None:
@@ -752,7 +755,7 @@ class EventDispatcher(aobject):
         async with aclosing(redis.read_stream_by_group(
             self.redis_client,
             'events.consumer',
-            'manager',
+            self._consumer_group,
             self._consumer_name,
         )) as agen:
             async for msg_id, msg_data in agen:
@@ -788,7 +791,7 @@ class EventDispatcher(aobject):
                         event['args'],
                     )
                 except asyncio.CancelledError:
-                    break
+                    raise
                 except Exception:
                     log.exception('EventDispatcher.subscribe(): unexpected-error')
 
