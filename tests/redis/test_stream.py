@@ -13,6 +13,7 @@ import aioredis.client
 import aioredis.exceptions
 import aioredis.sentinel
 import aiotools
+from aiotools.context import aclosing
 import pytest
 
 from ai.backend.common import redis
@@ -40,25 +41,16 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
         r: RedisConnectionInfo,
         key: str,
     ) -> None:
-        last_id = b'0-0'
-        while True:
-            try:
-                reply = await redis.execute(
-                    r,
-                    lambda r: r.xread({key: last_id}, block=10_000),
-                )
-                if reply is None:
-                    continue
-                assert reply[0][0].decode() == key
-                for msg_id, msg_data in reply[0][1]:
+        try:
+            async with aclosing(redis.read_stream(r, key)) as agen:
+                async for msg_id, msg_data in agen:
                     print(f"XREAD[{consumer_id}]", msg_id, repr(msg_data), file=sys.stderr)
                     received_messages[consumer_id].append(msg_data[b"idx"])
-                    last_id = msg_id
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                print("STREAM_FANOUT.CONSUME: unexpected error", repr(e), file=sys.stderr)
-                raise
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            print("STREAM_FANOUT.CONSUME: unexpected error", repr(e), file=sys.stderr)
+            raise
 
     r = RedisConnectionInfo(
         aioredis.from_url('redis://localhost:9379', socket_timeout=0.5),
@@ -140,26 +132,16 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
         r: RedisConnectionInfo,
         key: str,
     ) -> None:
-        last_id = b'0-0'
-        while True:
-            try:
-                reply = await redis.execute(
-                    r,
-                    lambda r: r.xread({key: last_id}, block=10_000),
-                    service_name="mymaster",
-                )
-                if reply is None:
-                    continue
-                assert reply[0][0].decode() == key
-                for msg_id, msg_data in reply[0][1]:
+        try:
+            async with aclosing(redis.read_stream(r, key)) as agen:
+                async for msg_id, msg_data in agen:
                     print(f"XREAD[{consumer_id}]", msg_id, repr(msg_data), file=sys.stderr)
                     received_messages[consumer_id].append(msg_data[b"idx"])
-                    last_id = msg_id
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                print("STREAM_FANOUT.CONSUME: unexpected error", repr(e), file=sys.stderr)
-                raise
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            print("STREAM_FANOUT.CONSUME: unexpected error", repr(e), file=sys.stderr)
+            raise
 
     s = RedisConnectionInfo(
         aioredis.sentinel.Sentinel(
@@ -239,73 +221,19 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
         r: RedisConnectionInfo,
         key: str,
     ) -> None:
-        last_ack = b"0-0"
-        while True:
-            try:
-                messages = []
-                autoclaim_start_id = b'0-0'
-                while True:
-                    reply = await redis.execute(
-                        r,
-                        lambda r: r.execute_command(
-                            "XAUTOCLAIM",
-                            key,
-                            group_name,
-                            consumer_id,
-                            "500",  # min-idle (msec)
-                            autoclaim_start_id,
-                        ),
-                    )
-                    for msg_id, msg_data in reply[1]:
-                        msg_data = aioredis.client.pairs_to_dict(msg_data)
-                        print(f"XAUTOCLAIM[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
-                        messages.append((msg_id, msg_data))
-                    if reply[0] == b'0-0':
-                        break
-                    autoclaim_start_id = reply[0]
-                reply = await redis.execute(
-                    r,
-                    lambda r: r.xreadgroup(
-                        group_name,
-                        consumer_id,
-                        {key: b">"},  # fetch messages not seen by other consumers
-                        block=10_000,
-                    ),
-                )
-                assert reply[0][0].decode() == key
-                if not reply[0][1]:
-                    await asyncio.sleep(1)
-                    continue
-                for msg_id, msg_data in reply[0][1]:
-                    print(f"XREADGROUP[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
-                    messages.append((msg_id, msg_data))
-                for msg_id, msg_data in messages:
+        try:
+            async with aclosing(redis.read_stream_by_group(
+                r, key, group_name, consumer_id,
+                autoclaim_idle_timeout=500,
+            )) as agen:
+                async for msg_id, msg_data in agen:
                     print(f"-> message: {msg_id} {msg_data!r}")
                     received_messages[consumer_id].append(msg_data[b"idx"])
-                    if last_ack.split(b"-") < msg_id.split(b"-"):
-                        last_ack = msg_id
-                    await redis.execute(r, lambda r: r.xack(key, group_name, msg_id))
-            except asyncio.CancelledError:
-                return
-            except aioredis.exceptions.ResponseError as e:
-                if e.args[0].startswith("NOGROUP "):
-                    try:
-                        await redis.execute(
-                            r,
-                            lambda r: r.xgroup_create("stream1", "group1", b"$", mkstream=True),
-                        )
-                    except aioredis.exceptions.ResponseError as e:
-                        if e.args[0].startswith("BUSYGROUP "):
-                            pass
-                        else:
-                            traceback.print_exc()
-                            break
-                    continue
-                traceback.print_exc()
-                break
-            except Exception:
-                traceback.print_exc()
-                break
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            traceback.print_exc()
+            return
 
     r = RedisConnectionInfo(
         aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
@@ -389,76 +317,19 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
         r: RedisConnectionInfo,
         key: str,
     ) -> None:
-        last_ack = b"0-0"
-        while True:
-            try:
-                messages = []
-                autoclaim_start_id = b'0-0'
-                while True:
-                    reply = await redis.execute(
-                        r,
-                        lambda r: r.execute_command(
-                            "XAUTOCLAIM",
-                            key,
-                            group_name,
-                            consumer_id,
-                            "500",  # min-idle (msec)
-                            autoclaim_start_id,
-                        ),
-                    )
-                    for msg_id, msg_data in reply[1]:
-                        msg_data = aioredis.client.pairs_to_dict(msg_data)
-                        print(f"XAUTOCLAIM[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
-                        messages.append((msg_id, msg_data))
-                    if reply[0] == b'0-0':
-                        break
-                    autoclaim_start_id = reply[0]
-                reply = await redis.execute(
-                    r,
-                    lambda r: r.xreadgroup(
-                        group_name,
-                        consumer_id,
-                        {key: b">"},  # fetch messages not seen by other consumers
-                        block=10_000,
-                    ),
-                    service_name="mymaster",
-                )
-                if not reply[0][1]:
-                    await asyncio.sleep(1)
-                    continue
-                assert reply[0][0].decode() == key
-                for msg_id, msg_data in reply[0][1]:
-                    print(f"XREADGROUP[{group_name}:{consumer_id}]", msg_id, repr(msg_data))
-                    messages.append((msg_id, msg_data))
-                for msg_id, msg_data in messages:
+        try:
+            async with aclosing(redis.read_stream_by_group(
+                r, key, group_name, consumer_id,
+                autoclaim_idle_timeout=500,
+            )) as agen:
+                async for msg_id, msg_data in agen:
+                    print(f"-> message: {msg_id} {msg_data!r}")
                     received_messages[consumer_id].append(msg_data[b"idx"])
-                    if last_ack.split(b"-") < msg_id.split(b"-"):
-                        last_ack = msg_id
-                    await redis.execute(
-                        r, lambda r: r.xack(key, group_name, msg_id),
-                        service_name="mymaster",
-                    )
-            except asyncio.CancelledError:
-                return
-            except aioredis.exceptions.ResponseError as e:
-                if e.args[0].startswith("NOGROUP "):
-                    try:
-                        await redis.execute(
-                            r,
-                            lambda r: r.xgroup_create("stream1", "group1", b"$", mkstream=True),
-                        )
-                    except aioredis.exceptions.ResponseError as e:
-                        if e.args[0].startswith("BUSYGROUP "):
-                            pass
-                        else:
-                            traceback.print_exc()
-                            break
-                    continue
-                traceback.print_exc()
-                break
-            except Exception:
-                traceback.print_exc()
-                break
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            traceback.print_exc()
+            return
 
     s = RedisConnectionInfo(
         aioredis.sentinel.Sentinel(

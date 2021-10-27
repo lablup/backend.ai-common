@@ -9,11 +9,12 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Dict,
     Mapping,
     MutableMapping,
     Optional,
     Sequence,
-    Dict,
+    Tuple,
 )
 
 import aioredis
@@ -29,6 +30,8 @@ __all__ = (
     'execute',
     'subscribe',
     'blpop',
+    'read_stream',
+    'read_stream_by_group',
     'get_redis_object',
 )
 
@@ -65,6 +68,11 @@ def _calc_delay_exp_backoff(initial_delay: float, retry_count: float, time_limit
     if time_limit > 0:
         return min(initial_delay * (2 ** retry_count), time_limit / 2)
     return min(initial_delay * (2 ** retry_count), 30.0)
+
+
+def _parse_stream_msg_id(msg_id: bytes) -> Tuple[int, int]:
+    timestamp, _, sequence = msg_id.partition(b'-')
+    return int(timestamp), int(sequence)
 
 
 async def subscribe(
@@ -132,7 +140,7 @@ async def blpop(
     """
     _conn_opts = {
         **_default_conn_opts,
-        'socket_timeout': reconnect_poll_interval,
+        'socket_connect_timeout': reconnect_poll_interval,
     }
     if isinstance(redis, RedisConnectionInfo):
         redis_client = redis.client
@@ -189,7 +197,7 @@ async def execute(
 ) -> Any:
     _conn_opts = {
         **_default_conn_opts,
-        'socket_timeout': reconnect_poll_interval,
+        'socket_connect_timeout': reconnect_poll_interval,
     }
     if isinstance(redis, RedisConnectionInfo):
         redis_client = redis.client
@@ -232,16 +240,13 @@ async def execute(
                                     'or aioredis.commands.Pipeline object')
                 if encoding:
                     if isinstance(result, bytes):
-                        print("EXECUTE-RETRY: Done", file=sys.stderr)
                         return result.decode(encoding)
                     elif isinstance(result, dict):
                         newdict = {}
                         for k, v in result.items():
                             newdict[k.decode(encoding)] = v.decode(encoding)
-                        print("EXECUTE-RETRY: Done", file=sys.stderr)
                         return newdict
                 else:
-                    print("EXECUTE-RETRY: Done", file=sys.stderr)
                     return result
         except (
             aioredis.exceptions.ConnectionError,
@@ -250,23 +255,18 @@ async def execute(
             aioredis.exceptions.ReadOnlyError,
             ConnectionResetError,
         ) as e:
-            print("EXECUTE-RETRY", repr(func), repr(e), file=sys.stderr)
             await asyncio.sleep(reconnect_poll_interval)
             continue
         except aioredis.exceptions.ResponseError as e:
             if e.args[0].startswith("NOREPLICAS "):
-                print("EXECUTE-RETRY", repr(func), repr(e))
                 await asyncio.sleep(reconnect_poll_interval)
                 continue
-            print("EXECUTE-RETRY: Unexpected ResponseError", repr(e), file=sys.stderr)
             raise
         except asyncio.TimeoutError:
-            print("EXECUTE-RETRY", repr(func), "timeout", file=sys.stderr)
             continue
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            print("EXECUTE-RETRY: Unexpected generic exception", repr(e), file=sys.stderr)
             raise
         finally:
             await asyncio.sleep(0)
@@ -314,6 +314,124 @@ async def execute_script(
                 raise
             continue
     return ret
+
+
+async def read_stream(
+    r: RedisConnectionInfo,
+    stream_key: str,
+    *,
+    block_timeout: int = 10_000,  # in msec
+) -> AsyncIterator[Tuple[bytes, bytes]]:
+    """
+    A high-level wrapper for the XREAD command.
+    """
+    last_id = b'0-0'
+    while True:
+        try:
+            reply = await execute(
+                r,
+                lambda r: r.xread(
+                    {stream_key: last_id},
+                    block=block_timeout,
+                ),
+            )
+            if reply is None:
+                continue
+            assert reply[0][0].decode() == stream_key
+            for msg_id, msg_data in reply[0][1]:
+                try:
+                    yield msg_id, msg_data
+                finally:
+                    last_id = msg_id
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            raise
+
+
+async def read_stream_by_group(
+    r: RedisConnectionInfo,
+    stream_key: str,
+    group_name: str,
+    consumer_id: str,
+    *,
+    autoclaim_idle_timeout: int = 1_000,  # in msec
+    block_timeout: int = 10_000,  # in msec
+) -> AsyncIterator[Tuple[bytes, bytes]]:
+    """
+    A high-level wrapper for the XREADGROUP command
+    combined with XAUTOCLAIM and XGROUP_CREATE.
+    """
+    last_ack = b"0-0"
+    while True:
+        try:
+            messages = []
+            autoclaim_start_id = b'0-0'
+            while True:
+                reply = await execute(
+                    r,
+                    lambda r: r.execute_command(
+                        "XAUTOCLAIM",
+                        stream_key,
+                        group_name,
+                        consumer_id,
+                        str(autoclaim_idle_timeout),
+                        autoclaim_start_id,
+                    ),
+                )
+                for msg_id, msg_data in reply[1]:
+                    msg_data = aioredis.client.pairs_to_dict(msg_data)
+                    messages.append((msg_id, msg_data))
+                if reply[0] == b'0-0':
+                    break
+                autoclaim_start_id = reply[0]
+            reply = await execute(
+                r,
+                lambda r: r.xreadgroup(
+                    group_name,
+                    consumer_id,
+                    {stream_key: b">"},  # fetch messages not seen by other consumers
+                    block=block_timeout,
+                ),
+            )
+            assert reply[0][0].decode() == stream_key
+            for msg_id, msg_data in reply[0][1]:
+                messages.append((msg_id, msg_data))
+            for msg_id, msg_data in messages:
+                try:
+                    yield msg_id, msg_data
+                finally:
+                    if _parse_stream_msg_id(last_ack) < _parse_stream_msg_id(msg_id):
+                        last_ack = msg_id
+                    await execute(
+                        r,
+                        lambda r: r.xack(
+                            stream_key,
+                            group_name,
+                            msg_id,
+                        ),
+                    )
+        except asyncio.CancelledError:
+            raise
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOGROUP "):
+                try:
+                    await execute(
+                        r,
+                        lambda r: r.xgroup_create(
+                            stream_key,
+                            group_name,
+                            b"$",
+                            mkstream=True,
+                        ),
+                    )
+                except aioredis.exceptions.ResponseError as e:
+                    if e.args[0].startswith("BUSYGROUP "):
+                        pass
+                    else:
+                        raise
+                continue
+            raise
 
 
 def get_redis_object(

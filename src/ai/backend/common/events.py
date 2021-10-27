@@ -28,6 +28,7 @@ import weakref
 import aioredis
 import aioredis.exceptions
 import aioredis.sentinel
+from aiotools.context import aclosing
 import attr
 
 from . import msgpack, redis
@@ -623,7 +624,6 @@ class EventDispatcher(aobject):
 
     _log_events: bool
     _consumer_name: str
-    _consume_next_id: str
 
     def __init__(
         self,
@@ -636,7 +636,6 @@ class EventDispatcher(aobject):
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
         self._consumer_name = secrets.token_urlsafe(16)
-        self._consume_next_id = '$'
 
     async def __ainit__(self) -> None:
         try:
@@ -753,86 +752,50 @@ class EventDispatcher(aobject):
             await asyncio.sleep(0)
 
     async def _consume_loop(self) -> None:
-        while True:
-            try:
-                reply = await redis.execute(
-                    self.redis_client,
-                    lambda r: r.xreadgroup(
-                        'consumer',
-                        self._consumer_name,  # TODO: Generate consumer ID per event client
-                        {'events.consumer': b">"},
-                        block=10_000,
-                        count=1,
-                    ),
-                )
-                if not reply:
-                    continue
-                msg = msgpack.unpackb(reply[0][1][0][1][b'event'])
-                source = msg['source']
-                if isinstance(source, bytes):
-                    source = source.decode()
+        async with aclosing(redis.read_stream_by_group(
+            self.redis_client,
+            'events.consumer',
+            'manager',
+            self._consumer_name,
+        )) as agen:
+            async for msg_id, msg_data in agen:
                 try:
-                    await self.dispatch_consumers(msg['name'],
-                                                  source,
-                                                  msg['args'])
-                finally:
-                    await redis.execute(
-                        self.redis_client,
-                        lambda r: r.xack('events.consumer', 'consumer', reply[0][1][0][0]),
-                    )
-            except aioredis.exceptions.ResponseError as e:
-                if e.args[0].startswith("NOGROUP "):
-                    # When the Redis server restarts, consumer groups may be reset.
-                    try:
-                        await redis.execute(
-                            self.redis_client,
-                            lambda r: r.xgroup_create(
-                                "events.consumer",
-                                self._consumer_name,
-                                b"$",
-                                mkstream=True,
-                            ),
-                        )
-                    except aioredis.exceptions.ResponseError as e:
-                        if e.args[0].startswith("BUSYGROUP "):
-                            # Other consumers may have created it first.
-                            pass
-                        else:
-                            raise
-                    # Retry...
-                    continue
-                raise
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                log.exception('EventDispatcher.consume(): unexpected-error')
-
-    async def _subscribe_loop(self) -> None:
-        while True:
-            try:
-                replies = await redis.execute(
-                    self.redis_client,
-                    lambda r: r.xread(
-                        {'events.subscribe': self._consume_next_id},
-                        block=10_000,
-                    ),
-                )
-                if not replies:
-                    continue
-
-                for (event_id, msg_body) in replies[0][1]:
-                    msg = msgpack.unpackb(msg_body[b'event'])
+                    msg = msgpack.unpackb(msg_data[b'event'])
                     source = msg['source']
                     if isinstance(source, bytes):
                         source = source.decode()
-                    await self.dispatch_subscribers(msg['name'],
-                                                    source,
-                                                    msg['args'])
-                    self._consume_next_id = event_id
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                log.exception('EventDispatcher.subscribe(): unexpected-error')
+                    await self.dispatch_consumers(
+                        msg['name'],
+                        source,
+                        msg['args'],
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception('EventDispatcher.consume(): unexpected-error')
+
+    async def _subscribe_loop(self) -> None:
+        async with aclosing(redis.read_stream(
+            self.redis_client,
+            'events.subscribe',
+        )) as agen:
+            async for msg_id, msg_data in agen:
+                msg = msgpack.unpackb(msg_data)
+                try:
+                    for (event_id, msg_body) in msg:
+                        msg = msgpack.unpackb(msg_body[b'event'])
+                        source = msg['source']
+                        if isinstance(source, bytes):
+                            source = source.decode()
+                        await self.dispatch_subscribers(
+                            msg['name'],
+                            source,
+                            msg['args'],
+                        )
+                except asyncio.CancelledError:
+                    break
+                except Exception:
+                    log.exception('EventDispatcher.subscribe(): unexpected-error')
 
 
 class EventProducer(aobject):
