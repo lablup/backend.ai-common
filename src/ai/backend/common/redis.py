@@ -334,7 +334,6 @@ async def read_stream(
             )
             if reply is None:
                 continue
-            assert reply[0][0].decode() == stream_key
             for msg_id, msg_data in reply[0][1]:
                 try:
                     yield msg_id, msg_data
@@ -374,8 +373,7 @@ async def read_stream_by_group(
                         autoclaim_start_id,
                     ),
                 )
-                for msg_id, msg_data in reply[1]:
-                    msg_data = aioredis.client.pairs_to_dict(msg_data)
+                for msg_id, msg_data in aioredis.client.parse_stream_list(reply[1]):
                     messages.append((msg_id, msg_data))
                 if reply[0] == b'0-0':
                     break

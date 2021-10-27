@@ -754,20 +754,16 @@ class EventDispatcher(aobject):
     async def _consume_loop(self) -> None:
         async with aclosing(redis.read_stream_by_group(
             self.redis_client,
-            'events.consumer',
+            'events',
             self._consumer_group,
             self._consumer_name,
         )) as agen:
             async for msg_id, msg_data in agen:
                 try:
-                    event = msgpack.unpackb(msg_data[b'event'])
-                    source = event['source']
-                    if isinstance(source, bytes):
-                        source = source.decode()
                     await self.dispatch_consumers(
-                        event['name'],
-                        source,
-                        event['args'],
+                        msg_data[b'name'].decode(),
+                        msg_data[b'source'].decode(),
+                        msgpack.unpackb(msg_data[b'args']),
                     )
                 except asyncio.CancelledError:
                     raise
@@ -777,18 +773,14 @@ class EventDispatcher(aobject):
     async def _subscribe_loop(self) -> None:
         async with aclosing(redis.read_stream(
             self.redis_client,
-            'events.subscribe',
+            'events',
         )) as agen:
             async for msg_id, msg_data in agen:
                 try:
-                    event = msgpack.unpackb(msg_data[b'event'])
-                    source = event['source']
-                    if isinstance(source, bytes):
-                        source = source.decode()
                     await self.dispatch_subscribers(
-                        event['name'],
-                        source,
-                        event['args'],
+                        msg_data[b'name'].decode(),
+                        msg_data[b'source'].decode(),
+                        msgpack.unpackb(msg_data[b'args']),
                     )
                 except asyncio.CancelledError:
                     raise
@@ -825,16 +817,12 @@ class EventProducer(aobject):
         *,
         source: str = 'manager',
     ) -> None:
-        raw_msg = msgpack.packb({
-            'name': event.name,
-            'source': source,
-            'args': event.serialize(),
-        })
+        raw_event = {
+            b'name': event.name,
+            b'source': source,
+            b'args': msgpack.packb(event.serialize()),
+        }
         await redis.execute(
             self.redis_client,
-            lambda r: r.xadd('events.subscribe', {'event': raw_msg}),
-        )
-        await redis.execute(
-            self.redis_client,
-            lambda r: r.xadd('events.consumer', {'event': raw_msg}),
+            lambda r: r.xadd('events', raw_event),
         )
