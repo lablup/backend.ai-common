@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import inspect
 import socket
-import sys
 from typing import (
     Any,
     AsyncIterator,
@@ -254,7 +253,7 @@ async def execute(
             aioredis.sentinel.SlaveNotFoundError,
             aioredis.exceptions.ReadOnlyError,
             ConnectionResetError,
-        ) as e:
+        ):
             await asyncio.sleep(reconnect_poll_interval)
             continue
         except aioredis.exceptions.ResponseError as e:
@@ -265,8 +264,6 @@ async def execute(
         except asyncio.TimeoutError:
             continue
         except asyncio.CancelledError:
-            raise
-        except Exception as e:
             raise
         finally:
             await asyncio.sleep(0)
@@ -344,8 +341,6 @@ async def read_stream(
                 finally:
                     last_id = msg_id
         except asyncio.CancelledError:
-            raise
-        except Exception as e:
             raise
 
 
