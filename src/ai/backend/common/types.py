@@ -797,3 +797,6 @@ class EtcdRedisConfig(TypedDict, total=False):
 class RedisConnectionInfo:
     client: aioredis.Redis | aioredis.sentinel.Sentinel
     service_name: Optional[str]
+
+    async def close(self) -> None:
+        await self.client.close()

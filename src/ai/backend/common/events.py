@@ -638,10 +638,6 @@ class EventDispatcher(aobject):
         self._consumer_name = secrets.token_urlsafe(16)
 
     async def __ainit__(self) -> None:
-        try:
-            await redis.execute(self.redis_client, lambda r: r.xgroup_create('events.consumer', 'consumer', mkstream=True))
-        except:
-            pass
         self.consumer_loop_task = asyncio.create_task(self._consume_loop())
         self.subscriber_loop_task = asyncio.create_task(self._subscribe_loop())
         self.consumer_taskset = weakref.WeakSet()
@@ -662,6 +658,7 @@ class EventDispatcher(aobject):
         cancelled_tasks.append(self.consumer_loop_task)
         cancelled_tasks.append(self.subscriber_loop_task)
         await asyncio.gather(*cancelled_tasks, return_exceptions=True)
+        await self.redis_client.close()
 
     def consume(
         self,
@@ -819,7 +816,7 @@ class EventProducer(aobject):
         pass
 
     async def close(self) -> None:
-        pass
+        await self.redis_client.close()
 
     async def produce_event(
         self,
