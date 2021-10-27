@@ -818,11 +818,11 @@ class EventProducer(aobject):
         source: str = 'manager',
     ) -> None:
         raw_event = {
-            b'name': event.name,
-            b'source': source,
+            b'name': event.name.encode(),
+            b'source': source.encode(),
             b'args': msgpack.packb(event.serialize()),
         }
         await redis.execute(
             self.redis_client,
-            lambda r: r.xadd('events', raw_event),
+            lambda r: r.xadd('events', raw_event),  # type: ignore # aio-libs/aioredis-py#1182
         )
