@@ -26,11 +26,16 @@ import uuid
 import weakref
 
 import aioredis
+import aioredis.exceptions
+import aioredis.sentinel
+from aiotools.context import aclosing
 import attr
 
 from . import msgpack, redis
 from .logging import BraceStyleAdapter
 from .types import (
+    EtcdRedisConfig,
+    RedisConnectionInfo,
     aobject,
     AgentId,
     KernelId,
@@ -482,9 +487,9 @@ class BgtaskFailedEvent(BgtaskDoneEventArgs, AbstractEvent):
 
 
 class RedisConnectorFunc(Protocol):
-    async def __call__(
+    def __call__(
         self,
-    ) -> aioredis.abc.AbcPool:
+    ) -> aioredis.ConnectionPool:
         ...
 
 
@@ -585,25 +590,31 @@ class EventDispatcher(aobject):
 
     consumers: defaultdict[str, set[EventHandler[Any, AbstractEvent]]]
     subscribers: defaultdict[str, set[EventHandler[Any, AbstractEvent]]]
-    redis_consumer: aioredis.Redis
-    redis_subscriber: aioredis.Redis
+    redis_client: RedisConnectionInfo
     consumer_loop_task: asyncio.Task
     subscriber_loop_task: asyncio.Task
     consumer_taskset: weakref.WeakSet[asyncio.Task]
     subscriber_taskset: weakref.WeakSet[asyncio.Task]
 
-    _connector: RedisConnectorFunc
     _log_events: bool
+    _consumer_name: str
 
-    def __init__(self, connector: RedisConnectorFunc, log_events: bool = False) -> None:
-        self._connector = connector
+    def __init__(
+        self,
+        connector: EtcdRedisConfig,
+        db: int = 0,
+        log_events: bool = False,
+        *,
+        consumer_group: str = "manager",
+    ) -> None:
+        self.redis_client = redis.get_redis_object(connector, db=db)
         self._log_events = log_events
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
+        self._consumer_group = consumer_group
+        self._consumer_name = secrets.token_urlsafe(16)
 
     async def __ainit__(self) -> None:
-        self.redis_consumer = await self._connector()
-        self.redis_subscriber = await self._connector()
         self.consumer_loop_task = asyncio.create_task(self._consume_loop())
         self.subscriber_loop_task = asyncio.create_task(self._subscribe_loop())
         self.consumer_taskset = weakref.WeakSet()
@@ -624,10 +635,7 @@ class EventDispatcher(aobject):
         cancelled_tasks.append(self.consumer_loop_task)
         cancelled_tasks.append(self.subscriber_loop_task)
         await asyncio.gather(*cancelled_tasks, return_exceptions=True)
-        self.redis_consumer.close()
-        self.redis_subscriber.close()
-        await self.redis_consumer.wait_closed()
-        await self.redis_subscriber.wait_closed()
+        await self.redis_client.close()
 
     def consume(
         self,
@@ -718,54 +726,64 @@ class EventDispatcher(aobject):
             await asyncio.sleep(0)
 
     async def _consume_loop(self) -> None:
-        while True:
-            try:
-                key, raw_msg = await redis.execute_with_retries(
-                    lambda: self.redis_consumer.blpop('events.prodcons'))
-                msg = msgpack.unpackb(raw_msg)
-                await self.dispatch_consumers(msg['name'],
-                                              msg['source'],
-                                              msg['args'])
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                log.exception('EventDispatcher.consume(): unexpected-error')
+        async with aclosing(redis.read_stream_by_group(
+            self.redis_client,
+            'events',
+            self._consumer_group,
+            self._consumer_name,
+        )) as agen:
+            async for msg_id, msg_data in agen:
+                try:
+                    await self.dispatch_consumers(
+                        msg_data[b'name'].decode(),
+                        msg_data[b'source'].decode(),
+                        msgpack.unpackb(msg_data[b'args']),
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception('EventDispatcher.consume(): unexpected-error')
 
     async def _subscribe_loop(self) -> None:
-
-        async def _subscribe_impl() -> None:
-            channels = await self.redis_subscriber.subscribe('events.pubsub')
-            async for raw_msg in channels[0].iter():
-                msg = msgpack.unpackb(raw_msg)
-                await self.dispatch_subscribers(msg['name'],
-                                                msg['source'],
-                                                msg['args'])
-
-        while True:
-            try:
-                await redis.execute_with_retries(lambda: _subscribe_impl())
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                log.exception('EventDispatcher.subscribe(): unexpected-error')
+        async with aclosing(redis.read_stream(
+            self.redis_client,
+            'events',
+        )) as agen:
+            async for msg_id, msg_data in agen:
+                try:
+                    await self.dispatch_subscribers(
+                        msg_data[b'name'].decode(),
+                        msg_data[b'source'].decode(),
+                        msgpack.unpackb(msg_data[b'args']),
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception('EventDispatcher.subscribe(): unexpected-error')
 
 
 class EventProducer(aobject):
-    redis_producer: aioredis.Redis
-
-    _connector: RedisConnectorFunc
+    redis_client: RedisConnectionInfo
     _log_events: bool
 
-    def __init__(self, connector: RedisConnectorFunc, log_events: bool = False) -> None:
-        self._connector = connector
+    def __init__(
+        self,
+        connector: EtcdRedisConfig,
+        db: int = 0,
+        log_events: bool = False,
+        service_name: str = None,
+    ) -> None:
+        _connector = connector.copy()
+        if service_name:
+            _connector['service_name'] = service_name
+        self.redis_client = redis.get_redis_object(_connector, db=db)
         self._log_events = log_events
 
     async def __ainit__(self) -> None:
-        self.redis_producer = await self._connector()
+        pass
 
     async def close(self) -> None:
-        self.redis_producer.close()
-        await self.redis_producer.wait_closed()
+        await self.redis_client.close()
 
     async def produce_event(
         self,
@@ -773,10 +791,12 @@ class EventProducer(aobject):
         *,
         source: str = 'manager',
     ) -> None:
-        raw_msg = msgpack.packb({
-            'name': event.name,
-            'source': source,
-            'args': event.serialize(),
-        })
-        await redis.execute_with_retries(lambda: self.redis_producer.rpush('events.prodcons', raw_msg))
-        await redis.execute_with_retries(lambda: self.redis_producer.publish('events.pubsub', raw_msg))
+        raw_event = {
+            b'name': event.name.encode(),
+            b'source': source.encode(),
+            b'args': msgpack.packb(event.serialize()),
+        }
+        await redis.execute(
+            self.redis_client,
+            lambda r: r.xadd('events', raw_event),  # type: ignore # aio-libs/aioredis-py#1182
+        )

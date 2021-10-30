@@ -348,7 +348,11 @@ class RelayHandler(logging.Handler):
             if record is not None and record.exc_info is not None:
                 pickling_support.install(record.exc_info[1])
             pickled_rec = pickle.dumps(record)
-        except (pickle.PickleError, TypeError):
+        except (
+            pickle.PickleError,
+            TypeError,
+            ImportError,  # when "Python is likely to be shutting down"
+        ):
             # We have a pickling error.
             # Change it into a self-created picklable log record with exception info.
             if record is not None:

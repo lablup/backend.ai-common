@@ -1,20 +1,66 @@
+from __future__ import annotations
+
 import asyncio
 import inspect
-import time
+import socket
 from typing import (
     Any,
-    Sequence,
+    AsyncIterator,
+    Awaitable,
+    Callable,
     Dict,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Tuple,
 )
 
 import aioredis
+import aioredis.client
+import aioredis.sentinel
+import aioredis.exceptions
+import yarl
+
+from .types import EtcdRedisConfig, RedisConnectionInfo
+from .validators import DelimiterSeperatedList, HostPortPair
 
 __all__ = (
-    'connect_with_retries',
-    'execute_with_retries',
+    'execute',
+    'subscribe',
+    'blpop',
+    'read_stream',
+    'read_stream_by_group',
+    'get_redis_object',
 )
 
+_keepalive_options: MutableMapping[int, int] = {}
+
+# macOS does not support several TCP_ options
+# so check if socket package includes TCP options before adding it
+if hasattr(socket, 'TCP_KEEPIDLE'):
+    _keepalive_options[socket.TCP_KEEPIDLE] = 20
+
+if hasattr(socket, 'TCP_KEEPINTVL'):
+    _keepalive_options[socket.TCP_KEEPINTVL] = 20
+
+if hasattr(socket, 'TCP_KEEPCNT'):
+    _keepalive_options[socket.TCP_KEEPCNT] = 20
+
+
+_default_conn_opts: Mapping[str, Any] = {
+    'socket_timeout': 3.0,
+    'socket_connect_timeout': 0.3,
+    'socket_keepalive': True,
+    'socket_keepalive_options': _keepalive_options,
+}
+
+
 _scripts: Dict[str, str] = {}
+
+
+class ConnectionNotAvailable(Exception):
+    pass
 
 
 def _calc_delay_exp_backoff(initial_delay: float, retry_count: float, time_limit: float) -> float:
@@ -23,99 +69,208 @@ def _calc_delay_exp_backoff(initial_delay: float, retry_count: float, time_limit
     return min(initial_delay * (2 ** retry_count), 30.0)
 
 
-async def connect_with_retries(
-    *args,
-    retry_delay: float = 0.5,
-    retry_timeout: float = 60.0,
-    max_retries: int = 0,
-    exponential_backoff: bool = True,
-    **kwargs,
-) -> aioredis.abc.AbcPool:
-    '''
-    Create a Redis connection pool with multiple retries.
-    '''
-    begin = time.monotonic()
-    num_retries = 0
+def _parse_stream_msg_id(msg_id: bytes) -> Tuple[int, int]:
+    timestamp, _, sequence = msg_id.partition(b'-')
+    return int(timestamp), int(sequence)
+
+
+async def subscribe(
+    channel: aioredis.client.PubSub,
+    *,
+    reconnect_poll_interval: float = 0.3,
+) -> AsyncIterator[Any]:
+    """
+    An async-generator wrapper for pub-sub channel subscription.
+    It automatically recovers from server shutdowns until explicitly cancelled.
+    """
+    async def _reset_chan():
+        channel.connection = None
+        try:
+            await channel.ping()
+        except aioredis.exceptions.ConnectionError:
+            pass
+        else:
+            assert channel.connection is not None
+            await channel.on_connect(channel.connection)
+
     while True:
         try:
-            return await aioredis.create_redis_pool(*args, **kwargs)
+            if not channel.connection:
+                raise ConnectionNotAvailable
+            message = await channel.get_message(ignore_subscribe_messages=True, timeout=10.0)
+            if message is not None:
+                yield message["data"]
+        except (
+            aioredis.exceptions.ConnectionError,
+            aioredis.sentinel.MasterNotFoundError,
+            aioredis.sentinel.SlaveNotFoundError,
+            aioredis.exceptions.ReadOnlyError,
+            aioredis.exceptions.ResponseError,
+            ConnectionResetError,
+            ConnectionNotAvailable,
+        ):
+            await asyncio.sleep(reconnect_poll_interval)
+            await _reset_chan()
+            continue
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS "):
+                await asyncio.sleep(reconnect_poll_interval)
+                await _reset_chan()
+                continue
+            raise
+        except asyncio.TimeoutError:
+            continue
         except asyncio.CancelledError:
             raise
-        except ConnectionRefusedError:
-            if max_retries > 0 and num_retries >= max_retries:
-                raise asyncio.TimeoutError('Exceeded the maximum retry count')
-            if retry_timeout > 0 and time.monotonic() - begin >= retry_timeout:
-                raise asyncio.TimeoutError('Too much delayed for retries')
-            delay = _calc_delay_exp_backoff(
-                retry_delay, num_retries, retry_timeout,
-            ) if exponential_backoff else retry_delay
-            await asyncio.sleep(delay)
-            num_retries += 1
+        finally:
+            await asyncio.sleep(0)
+
+
+async def blpop(
+    redis: RedisConnectionInfo | aioredis.Redis | aioredis.sentinel.Sentinel,
+    key: str,
+    *,
+    service_name: str = None,
+    reconnect_poll_interval: float = 0.3,
+) -> AsyncIterator[Any]:
+    """
+    An async-generator wrapper for blpop (blocking left pop).
+    It automatically recovers from server shutdowns until explicitly cancelled.
+    """
+    _conn_opts = {
+        **_default_conn_opts,
+        'socket_connect_timeout': reconnect_poll_interval,
+    }
+    if isinstance(redis, RedisConnectionInfo):
+        redis_client = redis.client
+        service_name = service_name or redis.service_name
+    else:
+        redis_client = redis
+
+    if isinstance(redis_client, aioredis.sentinel.Sentinel):
+        assert service_name is not None
+        r = redis_client.master_for(
+            service_name,
+            redis_class=aioredis.Redis,
+            connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+            **_conn_opts,
+        )
+    else:
+        r = redis_client
+    while True:
+        try:
+            raw_msg = await r.blpop(key, timeout=10.0)
+            if not raw_msg:
+                continue
+            yield raw_msg[1]
+        except (
+            aioredis.exceptions.ConnectionError,
+            aioredis.sentinel.MasterNotFoundError,
+            aioredis.exceptions.ReadOnlyError,
+            aioredis.exceptions.ResponseError,
+            ConnectionResetError,
+        ):
+            await asyncio.sleep(reconnect_poll_interval)
             continue
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS "):
+                await asyncio.sleep(reconnect_poll_interval)
+                continue
+            raise
+        except asyncio.TimeoutError:
+            continue
+        except asyncio.CancelledError:
+            raise
+        finally:
+            await asyncio.sleep(0)
 
 
-async def execute_with_retries(
-    func: Any,
-    retry_delay: float = 0.5,
-    retry_timeout: float = 60.0,
-    max_retries: int = 0,
-    exponential_backoff: bool = True,
-    suppress_force_closed: bool = True,
+async def execute(
+    redis: RedisConnectionInfo | aioredis.Redis | aioredis.sentinel.Sentinel,
+    func: Callable[[aioredis.Redis], Awaitable[Any]],
+    *,
+    service_name: str = None,
+    read_only: bool = False,
+    reconnect_poll_interval: float = 0.3,
+    encoding: Optional[str] = None,
 ) -> Any:
-    '''
-    Execute the given Redis commands with multiple retries.
-    The Redis commands must be generated as a ``aioredis.commands.Pipeline`` object
-    or as a coroutine to execute single-shot aioredis commands by *func*.
-    '''
-    begin = time.monotonic()
-    num_retries = 0
-    await asyncio.sleep(0)
+    _conn_opts = {
+        **_default_conn_opts,
+        'socket_connect_timeout': reconnect_poll_interval,
+    }
+    if isinstance(redis, RedisConnectionInfo):
+        redis_client = redis.client
+        service_name = service_name or redis.service_name
+    else:
+        redis_client = redis
+
+    if isinstance(redis_client, aioredis.sentinel.Sentinel):
+        assert service_name is not None
+        if read_only:
+            r = redis_client.slave_for(
+                service_name,
+                redis_class=aioredis.Redis,
+                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                **_conn_opts,
+            )
+        else:
+            r = redis_client.master_for(
+                service_name,
+                redis_class=aioredis.Redis,
+                connection_pool_class=aioredis.sentinel.SentinelConnectionPool,
+                **_conn_opts,
+            )
+    else:
+        r = redis_client
     while True:
         try:
-            if inspect.iscoroutinefunction(func):
-                aw_or_pipe = await func()
-            elif callable(func):
-                aw_or_pipe = func()
-            else:
-                raise TypeError('The func must be a function or a coroutinefunction '
-                                'with no arguments.')
-            if isinstance(aw_or_pipe, aioredis.commands.Pipeline):
-                return await aw_or_pipe.execute()
-            elif inspect.isawaitable(aw_or_pipe):
-                return await aw_or_pipe
-            else:
-                raise TypeError('The return value must be an awaitable'
-                                'or aioredis.commands.Pipeline object')
+            async with r:
+                if callable(func):
+                    aw_or_pipe = func(r)
+                else:
+                    raise TypeError('The func must be a function or a coroutinefunction '
+                                    'with no arguments.')
+                if isinstance(aw_or_pipe, aioredis.client.Pipeline):
+                    result = await aw_or_pipe.execute()
+                elif inspect.isawaitable(aw_or_pipe):
+                    result = await aw_or_pipe
+                else:
+                    raise TypeError('The return value must be an awaitable'
+                                    'or aioredis.commands.Pipeline object')
+                if encoding:
+                    if isinstance(result, bytes):
+                        return result.decode(encoding)
+                    elif isinstance(result, dict):
+                        newdict = {}
+                        for k, v in result.items():
+                            newdict[k.decode(encoding)] = v.decode(encoding)
+                        return newdict
+                else:
+                    return result
+        except (
+            aioredis.exceptions.ConnectionError,
+            aioredis.sentinel.MasterNotFoundError,
+            aioredis.sentinel.SlaveNotFoundError,
+            aioredis.exceptions.ReadOnlyError,
+            ConnectionResetError,
+        ):
+            await asyncio.sleep(reconnect_poll_interval)
+            continue
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOREPLICAS "):
+                await asyncio.sleep(reconnect_poll_interval)
+                continue
+            raise
+        except asyncio.TimeoutError:
+            continue
         except asyncio.CancelledError:
             raise
-        except (aioredis.errors.PoolClosedError,
-                aioredis.errors.ConnectionForcedCloseError):
-            # This happens when we shut down the connection/pool.
-            if suppress_force_closed:
-                return None
-            else:
-                raise
-        except (ConnectionResetError,
-                ConnectionRefusedError,
-                aioredis.errors.ConnectionClosedError,
-                aioredis.errors.PipelineError):
-            # Other cases mean server disconnection.
-            if max_retries > 0 and num_retries >= max_retries:
-                raise asyncio.TimeoutError('Exceeded the maximum retry count')
-            if retry_timeout > 0 and time.monotonic() - begin >= retry_timeout:
-                raise asyncio.TimeoutError('Too much delayed for retries')
-            delay = _calc_delay_exp_backoff(
-                retry_delay, num_retries, retry_timeout,
-            ) if exponential_backoff else retry_delay
-            await asyncio.sleep(delay)
-            num_retries += 1
-            continue
         finally:
             await asyncio.sleep(0)
 
 
 async def execute_script(
-    conn: aioredis.Redis,
+    redis: RedisConnectionInfo | aioredis.Redis | aioredis.sentinel.Sentinel,
     script_id: str,
     script: str,
     keys: Sequence[str],
@@ -137,18 +292,176 @@ async def execute_script(
     script_hash = _scripts.get(script_id, 'x')
     while True:
         try:
-            ret = await execute_with_retries(lambda: conn.evalsha(
+            ret = await execute(redis, lambda r: r.evalsha(
                 script_hash,
-                keys=keys,
-                args=args,
+                len(keys),
+                *keys, *args,
             ))
             break
-        except aioredis.errors.ReplyError as e:
+        except aioredis.exceptions.NoScriptError:
+            # Redis may have been restarted.
+            script_hash = await execute(redis, lambda r: r.script_load(script))
+            _scripts[script_id] = script_hash
+        except aioredis.exceptions.ResponseError as e:
             if 'NOSCRIPT' in e.args[0]:
                 # Redis may have been restarted.
-                script_hash = await conn.script_load(script)
+                script_hash = await execute(redis, lambda r: r.script_load(script))
                 _scripts[script_id] = script_hash
             else:
                 raise
             continue
     return ret
+
+
+async def read_stream(
+    r: RedisConnectionInfo,
+    stream_key: str,
+    *,
+    block_timeout: int = 10_000,  # in msec
+) -> AsyncIterator[Tuple[bytes, bytes]]:
+    """
+    A high-level wrapper for the XREAD command.
+    """
+    last_id = b'0-0'
+    while True:
+        try:
+            reply = await execute(
+                r,
+                lambda r: r.xread(
+                    {stream_key: last_id},
+                    block=block_timeout,
+                ),
+            )
+            if reply is None:
+                continue
+            for msg_id, msg_data in reply[0][1]:
+                try:
+                    yield msg_id, msg_data
+                finally:
+                    last_id = msg_id
+        except asyncio.CancelledError:
+            raise
+
+
+async def read_stream_by_group(
+    r: RedisConnectionInfo,
+    stream_key: str,
+    group_name: str,
+    consumer_id: str,
+    *,
+    autoclaim_idle_timeout: int = 1_000,  # in msec
+    block_timeout: int = 10_000,  # in msec
+) -> AsyncIterator[Tuple[bytes, bytes]]:
+    """
+    A high-level wrapper for the XREADGROUP command
+    combined with XAUTOCLAIM and XGROUP_CREATE.
+    """
+    last_ack = b"0-0"
+    while True:
+        try:
+            messages = []
+            autoclaim_start_id = b'0-0'
+            while True:
+                reply = await execute(
+                    r,
+                    lambda r: r.execute_command(
+                        "XAUTOCLAIM",
+                        stream_key,
+                        group_name,
+                        consumer_id,
+                        str(autoclaim_idle_timeout),
+                        autoclaim_start_id,
+                    ),
+                )
+                for msg_id, msg_data in aioredis.client.parse_stream_list(reply[1]):
+                    messages.append((msg_id, msg_data))
+                if reply[0] == b'0-0':
+                    break
+                autoclaim_start_id = reply[0]
+            reply = await execute(
+                r,
+                lambda r: r.xreadgroup(
+                    group_name,
+                    consumer_id,
+                    {stream_key: b">"},  # fetch messages not seen by other consumers
+                    block=block_timeout,
+                ),
+            )
+            assert reply[0][0].decode() == stream_key
+            for msg_id, msg_data in reply[0][1]:
+                messages.append((msg_id, msg_data))
+            for msg_id, msg_data in messages:
+                try:
+                    yield msg_id, msg_data
+                finally:
+                    if _parse_stream_msg_id(last_ack) < _parse_stream_msg_id(msg_id):
+                        last_ack = msg_id
+                    await execute(
+                        r,
+                        lambda r: r.xack(
+                            stream_key,
+                            group_name,
+                            msg_id,
+                        ),
+                    )
+        except asyncio.CancelledError:
+            raise
+        except aioredis.exceptions.ResponseError as e:
+            if e.args[0].startswith("NOGROUP "):
+                try:
+                    await execute(
+                        r,
+                        lambda r: r.xgroup_create(
+                            stream_key,
+                            group_name,
+                            b"$",
+                            mkstream=True,
+                        ),
+                    )
+                except aioredis.exceptions.ResponseError as e:
+                    if e.args[0].startswith("BUSYGROUP "):
+                        pass
+                    else:
+                        raise
+                continue
+            raise
+
+
+def get_redis_object(
+    redis_config: EtcdRedisConfig,
+    db: int = 0,
+    **kwargs,
+) -> RedisConnectionInfo:
+    if _sentinel_addresses := redis_config.get('sentinel'):
+        sentinel_addresses: Any = None
+        if isinstance(_sentinel_addresses, str):
+            sentinel_addresses = DelimiterSeperatedList(HostPortPair).check_and_return(_sentinel_addresses)
+        else:
+            sentinel_addresses = _sentinel_addresses
+
+        assert redis_config.get('service_name') is not None
+        sentinel = aioredis.sentinel.Sentinel(
+            [(str(host), port) for host, port in sentinel_addresses],
+            password=redis_config.get('password'),
+            db=str(db),
+            sentinel_kwargs={
+                **kwargs,
+            },
+        )
+        return RedisConnectionInfo(
+            client=sentinel,
+            service_name=redis_config.get('service_name'),
+        )
+    else:
+        redis_url = redis_config.get('addr')
+        assert redis_url is not None
+        url = (
+            yarl.URL('redis://host')
+            .with_host(str(redis_url[0]))
+            .with_port(redis_url[1])
+            .with_password(redis_config.get('password')) / str(db)
+        )
+        return RedisConnectionInfo(
+            client=aioredis.Redis.from_url(str(url), **kwargs),
+            service_name=None,
+        )

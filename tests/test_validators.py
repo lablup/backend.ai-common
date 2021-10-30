@@ -2,6 +2,7 @@ from ipaddress import IPv4Address
 
 from datetime import timedelta
 import enum
+import ipaddress
 import multidict
 import pickle
 
@@ -178,6 +179,15 @@ def test_binary_size_commutative_with_null():
         iv1.check('xxxxx')
     with pytest.raises(t.DataError):
         iv2.check('xxxxx')
+
+
+def test_delimiter_list():
+    iv = tx.DelimiterSeperatedList(t.String, delimiter=':')
+    assert iv.check('aaa:bbb:ccc') == ['aaa', 'bbb', 'ccc']
+    assert iv.check('xxx') == ['xxx']
+    iv = tx.DelimiterSeperatedList(tx.HostPortPair, delimiter=',')
+    assert iv.check('127.0.0.1:6379,127.0.0.1:6380') == \
+        [(ipaddress.ip_address('127.0.0.1'), 6379), (ipaddress.ip_address('127.0.0.1'), 6380)]
 
 
 def test_string_list():
