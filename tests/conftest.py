@@ -1,3 +1,4 @@
+import asyncio
 from decimal import Decimal
 import os
 import secrets
@@ -17,9 +18,23 @@ def etcd_addr():
     return host_port_pair('localhost:2379')
 
 
-@pytest.fixture
+@pytest.fixture(scope="session", autouse=True)
+def event_loop():
+    # uvloop.install()
+    loop = asyncio.new_event_loop()
+    # setup_child_watcher()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="session", autouse=True)
 def test_ns():
     return f'test-{secrets.token_hex(8)}'
+
+
+@pytest.fixture
+def test_case_ns():
+    return secrets.token_hex(8)
 
 
 @pytest.fixture
@@ -53,6 +68,25 @@ async def gateway_etcd(etcd_addr, test_ns):
     finally:
         await etcd.delete_prefix('', scope=ConfigScopes.GLOBAL)
         del etcd
+
+
+@pytest.fixture
+async def chaos_generator():
+
+    async def _chaos():
+        try:
+            while True:
+                await asyncio.sleep(0.001)
+        except asyncio.CancelledError:
+            return
+
+    tasks = []
+    for i in range(20):
+        tasks.append(asyncio.create_task(_chaos()))
+    yield
+    for i in range(20):
+        tasks[i].cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 @pytest.fixture

@@ -49,6 +49,7 @@ __all__ = (
     'AliasedKey',
     'MultiKey',
     'BinarySize',
+    'DelimiterSeperatedList',
     'StringList',
     'Enum',
     'JSONString',
@@ -151,18 +152,32 @@ class BinarySize(t.Trafaret):
             self._failure('value is not a valid binary size', value=value)
 
 
-class StringList(t.Trafaret):
+T_commalist = TypeVar('T_commalist', bound=Type)
 
-    def __init__(self, *, delimiter: str = ',') -> None:
+
+class DelimiterSeperatedList(t.Trafaret):
+
+    def __init__(self, value_cls: Optional[T_commalist], *, delimiter: str = ',') -> None:
         self.delimiter = delimiter
+        self.value_cls = value_cls
 
-    def check_and_return(self, value: Any) -> Sequence[str]:
+    def check_and_return(self, value: Any) -> Sequence[T_commalist]:
         try:
             if not isinstance(value, str):
                 value = str(value)
-            return value.split(self.delimiter)
+            splited = value.split(self.delimiter)
+            if self.value_cls:
+                return [self.value_cls().check_and_return(x) for x in splited]
+            else:
+                return splited
         except ValueError:
             self._failure('value is not a string or not convertible to string', value=value)
+
+
+class StringList(DelimiterSeperatedList):
+
+    def __init__(self, *, delimiter: str = ',') -> None:
+        super().__init__(None, delimiter=delimiter)
 
 
 T_enum = TypeVar('T_enum', bound=enum.Enum)
