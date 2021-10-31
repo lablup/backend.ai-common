@@ -27,6 +27,7 @@ async def redis_container(test_ns, test_case_ns) -> AsyncIterator[str]:
     stdout = await p.stdout.read()
     await p.wait()
     cid = stdout.decode().strip()
+    await wait_redis_ready('127.0.0.1', 9379)
     try:
         yield cid
     finally:
