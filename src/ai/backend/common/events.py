@@ -705,7 +705,7 @@ class EventDispatcher(aobject):
     ) -> None:
         if self._log_events:
             log.debug('DISPATCH_CONSUMERS(ev:{}, ag:{})', event_name, source)
-        for consumer in self.consumers[event_name]:
+        for consumer in self.consumers[event_name].copy():
             self.consumer_taskset.add(asyncio.create_task(
                 self.handle("CONSUMER", consumer, source, args)
             ))
@@ -719,7 +719,7 @@ class EventDispatcher(aobject):
     ) -> None:
         if self._log_events:
             log.debug('DISPATCH_SUBSCRIBERS(ev:{}, ag:{})', event_name, source)
-        for subscriber in self.subscribers[event_name]:
+        for subscriber in self.subscribers[event_name].copy():
             self.subscriber_taskset.add(asyncio.create_task(
                 self.handle("SUBSCRIBER", subscriber, source, args)
             ))
