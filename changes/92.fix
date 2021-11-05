@@ -1,0 +1,1 @@
+Prevent "set size changed" error while iterating over event handlers, which may happen on startup on managers
