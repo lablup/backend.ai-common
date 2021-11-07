@@ -41,6 +41,7 @@ from .types import (
     KernelId,
     SessionId,
     LogSeverity,
+    Sentinel,
 )
 
 __all__ = (
@@ -621,6 +622,10 @@ class EventDispatcher(aobject):
     subscriber_loop_task: asyncio.Task
     consumer_taskset: weakref.WeakSet[asyncio.Task]
     subscriber_taskset: weakref.WeakSet[asyncio.Task]
+    consumer_queues: defaultdict[str, asyncio.Queue[
+        tuple[str, AgentId, tuple] | Sentinel,
+    ]]
+    consumer_handlers: dict[str, asyncio.Task]
 
     _log_events: bool
     _consumer_name: str
@@ -641,12 +646,23 @@ class EventDispatcher(aobject):
         self._consumer_name = secrets.token_urlsafe(16)
 
     async def __ainit__(self) -> None:
-        self.consumer_loop_task = asyncio.create_task(self._consume_loop())
-        self.subscriber_loop_task = asyncio.create_task(self._subscribe_loop())
+        self.consumer_loop_task = asyncio.create_task(
+            self._consume_loop(),
+            name="evdispatcher.consumer_loop",
+        )
+        self.subscriber_loop_task = asyncio.create_task(
+            self._subscribe_loop(),
+            name="evdispatcher.subscriber_loop",
+        )
         self.consumer_taskset = weakref.WeakSet()
         self.subscriber_taskset = weakref.WeakSet()
+        self.consumer_queues = defaultdict(asyncio.Queue)
+        self.consumer_handlers = {}
 
     async def close(self) -> None:
+        for q in self.consumer_queues.values():
+            q.put_nowait(Sentinel.TOKEN)
+        await asyncio.sleep(0)
         cancelled_tasks = []
         for task in self.consumer_taskset:
             if not task.done():
@@ -736,6 +752,11 @@ class EventDispatcher(aobject):
                 self.handle("CONSUMER", consumer, source, args),
             ))
             await asyncio.sleep(0)
+        results = await asyncio.gather(*self.consumer_taskset, return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception):
+                log.error("unexpected error while processing ev:{}", event_name, exc_info=result)
+        self.consumer_taskset.clear()
 
     async def dispatch_subscribers(
         self,
@@ -751,6 +772,13 @@ class EventDispatcher(aobject):
             ))
             await asyncio.sleep(0)
 
+    async def _consume_handle(self, event_name) -> None:
+        while True:
+            params = await self.consumer_queues[event_name].get()
+            if params is Sentinel.TOKEN:
+                break
+            await self.dispatch_consumers(*params)
+
     async def _consume_loop(self) -> None:
         async with aclosing(redis.read_stream_by_group(
             self.redis_client,
@@ -760,11 +788,19 @@ class EventDispatcher(aobject):
         )) as agen:
             async for msg_id, msg_data in agen:
                 try:
-                    await self.dispatch_consumers(
-                        msg_data[b'name'].decode(),
-                        msg_data[b'source'].decode(),
-                        msgpack.unpackb(msg_data[b'args']),
+                    event_name = msg_data[b'name'].decode()
+                    self.consumer_queues[event_name].put_nowait(
+                        (
+                            event_name,
+                            msg_data[b'source'].decode(),
+                            msgpack.unpackb(msg_data[b'args']),
+                        ),
                     )
+                    if event_name not in self.consumer_handlers:
+                        self.consumer_handlers[event_name] = asyncio.create_task(
+                            self._consume_handle(event_name),
+                            name=f"evdispatcher.consume_handler.{event_name}"
+                        )
                 except asyncio.CancelledError:
                     raise
                 except Exception:
