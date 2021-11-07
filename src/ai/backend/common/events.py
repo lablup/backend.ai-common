@@ -749,10 +749,9 @@ class EventDispatcher(aobject):
             log.debug('DISPATCH_CONSUMERS(ev:{}, ag:{})', event_name, source)
         consumer_tasks = []
         for consumer in self.consumers[event_name].copy():
-            consumer_tasks.add(asyncio.create_task(
+            consumer_tasks.append(asyncio.create_task(
                 self.handle("CONSUMER", consumer, source, args),
             ))
-            await asyncio.sleep(0)
         results = await asyncio.gather(*consumer_tasks, return_exceptions=True)
         for result in results:
             if isinstance(result, Exception):
