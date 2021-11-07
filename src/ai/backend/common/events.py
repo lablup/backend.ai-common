@@ -747,16 +747,16 @@ class EventDispatcher(aobject):
     ) -> None:
         if self._log_events:
             log.debug('DISPATCH_CONSUMERS(ev:{}, ag:{})', event_name, source)
+        consumer_tasks = []
         for consumer in self.consumers[event_name].copy():
-            self.consumer_taskset.add(asyncio.create_task(
+            consumer_tasks.add(asyncio.create_task(
                 self.handle("CONSUMER", consumer, source, args),
             ))
             await asyncio.sleep(0)
-        results = await asyncio.gather(*self.consumer_taskset, return_exceptions=True)
+        results = await asyncio.gather(*consumer_tasks, return_exceptions=True)
         for result in results:
             if isinstance(result, Exception):
                 log.error("unexpected error while processing ev:{}", event_name, exc_info=result)
-        self.consumer_taskset.clear()
 
     async def dispatch_subscribers(
         self,
