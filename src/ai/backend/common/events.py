@@ -660,9 +660,6 @@ class EventDispatcher(aobject):
         self.consumer_handlers = {}
 
     async def close(self) -> None:
-        for q in self.consumer_queues.values():
-            q.put_nowait(Sentinel.TOKEN)
-        await asyncio.sleep(0)
         cancelled_tasks = []
         for task in self.consumer_taskset:
             if not task.done():
@@ -677,6 +674,11 @@ class EventDispatcher(aobject):
         cancelled_tasks.append(self.consumer_loop_task)
         cancelled_tasks.append(self.subscriber_loop_task)
         await asyncio.gather(*cancelled_tasks, return_exceptions=True)
+        join_tasks = []
+        for q in self.consumer_queues.values():
+            q.put_nowait(Sentinel.TOKEN)
+            join_tasks.append(q.join())
+        await asyncio.gather(*join_tasks)
         await self.redis_client.close()
 
     def consume(
@@ -774,9 +776,12 @@ class EventDispatcher(aobject):
     async def _consume_handle(self, event_name) -> None:
         while True:
             params = await self.consumer_queues[event_name].get()
-            if params is Sentinel.TOKEN:
-                break
-            await self.dispatch_consumers(*params)
+            try:
+                if params is Sentinel.TOKEN:
+                    break
+                await self.dispatch_consumers(*params)
+            finally:
+                self.consumer_queues[event_name].task_done()
 
     async def _consume_loop(self) -> None:
         async with aclosing(redis.read_stream_by_group(
