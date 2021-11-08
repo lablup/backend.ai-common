@@ -172,6 +172,7 @@ class AsyncEtcd:
         # Currently there is no public API to control this... :(
         if self.etcd_sync.watcher._callback_thread:
             self.etcd_sync.watcher._callback_thread.join()
+        self.executor.shutdown()
         return ret
 
     def _mangle_key(self, k: str) -> bytes:
