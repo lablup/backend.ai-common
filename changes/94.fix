@@ -1,1 +1,0 @@
-Explicitly shutdown the thread pool executor used for etcd API invocation

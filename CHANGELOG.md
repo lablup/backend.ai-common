@@ -16,6 +16,18 @@ Changes
 
 .. towncrier release notes start
 
+21.03.6 (2021-11-08)
+--------------------
+
+### Features
+* Upgrade to aioredis v2 with a major rewrite of the event bus using Redis streams ([#88](https://github.com/lablup/backend.ai-common/issues/88))
+
+### Fixes
+* Improve stability of test cases using a single Redis container as fixture (a follow-up to #88) ([#91](https://github.com/lablup/backend.ai-common/issues/91))
+* Prevent "set size changed" error while iterating over event handlers, which may happen on startup on managers ([#92](https://github.com/lablup/backend.ai-common/issues/92))
+* Explicitly shutdown the thread pool executor used for etcd API invocation ([#94](https://github.com/lablup/backend.ai-common/issues/94))
+
+
 21.03.5 (2021-08-23)
 --------------------
 

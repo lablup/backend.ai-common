@@ -1,1 +1,0 @@
-Improve stability of test cases using a single Redis container as fixture (a follow-up to #88)
