@@ -69,3 +69,7 @@ VENV/
 .env
 .envrc
 .*.swp
+
+# Test junks
+node.*.rdb
+sentinel.*.conf

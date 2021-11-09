@@ -116,11 +116,11 @@ class LogstashHandler(logging.Handler):
                     self._sslctx.check_hostname = False
                     self._sslctx.verify_mode = ssl.CERT_NONE
                 sock = self._sslctx.wrap_socket(sock, server_hostname=self._endpoint[0])
-            sock.connect((str(self._endpoint.host), self._endpoint.port,))
+            sock.connect((str(self._endpoint.host), self._endpoint.port))
             self._sock = sock
         elif self._protocol == 'udp':
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.connect((str(self._endpoint.host), self._endpoint.port,))
+            sock.connect((str(self._endpoint.host), self._endpoint.port))
             self._sock = sock
         else:
             raise ConfigurationError({'logging.LogstashHandler': f'unsupported protocol: {self._protocol}'})
@@ -348,7 +348,11 @@ class RelayHandler(logging.Handler):
             if record is not None and record.exc_info is not None:
                 pickling_support.install(record.exc_info[1])
             pickled_rec = pickle.dumps(record)
-        except (pickle.PickleError, TypeError):
+        except (
+            pickle.PickleError,
+            TypeError,
+            ImportError,  # when "Python is likely to be shutting down"
+        ):
             # We have a pickling error.
             # Change it into a self-created picklable log record with exception info.
             if record is not None:

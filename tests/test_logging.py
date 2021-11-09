@@ -13,7 +13,7 @@ test_log_config = {
     'pkg-ns': {'': 'DEBUG'},
     'console': {
         'colored': True,
-    }
+    },
 }
 
 test_log_path = Path(f'/tmp/bai-testing-agent-logger-{os.getpid()}.sock')

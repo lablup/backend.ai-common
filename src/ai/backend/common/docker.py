@@ -32,7 +32,7 @@ __all__ = (
     'get_registry_info',
     'MIN_KERNELSPEC',
     'MAX_KERNELSPEC',
-    'ImageRef'
+    'ImageRef',
 )
 
 log = BraceStyleAdapter(logging.Logger('ai.backend.common.docker'))
@@ -95,7 +95,7 @@ async def login(
                 data = json.loads(await resp.read())
                 token = data.get('token', None)
                 return {'auth': None, 'headers': {
-                    'Authorization': f'Bearer {token}'
+                    'Authorization': f'Bearer {token}',
                 }}
     raise RuntimeError('authentication for docker registry '
                        f'{registry_url} failed')

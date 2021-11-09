@@ -22,7 +22,7 @@ from ai.backend.common.utils import (
     StringSetFlag,
 )
 from ai.backend.common.testutils import (
-    mock_corofunc, mock_awaitable, AsyncContextManagerMock
+    mock_corofunc, mock_awaitable, AsyncContextManagerMock,
 )
 
 
@@ -177,7 +177,7 @@ def test_string_set_flag():
     assert {'b', 'c'} == {'a', 'b', 'c'} ^ MyFlags.A
     assert {'a', 'b', 'c'} == {'b', 'c'} ^ MyFlags.A
     assert set() == MyFlags.A ^ 'a'
-    assert {'b', } == MyFlags.A ^ {'a', 'b'}
+    assert {'b'} == MyFlags.A ^ {'a', 'b'}
     assert {'a', 'b', 'c'} == MyFlags.A ^ {'b', 'c'}
     with pytest.raises(TypeError):
         123 & MyFlags.A
@@ -204,7 +204,7 @@ class TestAsyncBarrier:
         mock_cond = mocker.patch.object(asyncio, 'Condition')
         mock_resp = {
             'notify_all': mock.Mock(),
-            'wait': await mock_awaitable()
+            'wait': await mock_awaitable(),
         }
         mock_cond.return_value = AsyncContextManagerMock(**mock_resp)
 

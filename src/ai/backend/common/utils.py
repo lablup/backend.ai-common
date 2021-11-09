@@ -120,7 +120,7 @@ def nmget(
     key_path: str,
     def_val: Any = None,
     path_delimiter: str = '.',
-    null_as_default: bool = True
+    null_as_default: bool = True,
 ) -> Any:
     """
     A short-hand for retrieving a value from nested mappings

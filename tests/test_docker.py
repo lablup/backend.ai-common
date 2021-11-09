@@ -5,7 +5,7 @@ import typing
 from ai.backend.common.exception import AliasResolutionFailed
 from ai.backend.common.docker import (
     default_registry, default_repository,
-    ImageRef, PlatformTagSet
+    ImageRef, PlatformTagSet,
 )
 
 import pytest
