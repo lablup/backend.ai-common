@@ -88,7 +88,7 @@ class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
         cfg_dir = Path(__file__).parent
         compose_cfg = cfg_dir / 'redis-cluster.yml'
 
-        with async_timeout.timeout(30.0):
+        async with async_timeout.timeout(30.0):
             p = await simple_run_cmd([
                 'docker', 'compose',
                 '-p', f"{self.test_ns}.{self.test_case_ns}",
@@ -164,7 +164,7 @@ class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
             )
         finally:
             await asyncio.sleep(0.2)
-            with async_timeout.timeout(30.0):
+            async with async_timeout.timeout(30.0):
                 await simple_run_cmd([
                     'docker', 'compose',
                     '-p', f"{self.test_ns}.{self.test_case_ns}",
