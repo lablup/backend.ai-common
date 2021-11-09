@@ -42,10 +42,10 @@ if hasattr(socket, 'TCP_KEEPIDLE'):
     _keepalive_options[socket.TCP_KEEPIDLE] = 20
 
 if hasattr(socket, 'TCP_KEEPINTVL'):
-    _keepalive_options[socket.TCP_KEEPINTVL] = 20
+    _keepalive_options[socket.TCP_KEEPINTVL] = 5
 
 if hasattr(socket, 'TCP_KEEPCNT'):
-    _keepalive_options[socket.TCP_KEEPCNT] = 20
+    _keepalive_options[socket.TCP_KEEPCNT] = 3
 
 
 _default_conn_opts: Mapping[str, Any] = {
