@@ -37,7 +37,7 @@ async def curl(
     """
     try:
         async with aiohttp.ClientSession() as sess:
-            with _timeout(timeout):
+            async with _timeout(timeout):
                 async with sess.get(url, params=params, headers=headers) as resp:
                     assert resp.status == 200
                     body = await resp.text()
