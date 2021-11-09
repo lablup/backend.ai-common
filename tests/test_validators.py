@@ -346,11 +346,11 @@ def test_user_id():
     assert iv.check('-1') == os.getuid()
 
     with pytest.raises(t.DataError):
-        r = iv.check('nonExistentUserName')
+        iv.check('nonExistentUserName')
     with pytest.raises(t.DataError):
-        r = iv.check([1, 2])
+        iv.check([1, 2])
     with pytest.raises(t.DataError):
-        r = iv.check((1, 2))
+        iv.check((1, 2))
 
 
 def test_slug():
