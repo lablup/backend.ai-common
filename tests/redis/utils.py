@@ -107,7 +107,7 @@ def with_timeout(t: float) -> Callable[        # type: ignore
     ) -> Callable[_PInner, Awaitable[_TReturn]]:           # type: ignore
         @functools.wraps(corofunc)
         async def run(*args: _PInner.args, **kwargs: _PInner.kwargs) -> _TReturn:  # type: ignore
-            with async_timeout.timeout(t):
+            async with async_timeout.timeout(t):
                 return await corofunc(*args, **kwargs)
         return run
     return wrapper
