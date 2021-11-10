@@ -44,9 +44,9 @@ async def wait_redis_ready(host: str, port: int, password: str = None) -> None:
     r = aioredis.from_url(f"redis://{host}:{port}", password=password, socket_timeout=0.2)
     while True:
         try:
-            print("PING", file=sys.stderr)
+            print("CheckReady.PING", port, file=sys.stderr)
             await r.ping()
-            print("PONG", file=sys.stderr)
+            print("CheckReady.PONG", port, file=sys.stderr)
         except aioredis.exceptions.AuthenticationError:
             raise
         except (
