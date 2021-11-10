@@ -118,7 +118,7 @@ async def subscribe(
                 await _reset_chan()
                 continue
             raise
-        except asyncio.TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             continue
         except asyncio.CancelledError:
             raise
@@ -177,7 +177,7 @@ async def blpop(
                 await asyncio.sleep(reconnect_poll_interval)
                 continue
             raise
-        except asyncio.TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             continue
         except asyncio.CancelledError:
             raise
@@ -261,7 +261,7 @@ async def execute(
                 await asyncio.sleep(reconnect_poll_interval)
                 continue
             raise
-        except asyncio.TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             continue
         except asyncio.CancelledError:
             raise
