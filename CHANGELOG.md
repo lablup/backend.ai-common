@@ -16,6 +16,15 @@ Changes
 
 .. towncrier release notes start
 
+## 21.09.1 (2021-11-11)
+
+### Fixes
+* Implement test cases for UID/GID trafaret extensions ([#90](https://github.com/lablup/backend.ai-common/issues/90))
+* Upgrade aiohttp from 3.7 to 3.8 series ([#95](https://github.com/lablup/backend.ai-common/issues/95))
+* Adjust the default Redis connection keepalive options to be calculated similarly to how Redis internally does ([#96](https://github.com/lablup/backend.ai-common/issues/96))
+* Update `async_timeout` API usage ([#97](https://github.com/lablup/backend.ai-common/issues/97))
+
+
 ## 21.09.0 (2021-11-08)
 
 ### Features
