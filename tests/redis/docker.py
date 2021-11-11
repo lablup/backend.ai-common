@@ -87,11 +87,12 @@ class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
     async def make_cluster(self) -> AsyncIterator[RedisClusterInfo]:
         cfg_dir = Path(__file__).parent
         compose_cfg = cfg_dir / 'redis-cluster.yml'
+        project_name = f"{self.test_ns}_{self.test_case_ns}"
 
-        with async_timeout.timeout(30.0):
+        async with async_timeout.timeout(30.0):
             p = await simple_run_cmd([
                 'docker', 'compose',
-                '-p', f"{self.test_ns}.{self.test_case_ns}",
+                '-p', project_name,
                 '-f', os.fsencode(compose_cfg),
                 'up', '-d', '--build',
             ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
@@ -102,7 +103,7 @@ class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
             p = await asyncio.create_subprocess_exec(
                 *[
                     'docker', 'compose',
-                    '-p', f"{self.test_ns}.{self.test_case_ns}",
+                    '-p', project_name,
                     '-f', str(compose_cfg),
                     'ps',
                     '--format', 'json',
@@ -164,10 +165,10 @@ class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
             )
         finally:
             await asyncio.sleep(0.2)
-            with async_timeout.timeout(30.0):
+            async with async_timeout.timeout(30.0):
                 await simple_run_cmd([
                     'docker', 'compose',
-                    '-p', f"{self.test_ns}.{self.test_case_ns}",
+                    '-p', project_name,
                     '-f', os.fsencode(compose_cfg),
                     'down',
                 ], stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)

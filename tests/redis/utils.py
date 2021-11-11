@@ -44,9 +44,9 @@ async def wait_redis_ready(host: str, port: int, password: str = None) -> None:
     r = aioredis.from_url(f"redis://{host}:{port}", password=password, socket_timeout=0.2)
     while True:
         try:
-            print("PING", file=sys.stderr)
+            print("CheckReady.PING", port, file=sys.stderr)
             await r.ping()
-            print("PONG", file=sys.stderr)
+            print("CheckReady.PONG", port, file=sys.stderr)
         except aioredis.exceptions.AuthenticationError:
             raise
         except (
@@ -107,7 +107,7 @@ def with_timeout(t: float) -> Callable[        # type: ignore
     ) -> Callable[_PInner, Awaitable[_TReturn]]:           # type: ignore
         @functools.wraps(corofunc)
         async def run(*args: _PInner.args, **kwargs: _PInner.kwargs) -> _TReturn:  # type: ignore
-            with async_timeout.timeout(t):
+            async with async_timeout.timeout(t):
                 return await corofunc(*args, **kwargs)
         return run
     return wrapper
