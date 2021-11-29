@@ -466,20 +466,20 @@ class TimeDuration(t.Trafaret):
     def __init__(self, *, allow_negative: bool = False) -> None:
         self._allow_negative = allow_negative
 
-    def check_and_return(self, value: Any) -> datetime.timedelta:
+    def check_and_return(self, value: Any) -> Union[datetime.timedelta, relativedelta]:
         if not isinstance(value, str):
             self._failure('value must be string', value=value)
         if len(value) == 0:
             self._failure('value must not be empty', value=value)
         try:
-            unit = value[-2:]
+            unit = value[-1]
             if unit.isdigit():
                 t = float(value)
                 if not self._allow_negative and t < 0:
                     self._failure('value must be positive', value=value)
                 return datetime.timedelta(seconds=t)
-            elif unit.isalpha():
-                t = float(value[:-2])
+            elif value[-2:].isalpha():
+                t = int(value[:-2])
                 if value[-2:] == 'yr':
                     return relativedelta(years=t)
                 elif value[-2:] == 'mo':
