@@ -29,6 +29,7 @@ import uuid
 import pwd
 
 import dateutil.tz
+from dateutil.relativedelta import relativedelta
 try:
     import jwt
     jwt_available = True
@@ -471,12 +472,20 @@ class TimeDuration(t.Trafaret):
         if len(value) == 0:
             self._failure('value must not be empty', value=value)
         try:
-            unit = value[-1]
+            unit = value[-2:]
             if unit.isdigit():
                 t = float(value)
                 if not self._allow_negative and t < 0:
                     self._failure('value must be positive', value=value)
                 return datetime.timedelta(seconds=t)
+            elif unit.isalpha():
+                t = float(value[:-2])
+                if value[-2:] == 'yr':
+                    return relativedelta(years=t)
+                elif value[-2:] == 'mo':
+                    return relativedelta(months=t)
+                else:
+                    self._failure('value is not a known time duration', value=value)
             else:
                 t = float(value[:-1])
                 if not self._allow_negative and t < 0:
