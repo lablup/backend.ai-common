@@ -68,10 +68,10 @@ def find_config_file(daemon_name: str) -> Path:
             })
     else:
         toml_paths = [Path(toml_path_from_env)]
-    for _path in toml_paths:
-        if _path.is_file():
-            return _path
-    else:
+        for _path in toml_paths:
+            if _path.is_file():
+                return _path
+        
         searched_paths = ','.join(map(str, toml_paths))
         raise ConfigurationError({
             'find_config_file()': f"Could not read config from: {searched_paths}",
