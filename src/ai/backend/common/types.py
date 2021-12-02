@@ -801,3 +801,9 @@ class RedisConnectionInfo:
     async def close(self) -> None:
         if isinstance(self.client, aioredis.Redis):
             await self.client.close()
+
+    async def get_client(self) -> aioredis.Redis:
+        if isinstance(self.client, aioredis.Redis):
+            return self.client
+        assert self.service_name is not None
+        return await self.client.master_for(self.service_name)
