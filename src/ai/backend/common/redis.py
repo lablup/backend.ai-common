@@ -670,23 +670,15 @@ class Lock:
         if blocking_timeout is not None:
             stop_trying_at = loop.time() + blocking_timeout
         while True:
-            try:
-                print("xaioredis.lock acquire-try", token)
-                if await self.do_acquire(token):
-                    self._reset_token = _local_token.set(token)
-                    print("xaioredis.lock acquire-ok", token)
-                    return True
-                if not blocking:
-                    print("xaioredis.lock acquire-fail1", token)
-                    return False
-                next_try_at = loop.time() + sleep
-                if stop_trying_at is not None and next_try_at > stop_trying_at:
-                    print("xaioredis.lock acquire-fail2", token)
-                    return False
-                print("xaioredis.lock acquire-cont", token)
-                await asyncio.sleep(sleep)
-            finally:
-                print("aioredis.lock acquire-exit", token)
+            if await self.do_acquire(token):
+                self._reset_token = _local_token.set(token)
+                return True
+            if not blocking:
+                return False
+            next_try_at = loop.time() + sleep
+            if stop_trying_at is not None and next_try_at > stop_trying_at:
+                return False
+            await asyncio.sleep(sleep)
 
     async def do_acquire(self, token: Union[str, bytes]) -> bool:
         if self.timeout:
