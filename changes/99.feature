@@ -1,1 +1,1 @@
-Update TimeDuration class to support years and months argument
+Update `validators.TimeDuration` class to support years and months
