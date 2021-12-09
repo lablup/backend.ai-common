@@ -455,7 +455,6 @@ class BinarySize(int):
                 raise ValueError('Unsupported scale unit.', suffix)
             value = self._quantize(self, multiplier)
             return f'{value}{suffix.lower()}'.strip()
-        return super().__format__(format_spec)
 
 
 class ResourceSlot(UserDict):
