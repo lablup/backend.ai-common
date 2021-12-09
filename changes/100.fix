@@ -1,0 +1,1 @@
+Remove an unreachable statement in `BinarySize.__format__()`
