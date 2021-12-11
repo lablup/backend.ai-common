@@ -462,7 +462,22 @@ class TimeZone(t.Trafaret):
 
 
 class TimeDuration(t.Trafaret):
+    '''
+    Represent the difference between two datetime objects.
 
+    You can calculate years and months considering leap year.
+
+    Example:
+    >>> t = datetime(2020, 2, 29)
+    >>> t + check_and_return(years=1)
+    datetime.datetime(2021, 2, 28, 0, 0)
+    >>> t + check_and_return(years=2)
+    datetime.datetime(2022, 2, 28, 0, 0)
+    >>> t + check_and_return(years=3)
+    datetime.datetime(2023, 2, 28, 0, 0)
+    >>> t + check_and_return(years=4)
+    datetime.datetime(2024, 2, 29, 0, 0) # leap year
+    '''
     def __init__(self, *, allow_negative: bool = False) -> None:
         self._allow_negative = allow_negative
 
@@ -480,6 +495,8 @@ class TimeDuration(t.Trafaret):
                 return datetime.timedelta(seconds=t)
             elif value[-2:].isalpha():
                 t = int(value[:-2])
+                if not self._allow_negative and t < 0:
+                    self._failure('value must be positive', value=value)
                 if value[-2:] == 'yr':
                     return relativedelta(years=t)
                 elif value[-2:] == 'mo':
