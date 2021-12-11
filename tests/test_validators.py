@@ -1,6 +1,7 @@
 from ipaddress import IPv4Address
 
-from datetime import timedelta
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 import enum
 import ipaddress
 import multidict
@@ -394,6 +395,7 @@ def test_json_string():
 
 def test_time_duration():
     iv = tx.TimeDuration()
+    date = datetime(2020, 2, 29)
     with pytest.raises(t.DataError):
         iv.check('')
     assert iv.check('1w') == timedelta(weeks=1)
@@ -404,6 +406,9 @@ def test_time_duration():
     assert iv.check('1') == timedelta(seconds=1)
     assert iv.check('0.5h') == timedelta(minutes=30)
     assert iv.check('0.001') == timedelta(milliseconds=1)
+    assert iv.check('1yr') == relativedelta(years=1)
+    assert iv.check('1mo') == relativedelta(months=1)
+    assert date + iv.check('4yr') == date + relativedelta(years=4)
     with pytest.raises(t.DataError):
         iv.check('-1')
     with pytest.raises(t.DataError):
@@ -420,6 +425,8 @@ def test_time_duration_negative():
     assert iv.check('0.001') == timedelta(milliseconds=1)
     assert iv.check('-1') == timedelta(seconds=-1)
     assert iv.check('-3d') == timedelta(days=-3)
+    assert iv.check('-1yr') == relativedelta(years=-1)
+    assert iv.check('-1mo') == relativedelta(months=-1)
     with pytest.raises(t.DataError):
         iv.check('-a')
     with pytest.raises(t.DataError):
