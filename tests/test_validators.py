@@ -1,12 +1,10 @@
-from ipaddress import IPv4Address
-
 from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
 import enum
-import ipaddress
+from ipaddress import IPv4Address, ip_address
 import multidict
 import pickle
 
+from dateutil.relativedelta import relativedelta
 import pytest
 import trafaret as t
 import yarl
@@ -188,7 +186,7 @@ def test_delimiter_list():
     assert iv.check('xxx') == ['xxx']
     iv = tx.DelimiterSeperatedList(tx.HostPortPair, delimiter=',')
     assert iv.check('127.0.0.1:6379,127.0.0.1:6380') == \
-        [(ipaddress.ip_address('127.0.0.1'), 6379), (ipaddress.ip_address('127.0.0.1'), 6380)]
+        [(ip_address('127.0.0.1'), 6379), (ip_address('127.0.0.1'), 6380)]
 
 
 def test_string_list():
