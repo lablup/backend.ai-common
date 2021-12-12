@@ -463,9 +463,16 @@ class TimeZone(t.Trafaret):
 
 class TimeDuration(t.Trafaret):
     '''
-    Represent the difference between two datetime objects.
+    Represent the relative difference between two datetime objects,
+    parsed from human-readable time duration expression strings.
 
-    You can calculate years and months considering leap year.
+    If you specify years or months, it returns an
+    :class:`dateutil.relativedelta.relativedelta` instance
+    which keeps the human-friendly year and month calculation
+    considering leap years and monthly day count differences,
+    instead of simply multiplying 365 days to the value of years.
+    Otherwise, it returns the stdlib's :class:`datetime.timedelta`
+    instance.
 
     Example:
     >>> t = datetime(2020, 2, 29)
@@ -476,7 +483,7 @@ class TimeDuration(t.Trafaret):
     >>> t + check_and_return(years=3)
     datetime.datetime(2023, 2, 28, 0, 0)
     >>> t + check_and_return(years=4)
-    datetime.datetime(2024, 2, 29, 0, 0) # leap year
+    datetime.datetime(2024, 2, 29, 0, 0)  # preserves the same day of month
     '''
     def __init__(self, *, allow_negative: bool = False) -> None:
         self._allow_negative = allow_negative
