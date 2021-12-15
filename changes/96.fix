@@ -1,1 +1,0 @@
-Adjust the default Redis connection keepalive options to be calculated similarly to how Redis internally does

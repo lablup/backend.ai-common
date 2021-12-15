@@ -16,6 +16,15 @@ Changes
 
 .. towncrier release notes start
 
+21.03.7 (2021-12-15)
+--------------------
+
+### Fixes
+* Implement test cases for UID/GID trafaret extensions ([#90](https://github.com/lablup/backend.ai-common/issues/90))
+* Adjust the default Redis connection keepalive options to be calculated similarly to how Redis internally does ([#96](https://github.com/lablup/backend.ai-common/issues/96))
+* Remove an unreachable statement in `BinarySize.__format__()` ([#100](https://github.com/lablup/backend.ai-common/issues/100))
+
+
 21.03.6 (2021-11-08)
 --------------------
 
