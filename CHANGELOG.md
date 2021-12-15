@@ -16,6 +16,16 @@ Changes
 
 .. towncrier release notes start
 
+## 21.09.2 (2021-12-15)
+
+### Features
+* Migrate file-based lock code from storage-proxy package ([#98](https://github.com/lablup/backend.ai-common/issues/98))
+* Update `validators.TimeDuration` class to support years and months ([#99](https://github.com/lablup/backend.ai-common/issues/99))
+
+### Fixes
+* Remove an unreachable statement in `BinarySize.__format__()` ([#100](https://github.com/lablup/backend.ai-common/issues/100))
+
+
 ## 21.09.1 (2021-11-11)
 
 ### Fixes
