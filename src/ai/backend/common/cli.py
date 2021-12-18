@@ -4,7 +4,7 @@ import functools
 from importlib import import_module
 import re
 from types import FunctionType
-from typing import Any, Optional, Union, Type, cast
+from typing import Any, Optional, Union, Type
 
 import click
 
@@ -58,7 +58,7 @@ class EnumChoice(click.Choice):
     enum: Type[Enum]
 
     def __init__(self, enum: Type[Enum]):
-        super().__init__([*cast(Enum, enum)._member_map_.keys()])
+        super().__init__([*enum._member_map_.keys()])
         self.enum = enum
 
     def convert(self, value: Any, param, ctx):
