@@ -4,7 +4,7 @@ import functools
 from importlib import import_module
 import re
 from types import FunctionType
-from typing import Any, Optional, Union, Type, cast
+from typing import Any, Optional, Union, Type
 
 import click
 
