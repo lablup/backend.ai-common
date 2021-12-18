@@ -99,7 +99,7 @@ class aobject(object):
         This is a copy of ``__new__()`` to workaround it.
         '''
         instance = super().__new__(cls)
-        instance.__init__(*args, **kwargs)
+        cls.__init__(instance, *args, **kwargs)
         await instance.__ainit__()
         return instance
 
