@@ -1,0 +1,1 @@
+Apply queueing of individual event types to reduce contention of overlapping event handlers in each manager process
