@@ -26,22 +26,22 @@ from ai.backend.common.testutils import (
 )
 
 
-def test_odict():
+def test_odict() -> None:
     assert odict(('a', 1), ('b', 2)) == OrderedDict([('a', 1), ('b', 2)])
 
 
-def test_dict2kvlist():
+def test_dict2kvlist() -> None:
     ret = list(dict2kvlist({'a': 1, 'b': 2}))
     assert set(ret) == {'a', 1, 'b', 2}
 
 
-def test_generate_uuid():
+def test_generate_uuid() -> None:
     u = generate_uuid()
     assert len(u) == 22
     assert isinstance(u, str)
 
 
-def test_random_seq():
+def test_random_seq() -> None:
     assert [*get_random_seq(10, 11, 1)] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     assert [*get_random_seq(10, 6, 2)] == [0, 2, 4, 6, 8, 10]
     with pytest.raises(AssertionError):
@@ -57,7 +57,7 @@ def test_random_seq():
             assert x > last_x + 1
 
 
-def test_nmget():
+def test_nmget() -> None:
     o = {'a': {'b': 1}, 'x': None}
     assert nmget(o, 'a', 0) == {'b': 1}
     assert nmget(o, 'a.b', 0) == 1
@@ -68,7 +68,7 @@ def test_nmget():
     assert nmget(o, 'x', 0, null_as_default=False) is None
 
 
-def test_readable_size_to_bytes():
+def test_readable_size_to_bytes() -> None:
     assert readable_size_to_bytes(2) == 2
     assert readable_size_to_bytes('2') == 2
     assert readable_size_to_bytes('2K') == 2 * (2 ** 10)
@@ -93,7 +93,7 @@ def test_readable_size_to_bytes():
         readable_size_to_bytes('TT')
 
 
-def test_str_to_timedelta():
+def test_str_to_timedelta() -> None:
     assert str_to_timedelta('1d2h3m4s') == timedelta(days=1, hours=2, minutes=3, seconds=4)
     assert str_to_timedelta('1d2h3m') == timedelta(days=1, hours=2, minutes=3)
     assert str_to_timedelta('1d2h') == timedelta(days=1, hours=2)
@@ -128,7 +128,7 @@ def test_str_to_timedelta():
 
 
 @pytest.mark.asyncio
-async def test_curl_returns_stripped_body(mocker):
+async def test_curl_returns_stripped_body(mocker) -> None:
     mock_get = mocker.patch.object(aiohttp.ClientSession, 'get')
     mock_resp = {'status': 200, 'text': mock_corofunc(b'success  ')}
     mock_get.return_value = AsyncContextManagerMock(**mock_resp)
@@ -140,7 +140,7 @@ async def test_curl_returns_stripped_body(mocker):
 
 
 @pytest.mark.asyncio
-async def test_curl_returns_default_value_if_not_success(mocker):
+async def test_curl_returns_default_value_if_not_success(mocker) -> None:
     mock_get = mocker.patch.object(aiohttp.ClientSession, 'get')
     mock_resp = {'status': 400, 'text': mock_corofunc(b'bad request')}
     mock_get.return_value = AsyncContextManagerMock(**mock_resp)
@@ -154,9 +154,11 @@ async def test_curl_returns_default_value_if_not_success(mocker):
     assert resp == 'default'
 
 
-def test_string_set_flag():
+def test_string_set_flag() -> None:
 
-    class MyFlags(StringSetFlag):
+    # FIXME: Remove "type: ignore" when mypy gets released with
+    #        python/mypy#11579.
+    class MyFlags(StringSetFlag):   # type: ignore
         A = 'a'
         B = 'b'
 
@@ -193,14 +195,14 @@ def test_string_set_flag():
 
 
 class TestAsyncBarrier:
-    def test_async_barrier_initialization(self):
+    def test_async_barrier_initialization(self) -> None:
         barrier = AsyncBarrier(num_parties=5)
 
         assert barrier.num_parties == 5
         assert barrier.cond is not None  # default condition
 
     @pytest.mark.asyncio
-    async def test_wait_notify_all_if_cound_eq_num_parties(self, mocker):
+    async def test_wait_notify_all_if_cound_eq_num_parties(self, mocker) -> None:
         mock_cond = mocker.patch.object(asyncio, 'Condition')
         mock_resp = {
             'notify_all': mock.Mock(),
@@ -214,8 +216,9 @@ class TestAsyncBarrier:
         await barrier.wait()
 
         assert barrier.count == 1
-        mock_cond.return_value.notify_all.assert_called_once_with()
-        mock_cond.return_value.wait.assert_not_called()
+        # The methods are added at runtime.
+        mock_cond.return_value.notify_all.assert_called_once_with()  # type: ignore
+        mock_cond.return_value.wait.assert_not_called()              # type: ignore
 
     def test_async_barrier_reset(self):
         barrier = AsyncBarrier(num_parties=5)
@@ -227,7 +230,7 @@ class TestAsyncBarrier:
 
 
 @pytest.mark.asyncio
-async def test_run_through():
+async def test_run_through() -> None:
 
     i = 0
 
@@ -270,7 +273,7 @@ async def test_run_through():
 
 
 @pytest.mark.asyncio
-async def test_async_file_writer_str():
+async def test_async_file_writer_str() -> None:
     # 1. Get temporary filename
     with NamedTemporaryFile() as temp_file:
         file_name = temp_file.name
@@ -298,7 +301,7 @@ async def test_async_file_writer_str():
 
 
 @pytest.mark.asyncio
-async def test_async_file_writer_bytes():
+async def test_async_file_writer_bytes() -> None:
     # 1. Get temporary filename
     with NamedTemporaryFile() as temp_file:
         file_name = temp_file.name
