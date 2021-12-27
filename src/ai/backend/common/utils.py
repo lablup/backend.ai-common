@@ -222,12 +222,7 @@ class StringSetFlag(enum.Flag):
             return self.value == other
         raise TypeError
 
-    def __rand__(self, other):
-        if isinstance(other, (set, frozenset)):
-            return self.value in other
-        if isinstance(other, str):
-            return self.value == other
-        raise TypeError
+    __rand__ = __and__
 
     def __xor__(self, other):
         if isinstance(other, (set, frozenset)):
