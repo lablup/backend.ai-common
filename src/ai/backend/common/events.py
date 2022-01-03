@@ -5,7 +5,6 @@ import asyncio
 from collections import defaultdict
 import functools
 import logging
-from re import I
 import secrets
 from typing import (
     Any,
