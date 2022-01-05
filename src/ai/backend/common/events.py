@@ -591,7 +591,7 @@ class CoalescingState:
         try:
             await self.fut_sync
         except asyncio.CancelledError:
-            if not self.last_handle.cancelled():
+            if self.last_handle is not None and not self.last_handle.cancelled():
                 self.last_handle.cancel()
             return False
         else:
