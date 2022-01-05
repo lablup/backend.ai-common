@@ -579,7 +579,8 @@ class CoalescingState:
         )
         if self.last_added > 0 and loop.time() - self.last_added < opts['max_wait']:
             # Cancel the previously pending task.
-            self.last_handle.cancel()
+            if not self.last_handle.done() and not self.last_handle.cancelled():
+                self.last_handle.cancel()
             self.fut_sync.cancel()
             # Reschedule.
             self.fut_sync = loop.create_future()
