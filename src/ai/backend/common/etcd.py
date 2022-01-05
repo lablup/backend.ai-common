@@ -202,7 +202,7 @@ class AsyncEtcd:
         # Currently there is no public API to control this... :(
         if self.etcd_sync.watcher._callback_thread:
             self.etcd_sync.watcher._callback_thread.join()
-        self.executor.shutdown()
+        self.executor.shutdown(cancel_futures=True)
         return ret
 
     def _mangle_key(self, k: str) -> bytes:
@@ -623,30 +623,32 @@ class AsyncEtcd:
         scope_prefix_len = len(f'{_slash(scope_prefix)}')
         mangled_key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         # NOTE: yield from in async-generator is not supported.
-        while True:
-            try:
-                async with aclosing(
-                    self._watch_impl(
-                        mangled_key,
-                        ready_event,
-                        cleanup_event,
-                        timeout=wait_timeout,
-                    ),
-                ) as agen:
-                    async for ev in agen:
-                        if ev is QueueSentinel.CLOSED:
-                            log.debug('watch(): etcd connection closed, restarting watch')
-                            break
-                        elif ev is QueueSentinel.TIMEOUT:
-                            yield ev
-                        else:
-                            yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
-                            if once:
-                                return
-            except asyncio.CancelledError:
-                break
-        if cleanup_event:
-            cleanup_event.set()
+        try:
+            while True:
+                try:
+                    async with aclosing(
+                        self._watch_impl(
+                            mangled_key,
+                            ready_event,
+                            cleanup_event,
+                            timeout=wait_timeout,
+                        ),
+                    ) as agen:
+                        async for ev in agen:
+                            if ev is QueueSentinel.CLOSED:
+                                log.debug('watch(): etcd connection closed, restarting watch')
+                                break
+                            elif ev is QueueSentinel.TIMEOUT:
+                                yield ev
+                            else:
+                                yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
+                                if once:
+                                    return
+                except asyncio.CancelledError:
+                    raise
+        finally:
+            if cleanup_event:
+                cleanup_event.set()
 
     async def watch_prefix(
         self, key_prefix: str, *,
@@ -660,28 +662,30 @@ class AsyncEtcd:
         scope_prefix = self._merge_scope_prefix_map(scope_prefix_map)[scope]
         scope_prefix_len = len(f'{_slash(scope_prefix)}')
         mangled_key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
-        while True:
-            try:
-                async with aclosing(
-                    self._watch_impl(
-                        mangled_key_prefix,
-                        ready_event,
-                        cleanup_event,
-                        prefix=True,
-                        timeout=wait_timeout,
-                    ),
-                ) as agen:
-                    async for ev in agen:
-                        if ev is QueueSentinel.CLOSED:
-                            log.debug('watch_prefix(): etcd connection closed, restarting watch')
-                            break
-                        elif ev is QueueSentinel.TIMEOUT:
-                            yield ev
-                        else:
-                            yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
-                            if once:
-                                return
-            except asyncio.CancelledError:
-                break
-        if cleanup_event:
-            cleanup_event.set()
+        try:
+            while True:
+                try:
+                    async with aclosing(
+                        self._watch_impl(
+                            mangled_key_prefix,
+                            ready_event,
+                            cleanup_event,
+                            prefix=True,
+                            timeout=wait_timeout,
+                        ),
+                    ) as agen:
+                        async for ev in agen:
+                            if ev is QueueSentinel.CLOSED:
+                                log.debug('watch_prefix(): etcd connection closed, restarting watch')
+                                break
+                            elif ev is QueueSentinel.TIMEOUT:
+                                yield ev
+                            else:
+                                yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
+                                if once:
+                                    return
+                except asyncio.CancelledError:
+                    raise
+        finally:
+            if cleanup_event:
+                cleanup_event.set()
