@@ -579,7 +579,7 @@ class CoalescingState:
         )
         if self.last_added > 0 and loop.time() - self.last_added < opts['max_wait']:
             # Cancel the previously pending task.
-            if not self.last_handle.done() and not self.last_handle.cancelled():
+            if not self.last_handle.cancelled():
                 self.last_handle.cancel()
             self.fut_sync.cancel()
             # Reschedule.
@@ -591,7 +591,7 @@ class CoalescingState:
         try:
             await self.fut_sync
         except asyncio.CancelledError:
-            if not self.last_handle.done() and not self.last_handle.cancelled():
+            if not self.last_handle.cancelled():
                 self.last_handle.cancel()
             return False
         else:
