@@ -12,6 +12,7 @@ import aiohttp
 import pytest
 
 from ai.backend.common.asyncio import AsyncBarrier, run_through
+from ai.backend.common.enum_extension import StringSetFlag
 from ai.backend.common.files import AsyncFileWriter
 from ai.backend.common.networking import curl
 from ai.backend.common.utils import (
@@ -19,7 +20,6 @@ from ai.backend.common.utils import (
     generate_uuid, get_random_seq,
     readable_size_to_bytes,
     str_to_timedelta,
-    StringSetFlag,
 )
 from ai.backend.common.testutils import (
     mock_corofunc, mock_awaitable, AsyncContextManagerMock,
@@ -156,9 +156,7 @@ async def test_curl_returns_default_value_if_not_success(mocker) -> None:
 
 def test_string_set_flag() -> None:
 
-    # FIXME: Remove "type: ignore" when mypy gets released with
-    #        python/mypy#11579.
-    class MyFlags(StringSetFlag):   # type: ignore
+    class MyFlags(StringSetFlag):
         A = 'a'
         B = 'b'
 
@@ -182,7 +180,7 @@ def test_string_set_flag() -> None:
     assert {'b'} == MyFlags.A ^ {'a', 'b'}
     assert {'a', 'b', 'c'} == MyFlags.A ^ {'b', 'c'}
     with pytest.raises(TypeError):
-        123 & MyFlags.A
+        123 & MyFlags.A  # type: ignore[operator]
 
     assert {'a', 'c'} & MyFlags.A
     assert not {'a', 'c'} & MyFlags.B
