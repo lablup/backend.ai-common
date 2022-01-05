@@ -13,11 +13,15 @@ from typing import (
     Generic,
     Iterator,
     Mapping,
-    Set,
     Tuple,
     Type,
     TypeVar,
 )
+from weakref import WeakSet
+
+from aiotools.context import aclosing
+
+from ai.backend.common.asyncio import cancel_tasks
 
 from ..etcd import AsyncEtcd
 from ..types import QueueSentinel
@@ -106,13 +110,13 @@ class BasePluginContext(Generic[P]):
     plugins: Dict[str, P]
     plugin_group: ClassVar[str] = 'backendai_XXX_v10'
 
-    _config_watchers: Set[asyncio.Task]
+    _config_watchers: WeakSet[asyncio.Task]
 
     def __init__(self, etcd: AsyncEtcd, local_config: Mapping[str, Any]) -> None:
         self.etcd = etcd
         self.local_config = local_config
         self.plugins = {}
-        self._config_watchers = set()
+        self._config_watchers = WeakSet()
         if m := re.search(r'^backendai_(\w+)_v(\d+)$', self.plugin_group):
             self._group_key = m.group(1)
         else:
@@ -154,10 +158,8 @@ class BasePluginContext(Generic[P]):
         await asyncio.sleep(0)
 
     async def cleanup(self) -> None:
-        for wtask in {*self._config_watchers}:
-            if not wtask.done():
-                wtask.cancel()
-                await wtask
+        await cancel_tasks(self._config_watchers)
+        await asyncio.sleep(0)
         for plugin_instance in self.plugins.values():
             await plugin_instance.cleanup()
 
@@ -165,21 +167,21 @@ class BasePluginContext(Generic[P]):
         # As wait_timeout applies to the waiting for an internal async queue,
         # so short timeouts for polling the changes does not incur gRPC/network overheads.
         has_changes = False
-        async for ev in self.etcd.watch_prefix(
+        async with aclosing(self.etcd.watch_prefix(
             f"config/plugins/{self._group_key}/{plugin_name}",
             wait_timeout=0.2,
-        ):
-            if ev is QueueSentinel.TIMEOUT:
-                if has_changes:
-                    new_config = await self.etcd.get_prefix(
-                        f"config/plugins/{self._group_key}/{plugin_name}/"
-                    )
-                    await self.plugins[plugin_name].update_plugin_config(new_config)
-                has_changes = False
-            else:
-                has_changes = True
+        )) as agen:
+            async for ev in agen:
+                if ev is QueueSentinel.TIMEOUT:
+                    if has_changes:
+                        new_config = await self.etcd.get_prefix(
+                            f"config/plugins/{self._group_key}/{plugin_name}/",
+                        )
+                        await self.plugins[plugin_name].update_plugin_config(new_config)
+                    has_changes = False
+                else:
+                    has_changes = True
 
     async def watch_config_changes(self, plugin_name: str) -> None:
         wtask = asyncio.create_task(self._watcher(plugin_name))
-        wtask.add_done_callback(self._config_watchers.discard)
         self._config_watchers.add(wtask)
