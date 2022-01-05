@@ -519,9 +519,9 @@ class RedisConnectorFunc(Protocol):
         ...
 
 
-TEvent = TypeVar('TEvent', bound='AbstractEvent', contravariant=True)
+TEvent = TypeVar('TEvent', bound='AbstractEvent')
 TEventCov = TypeVar('TEventCov', bound='AbstractEvent')
-TContext = TypeVar('TContext', contravariant=True)
+TContext = TypeVar('TContext')
 
 EventCallback = Union[
     Callable[[TContext, AgentId, TEvent], Coroutine[Any, Any, None]],
@@ -579,7 +579,8 @@ class CoalescingState:
         )
         if self.last_added > 0 and loop.time() - self.last_added < opts['max_wait']:
             # Cancel the previously pending task.
-            self.last_handle.cancel()
+            if not self.last_handle.cancelled():
+                self.last_handle.cancel()
             self.fut_sync.cancel()
             # Reschedule.
             self.fut_sync = loop.create_future()
@@ -590,6 +591,8 @@ class CoalescingState:
         try:
             await self.fut_sync
         except asyncio.CancelledError:
+            if self.last_handle is not None and not self.last_handle.cancelled():
+                self.last_handle.cancel()
             return False
         else:
             self.fut_sync = None
@@ -647,21 +650,26 @@ class EventDispatcher(aobject):
         self.subscriber_taskset = weakref.WeakSet()
 
     async def close(self) -> None:
-        cancelled_tasks = []
-        for task in self.consumer_taskset:
-            if not task.done():
-                task.cancel()
-                cancelled_tasks.append(task)
-        for task in self.subscriber_taskset:
-            if not task.done():
-                task.cancel()
-                cancelled_tasks.append(task)
-        self.consumer_loop_task.cancel()
-        self.subscriber_loop_task.cancel()
-        cancelled_tasks.append(self.consumer_loop_task)
-        cancelled_tasks.append(self.subscriber_loop_task)
-        await asyncio.gather(*cancelled_tasks, return_exceptions=True)
-        await self.redis_client.close()
+        try:
+            cancelled_tasks = []
+            for task in self.consumer_taskset:
+                if not task.done():
+                    task.cancel()
+                    cancelled_tasks.append(task)
+            for task in self.subscriber_taskset:
+                if not task.done():
+                    task.cancel()
+                    cancelled_tasks.append(task)
+            await asyncio.sleep(0)
+            self.consumer_loop_task.cancel()
+            self.subscriber_loop_task.cancel()
+            cancelled_tasks.append(self.consumer_loop_task)
+            cancelled_tasks.append(self.subscriber_loop_task)
+            await asyncio.gather(*cancelled_tasks, return_exceptions=True)
+        except Exception:
+            log.exception("unexpected error while closing event dispatcher")
+        finally:
+            await self.redis_client.close()
 
     def consume(
         self,
