@@ -583,15 +583,15 @@ class CoalescingState:
             self.fut_sync.cancel()
             # Reschedule.
             self.fut_sync = loop.create_future()
-            t = self.last_handle = loop.call_later(
+            self.last_handle = loop.call_later(
                 opts['max_wait'],
                 self.proceed,
             )
         try:
             await self.fut_sync
         except asyncio.CancelledError:
-            if not t.cancelled():
-                t.cancel()
+            if not self.last_handle.done() and not self.last_handle.cancelled():
+                self.last_handle.cancel()
             return False
         else:
             self.fut_sync = None
