@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 from collections import OrderedDict
 from datetime import timedelta
-import enum
 from itertools import chain
 import numbers
 import random
@@ -34,6 +33,7 @@ from .asyncio import (  # for legacy imports  # noqa
     current_loop,
     run_through,
 )
+from .enum_extension import StringSetFlag  # for legacy imports  # noqa
 from .files import AsyncFileWriter  # for legacy imports  # noqa
 from .networking import (  # for legacy imports  # noqa
     curl,
@@ -196,61 +196,6 @@ def str_to_timedelta(tstr: str) -> timedelta:
         raise ValueError('Invalid time expression')
     params = {n: -float(t) if sign == '-' else float(t) for n, t in groups.items() if t}
     return timedelta(**params)  # type: ignore
-
-
-class StringSetFlag(enum.Flag):
-
-    def __eq__(self, other):
-        return self.value == other
-
-    def __hash__(self):
-        return hash(self.value)
-
-    def __or__(self, other):
-        if isinstance(other, type(self)):
-            other = other.value
-        if not isinstance(other, (set, frozenset)):
-            other = set((other,))
-        return set((self.value,)) | other
-
-    __ror__ = __or__
-
-    def __and__(self, other):
-        if isinstance(other, (set, frozenset)):
-            return self.value in other
-        if isinstance(other, str):
-            return self.value == other
-        raise TypeError
-
-    def __rand__(self, other):
-        if isinstance(other, (set, frozenset)):
-            return self.value in other
-        if isinstance(other, str):
-            return self.value == other
-        raise TypeError
-
-    def __xor__(self, other):
-        if isinstance(other, (set, frozenset)):
-            return set((self.value,)) ^ other
-        if isinstance(other, str):
-            if other == self.value:
-                return set()
-            else:
-                return other
-        raise TypeError
-
-    def __rxor__(self, other):
-        if isinstance(other, (set, frozenset)):
-            return other ^ set((self.value,))
-        if isinstance(other, str):
-            if other == self.value:
-                return set()
-            else:
-                return other
-        raise TypeError
-
-    def __str__(self):
-        return self.value
 
 
 class FstabEntry:
