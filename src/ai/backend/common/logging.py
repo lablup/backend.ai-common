@@ -54,7 +54,7 @@ logging_config_iv = t.Dict({
     t.Key('file', default=None): t.Null | t.Dict({
         t.Key('path'): tx.Path(type='dir', auto_create=True),
         t.Key('filename'): t.String,
-        t.Key('backup-count', default='5'): t.Int[1:100],
+        t.Key('backup-count', default=5): t.Int[1:100],
         t.Key('rotation-size', default='10M'): tx.BinarySize,
         t.Key('format', default='verbose'): logformat_iv,
     }).allow_extra('*'),
