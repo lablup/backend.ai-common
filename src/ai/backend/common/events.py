@@ -646,7 +646,7 @@ class EventDispatcher(aobject):
         self.subscribers = defaultdict(set)
         self._consumer_group = consumer_group
         h = hashlib.sha1()
-        h.update(node_id or socket.getfqdn())
+        h.update(str(node_id or socket.getfqdn()).encode('utf8'))
         hostname_hash = h.hexdigest()
         h = hashlib.sha1()
         h.update(__file__.encode('utf8'))
