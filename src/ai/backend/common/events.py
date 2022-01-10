@@ -645,13 +645,7 @@ class EventDispatcher(aobject):
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
         self._consumer_group = consumer_group
-        h = hashlib.sha1()
-        h.update(str(node_id or socket.getfqdn()).encode('utf8'))
-        hostname_hash = h.hexdigest()
-        h = hashlib.sha1()
-        h.update(__file__.encode('utf8'))
-        installation_path_hash = h.hexdigest()
-        self._consumer_name = f"{hostname_hash}:{installation_path_hash}:{process_index.get()}"
+        self._consumer_name = _generate_consumer_id(node_id)
 
     async def __ainit__(self) -> None:
         self.consumer_loop_task = asyncio.create_task(self._consume_loop())
@@ -844,3 +838,14 @@ class EventProducer(aobject):
             self.redis_client,
             lambda r: r.xadd('events', raw_event),  # type: ignore # aio-libs/aioredis-py#1182
         )
+
+
+def _generate_consumer_id(node_id: str = None) -> str:
+    h = hashlib.sha1()
+    h.update(str(node_id or socket.getfqdn()).encode('utf8'))
+    hostname_hash = h.hexdigest()
+    h = hashlib.sha1()
+    h.update(__file__.encode('utf8'))
+    installation_path_hash = h.hexdigest()
+    pidx = process_index.get(0)
+    return f"{hostname_hash}:{installation_path_hash}:{pidx}"
