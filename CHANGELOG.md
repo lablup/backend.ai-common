@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+21.03.9 (2022-01-10)
+--------------------
+
+### Fixes
+* Use a fixed value for the Redis stream consumer ID in `EventDispatcher` to avoid accumulation of unused consumers upon service restarts, which causes database transaction flooding and slow-down of event processing ([#109](https://github.com/lablup/backend.ai-common/issues/109))
+
+
 21.03.8 (2022-01-10)
 --------------------
 
