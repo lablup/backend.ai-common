@@ -4,8 +4,10 @@ import abc
 import asyncio
 from collections import defaultdict
 import functools
+import hashlib
 import logging
 import secrets
+import socket
 from typing import (
     Any,
     Callable,
@@ -29,6 +31,7 @@ import aioredis
 import aioredis.exceptions
 import aioredis.sentinel
 from aiotools.context import aclosing
+from aiotools.server import process_index
 import attr
 
 from . import msgpack, redis
@@ -609,13 +612,14 @@ class EventDispatcher(aobject):
         log_events: bool = False,
         *,
         consumer_group: str = "manager",
+        node_id: str = None,
     ) -> None:
         self.redis_client = redis.get_redis_object(connector, db=db)
         self._log_events = log_events
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
         self._consumer_group = consumer_group
-        self._consumer_name = secrets.token_urlsafe(16)
+        self._consumer_name = _generate_consumer_id(node_id)
 
     async def __ainit__(self) -> None:
         self.consumer_loop_task = asyncio.create_task(self._consume_loop())
@@ -808,3 +812,14 @@ class EventProducer(aobject):
             self.redis_client,
             lambda r: r.xadd('events', raw_event),  # type: ignore # aio-libs/aioredis-py#1182
         )
+
+
+def _generate_consumer_id(node_id: str = None) -> str:
+    h = hashlib.sha1()
+    h.update(str(node_id or socket.getfqdn()).encode('utf8'))
+    hostname_hash = h.hexdigest()
+    h = hashlib.sha1()
+    h.update(__file__.encode('utf8'))
+    installation_path_hash = h.hexdigest()
+    pidx = process_index.get(0)
+    return f"{hostname_hash}:{installation_path_hash}:{pidx}"
