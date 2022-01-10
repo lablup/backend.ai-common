@@ -16,6 +16,17 @@ Changes
 
 .. towncrier release notes start
 
+21.03.8 (2022-01-10)
+--------------------
+
+### Fixes
+* Fix minor typing errors discovered by mypy 0.920 update ([#104](https://github.com/lablup/backend.ai-common/issues/104))
+* Update mypy to 0.930 and fix newly discovered type errors ([#105](https://github.com/lablup/backend.ai-common/issues/105))
+* Fix potential deadlock upon shutdown of service daemons ([#106](https://github.com/lablup/backend.ai-common/issues/106))
+* Fix typing issues of `StringSetFlag` by refactoring it using a separate interface definition file ([#107](https://github.com/lablup/backend.ai-common/issues/107))
+* fix file logging crashing when backup-count option not set ([#108](https://github.com/lablup/backend.ai-common/issues/108))
+
+
 21.03.7 (2021-12-15)
 --------------------
 
