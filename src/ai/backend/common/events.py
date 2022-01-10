@@ -4,8 +4,10 @@ import abc
 import asyncio
 from collections import defaultdict
 import functools
+import hashlib
 import logging
 import secrets
+import socket
 from typing import (
     Any,
     Callable,
@@ -29,6 +31,7 @@ import aioredis
 import aioredis.exceptions
 import aioredis.sentinel
 from aiotools.context import aclosing
+from aiotools.server import process_index
 import attr
 
 from . import msgpack, redis
@@ -635,13 +638,20 @@ class EventDispatcher(aobject):
         log_events: bool = False,
         *,
         consumer_group: str = "manager",
+        node_id: str = None,
     ) -> None:
         self.redis_client = redis.get_redis_object(connector, db=db)
         self._log_events = log_events
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
         self._consumer_group = consumer_group
-        self._consumer_name = secrets.token_urlsafe(16)
+        h = hashlib.sha1()
+        h.update(node_id or socket.getfqdn())
+        hostname_hash = h.hexdigest()
+        h = hashlib.sha1()
+        h.update(__file__.encode('utf8'))
+        installation_path_hash = h.hexdigest()
+        self._consumer_name = f"{hostname_hash}:{installation_path_hash}:{process_index.get()}"
 
     async def __ainit__(self) -> None:
         self.consumer_loop_task = asyncio.create_task(self._consume_loop())
