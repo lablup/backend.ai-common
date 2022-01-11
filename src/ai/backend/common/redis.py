@@ -334,6 +334,13 @@ async def read_stream(
             )
             if reply is None:
                 continue
+            await execute(
+                r,
+                lambda r: r.xdel(
+                    stream_key,
+                    *(msg_id for msg_id, msg_data in reply[0][1]),
+                ),
+            )
             for msg_id, msg_data in reply[0][1]:
                 try:
                     yield msg_id, msg_data
@@ -394,13 +401,6 @@ async def read_stream_by_group(
                 lambda r: r.xack(
                     stream_key,
                     group_name,
-                    *(msg_id for msg_id, msg_data in reply[0][1]),
-                ),
-            )
-            await execute(
-                r,
-                lambda r: r.xdel(
-                    stream_key,
                     *(msg_id for msg_id, msg_data in reply[0][1]),
                 ),
             )
