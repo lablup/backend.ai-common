@@ -356,7 +356,6 @@ async def read_stream_by_group(
     A high-level wrapper for the XREADGROUP command
     combined with XAUTOCLAIM and XGROUP_CREATE.
     """
-    last_ack = b"0-0"
     while True:
         try:
             messages = []
@@ -390,20 +389,23 @@ async def read_stream_by_group(
             assert reply[0][0].decode() == stream_key
             for msg_id, msg_data in reply[0][1]:
                 messages.append((msg_id, msg_data))
+            await execute(
+                r,
+                lambda r: r.xack(
+                    stream_key,
+                    group_name,
+                    *(msg_id for msg_id, msg_data in reply[0][1]),
+                ),
+            )
+            await execute(
+                r,
+                lambda r: r.xdel(
+                    stream_key,
+                    *(msg_id for msg_id, msg_data in reply[0][1]),
+                ),
+            )
             for msg_id, msg_data in messages:
-                try:
-                    yield msg_id, msg_data
-                finally:
-                    if _parse_stream_msg_id(last_ack) < _parse_stream_msg_id(msg_id):
-                        last_ack = msg_id
-                    await execute(
-                        r,
-                        lambda r: r.xack(
-                            stream_key,
-                            group_name,
-                            msg_id,
-                        ),
-                    )
+                yield msg_id, msg_data
         except asyncio.CancelledError:
             raise
         except aioredis.exceptions.ResponseError as e:
