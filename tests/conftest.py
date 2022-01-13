@@ -3,11 +3,16 @@ from decimal import Decimal
 import os
 import secrets
 import time
+from typing import (
+    AsyncIterator,
+)
 
 from ai.backend.common.argparse import host_port_pair
 from ai.backend.common.etcd import AsyncEtcd, ConfigScopes
 
 import pytest
+
+from .redis.utils import simple_run_cmd, wait_redis_ready
 
 
 @pytest.fixture
@@ -125,3 +130,25 @@ def mock_time(mocker):
     _mock_async_sleep.get_total_delay = _get_total_delay
     _mock_async_sleep.get_call_count = _get_call_count
     yield _mock_async_sleep, _mock_time_monotonic
+
+
+@pytest.fixture
+async def redis_container(test_ns, test_case_ns) -> AsyncIterator[str]:
+    p = await asyncio.create_subprocess_exec(*[
+        'docker', 'run',
+        '-d',
+        '--name', f'bai-common.{test_ns}.{test_case_ns}',
+        '-p', '9379:6379',
+        'redis:6-alpine',
+    ], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+    assert p.stdout is not None
+    stdout = await p.stdout.read()
+    await p.wait()
+    cid = stdout.decode().strip()
+    await wait_redis_ready('127.0.0.1', 9379)
+    try:
+        yield cid
+    finally:
+        await asyncio.sleep(0.2)
+        await simple_run_cmd(['docker', 'rm', '-f', cid])
+        await asyncio.sleep(0.2)

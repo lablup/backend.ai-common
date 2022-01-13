@@ -3,13 +3,13 @@ from __future__ import annotations
 import abc
 import asyncio
 from collections import defaultdict
-import functools
 import hashlib
 import logging
 import secrets
 import socket
 from typing import (
     Any,
+    Awaitable,
     Callable,
     ClassVar,
     Coroutine,
@@ -633,25 +633,33 @@ class EventDispatcher(aobject):
 
     def __init__(
         self,
-        connector: EtcdRedisConfig,
+        redis_config: EtcdRedisConfig,
         db: int = 0,
         log_events: bool = False,
         *,
         consumer_group: str = "manager",
         node_id: str = None,
+        consumer_exception_handler: Callable[[Exception], Awaitable[None]] = None,
+        subscriber_exception_handler: Callable[[Exception], Awaitable[None]] = None,
     ) -> None:
-        self.redis_client = redis.get_redis_object(connector, db=db)
+        self.redis_client = redis.get_redis_object(redis_config, db=db)
         self._log_events = log_events
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
         self._consumer_group = consumer_group
         self._consumer_name = _generate_consumer_id(node_id)
+        self.consumer_taskgroup = PersistentTaskGroup(
+            name="consumer_taskgroup",
+            exception_handler=consumer_exception_handler,
+        )
+        self.subscriber_taskgroup = PersistentTaskGroup(
+            name="subscriber_taskgroup",
+            exception_handler=subscriber_exception_handler,
+        )
 
     async def __ainit__(self) -> None:
         self.consumer_loop_task = asyncio.create_task(self._consume_loop())
         self.subscriber_loop_task = asyncio.create_task(self._subscribe_loop())
-        self.consumer_taskgroup = PersistentTaskGroup(name="consumer_taskgroup")
-        self.subscriber_taskgroup = PersistentTaskGroup(name="subscriber_taskgroup")
 
     async def close(self) -> None:
         try:
@@ -711,7 +719,6 @@ class EventDispatcher(aobject):
         self.subscribers[handler.event_cls.name].discard(cast(EventHandler[Any, AbstractEvent], handler))
 
     async def handle(self, evh_type: str, evh: EventHandler, source: AgentId, args: tuple) -> None:
-        loop = asyncio.get_running_loop()
         coalescing_opts = evh.coalescing_opts
         coalescing_state = evh.coalescing_state
         cb = evh.callback
@@ -723,10 +730,7 @@ class EventDispatcher(aobject):
                 # mypy cannot catch the meaning of asyncio.iscoroutinefunction().
                 await cb(evh.context, source, event_cls.deserialize(args))  # type: ignore
             else:
-                wrapped_cb = functools.partial(
-                    cb, evh.context, source, event_cls.deserialize(args),  # type: ignore
-                )
-                loop.call_soon(wrapped_cb)
+                cb(evh.context, source, event_cls.deserialize(args))  # type: ignore
 
     async def dispatch_consumers(
         self,
