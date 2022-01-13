@@ -16,6 +16,15 @@ Changes
 
 .. towncrier release notes start
 
+21.03.10 (2022-01-13)
+--------------------
+
+### Fixes
+* Improve `EventDispatcher` stability by earlier `XACK` and explicit `XDEL` Redis stream commands ([#110](https://github.com/lablup/backend.ai-common/issues/110))
+* Adopt `aiotools.PersistentTaskGroup` to manager event handler tasks in `EventDispatcher` to capture unhandled exceptions explicitly and reduce boilerplate codes ([#111](https://github.com/lablup/backend.ai-common/issues/111))
+* Import and update `EventDispatcher` test cases from the manager sources with a minor refactoring to add new optional constructor arguments for custom exception handlers ([#112](https://github.com/lablup/backend.ai-common/issues/112))
+
+
 21.03.9 (2022-01-10)
 --------------------
 
