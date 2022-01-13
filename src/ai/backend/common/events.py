@@ -25,13 +25,13 @@ from typing import (
     cast,
 )
 import uuid
-import weakref
 
 import aioredis
 import aioredis.exceptions
 import aioredis.sentinel
 from aiotools.context import aclosing
 from aiotools.server import process_index
+from aiotools.ptaskgroup import PersistentTaskGroup
 import attr
 
 from . import msgpack, redis
@@ -625,8 +625,8 @@ class EventDispatcher(aobject):
     redis_client: RedisConnectionInfo
     consumer_loop_task: asyncio.Task
     subscriber_loop_task: asyncio.Task
-    consumer_taskset: weakref.WeakSet[asyncio.Task]
-    subscriber_taskset: weakref.WeakSet[asyncio.Task]
+    consumer_taskgroup: PersistentTaskGroup
+    subscriber_taskgroup: PersistentTaskGroup
 
     _log_events: bool
     _consumer_name: str
@@ -650,21 +650,14 @@ class EventDispatcher(aobject):
     async def __ainit__(self) -> None:
         self.consumer_loop_task = asyncio.create_task(self._consume_loop())
         self.subscriber_loop_task = asyncio.create_task(self._subscribe_loop())
-        self.consumer_taskset = weakref.WeakSet()
-        self.subscriber_taskset = weakref.WeakSet()
+        self.consumer_taskgroup = PersistentTaskGroup(name="consumer_taskgroup")
+        self.subscriber_taskgroup = PersistentTaskGroup(name="subscriber_taskgroup")
 
     async def close(self) -> None:
         try:
             cancelled_tasks = []
-            for task in self.consumer_taskset:
-                if not task.done():
-                    task.cancel()
-                    cancelled_tasks.append(task)
-            for task in self.subscriber_taskset:
-                if not task.done():
-                    task.cancel()
-                    cancelled_tasks.append(task)
-            await asyncio.sleep(0)
+            await self.consumer_taskgroup.shutdown()
+            await self.subscriber_taskgroup.shutdown()
             self.consumer_loop_task.cancel()
             self.subscriber_loop_task.cancel()
             cancelled_tasks.append(self.consumer_loop_task)
@@ -744,9 +737,9 @@ class EventDispatcher(aobject):
         if self._log_events:
             log.debug('DISPATCH_CONSUMERS(ev:{}, ag:{})', event_name, source)
         for consumer in self.consumers[event_name].copy():
-            self.consumer_taskset.add(asyncio.create_task(
+            self.consumer_taskgroup.create_task(
                 self.handle("CONSUMER", consumer, source, args),
-            ))
+            )
             await asyncio.sleep(0)
 
     async def dispatch_subscribers(
@@ -758,9 +751,9 @@ class EventDispatcher(aobject):
         if self._log_events:
             log.debug('DISPATCH_SUBSCRIBERS(ev:{}, ag:{})', event_name, source)
         for subscriber in self.subscribers[event_name].copy():
-            self.subscriber_taskset.add(asyncio.create_task(
+            self.subscriber_taskgroup.create_task(
                 self.handle("SUBSCRIBER", subscriber, source, args),
-            ))
+            )
             await asyncio.sleep(0)
 
     async def _consume_loop(self) -> None:
@@ -771,6 +764,8 @@ class EventDispatcher(aobject):
             self._consumer_name,
         )) as agen:
             async for msg_id, msg_data in agen:
+                if msg_data is None:
+                    continue
                 try:
                     await self.dispatch_consumers(
                         msg_data[b'name'].decode(),
@@ -788,6 +783,8 @@ class EventDispatcher(aobject):
             'events',
         )) as agen:
             async for msg_id, msg_data in agen:
+                if msg_data is None:
+                    continue
                 try:
                     await self.dispatch_subscribers(
                         msg_data[b'name'].decode(),
