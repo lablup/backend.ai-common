@@ -334,11 +334,14 @@ async def read_stream(
             )
             if reply is None:
                 continue
+            # Keep some latest messages so that other manager
+            # processes to have chances of fetching them.
             await execute(
                 r,
-                lambda r: r.xdel(
+                lambda r: r.xtrim(
                     stream_key,
-                    *(msg_id for msg_id, msg_data in reply[0][1]),
+                    maxlen=8,
+                    approximate=True,
                 ),
             )
             for msg_id, msg_data in reply[0][1]:
