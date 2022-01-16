@@ -29,6 +29,7 @@ from typing import (
 )
 import uuid
 import aioredis
+import aioredis.client
 import aioredis.sentinel
 import attr
 
