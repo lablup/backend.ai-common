@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 import aioredis
 import aioredis.client
 import aioredis.sentinel
