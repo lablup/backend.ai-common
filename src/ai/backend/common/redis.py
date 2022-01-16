@@ -322,7 +322,7 @@ async def read_stream(
     """
     A high-level wrapper for the XREAD command.
     """
-    last_id = b'0-0'
+    last_id = b'$'
     while True:
         try:
             reply = await execute(
@@ -340,7 +340,7 @@ async def read_stream(
                 r,
                 lambda r: r.xtrim(
                     stream_key,
-                    maxlen=8,
+                    maxlen=128,
                     approximate=True,
                 ),
             )
