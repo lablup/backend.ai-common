@@ -62,6 +62,7 @@ async def test_dispatch(redis_container) -> None:
 
     dispatcher.subscribe(DummyEvent, app, acb)
     dispatcher.subscribe(DummyEvent, app, scb)
+    await asyncio.sleep(0.1)
 
     # Dispatch the event
     await producer.produce_event(DummyEvent(999), source='i-test')
@@ -103,6 +104,7 @@ async def test_error_on_dispatch(redis_container) -> None:
 
     dispatcher.subscribe(DummyEvent, app, scb)
     dispatcher.subscribe(DummyEvent, app, acb)
+    await asyncio.sleep(0.1)
 
     await producer.produce_event(DummyEvent(0), source='i-test')
     await asyncio.sleep(0.5)
