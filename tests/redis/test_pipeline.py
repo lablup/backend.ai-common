@@ -19,7 +19,7 @@ async def test_pipeline_single_instance(redis_container: str) -> None:
     )
 
     def _build_pipeline(r: aioredis.Redis) -> aioredis.client.Pipeline:
-        pipe = r.pipeline()
+        pipe = r.pipeline(transaction=False)
         pipe.set("xyz", "123")
         pipe.incr("xyz")
         return pipe
@@ -41,7 +41,7 @@ async def test_pipeline_sentinel_cluster(redis_cluster: RedisClusterInfo) -> Non
     )
 
     def _build_pipeline(r: aioredis.Redis) -> aioredis.client.Pipeline:
-        pipe = r.pipeline()
+        pipe = r.pipeline(transaction=False)
         pipe.set("xyz", "123")
         pipe.incr("xyz")
         return pipe
