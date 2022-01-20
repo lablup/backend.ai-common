@@ -63,6 +63,7 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
         asyncio.create_task(consume("c1", r, "stream1")),
         asyncio.create_task(consume("c2", r, "stream1")),
     ]
+    await asyncio.sleep(0.1)
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
         DockerRedisNode("node", 9379, redis_container),
@@ -158,6 +159,7 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
         asyncio.create_task(consume("c1", s, "stream1")),
         asyncio.create_task(consume("c2", s, "stream1")),
     ]
+    await asyncio.sleep(0.1)
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
         redis_cluster.nodes[0],
@@ -247,6 +249,7 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
         asyncio.create_task(consume("group1", "c1", r, "stream1")),
         asyncio.create_task(consume("group1", "c2", r, "stream1")),
     ]
+    await asyncio.sleep(0.1)
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
         DockerRedisNode("node", 9379, redis_container),
@@ -347,6 +350,7 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
         asyncio.create_task(consume("group1", "c1", s, "stream1")),
         asyncio.create_task(consume("group1", "c2", s, "stream1")),
     ]
+    await asyncio.sleep(0.1)
     interrupt_task = asyncio.create_task(interrupt(
         disruption_method,
         redis_cluster.nodes[0],
