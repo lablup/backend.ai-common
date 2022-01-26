@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+21.03.12 (2022-01-26)
+---------------------
+
+### Fixes
+* Improve the retry condition check for Redis command execution failures when used with pipelines ([#115](https://github.com/lablup/backend.ai-common/issues/115))
+
+
 21.03.11 (2022-01-26)
 ---------------------
 
