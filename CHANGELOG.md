@@ -16,6 +16,13 @@ Changes
 
 .. towncrier release notes start
 
+## 21.09.6 (2022-01-26)
+
+### Fixes
+* Improve the retry condition check for Redis command execution failures when used with pipelines ([#115](https://github.com/lablup/backend.ai-common/issues/115))
+* Improve stability of `EventDispatcher`'s pub/sub messaging pattern using proper `last_id` and `XTRIM` command as a stream garbage collector ([#114](https://github.com/lablup/backend.ai-common/issues/114))
+
+
 ## 21.09.5 (2022-01-13)
 
 ### Fixes
