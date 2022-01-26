@@ -12,9 +12,7 @@ jobs:
       with:
         python-version: "3.9"
         cache: "pip"
-        cache-dependency-path: |
-          "setup.cfg"
-          "requirements/*.txt"
+        cache-dependency-path: ["setup.cfg", "requirements/*.txt"]
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools wheel
@@ -37,9 +35,7 @@ jobs:
       with:
         python-version: "3.9"
         cache: "pip"
-        cache-dependency-path: |
-          "setup.cfg"
-          "requirements/*.txt"
+        cache-dependency-path: ["setup.cfg", "requirements/*.txt"]
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools wheel
@@ -63,9 +59,7 @@ jobs:
       with:
         python-version: "3.9"
         cache: "pip"
-        cache-dependency-path: |
-          "setup.cfg"
-          "requirements/*.txt"
+        cache-dependency-path: ["setup.cfg", "requirements/*.txt"]
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools wheel
@@ -123,9 +117,7 @@ jobs:
       with:
         python-version: "3.9"
         cache: "pip"
-        cache-dependency-path: |
-          "setup.cfg"
-          "requirements/*.txt"
+        cache-dependency-path: ["setup.cfg", "requirements/*.txt"]
     - name: Install dependencies
       env:
         REQUIREMENTS_FILE: build
