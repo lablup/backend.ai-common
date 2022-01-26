@@ -10,15 +10,12 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.9
+        python-version: "3.9"
     - name: Cache pip packages
       uses: actions/cache@v2
       with:
         path: ~/.cache/pip
         key: lint-flake8-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.cfg') }}
-        restore-keys: |
-          lint-flake8-${{ runner.os }}-pip-${{ matrix.python-version }}
-          lint-flake8-${{ runner.os }}-pip-
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools wheel
@@ -39,15 +36,12 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.9
+        python-version: "3.9"
     - name: Cache pip packages
       uses: actions/cache@v2
       with:
         path: ~/.cache/pip
         key: typecheck-mypy-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.cfg') }}
-        restore-keys: |
-          typecheck-mypy-${{ runner.os }}-pip-${{ matrix.python-version }}
-          typecheck-mypy-${{ runner.os }}-pip-
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools wheel
@@ -69,15 +63,12 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.9
+        python-version: "3.9"
     - name: Cache pip packages
       uses: actions/cache@v2
       with:
         path: ~/.cache/pip
-        key: typecheck-mypy-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.cfg') }}
-        restore-keys: |
-          typecheck-mypy-${{ runner.os }}-pip-${{ matrix.python-version }}
-          typecheck-mypy-${{ runner.os }}-pip-
+        key: test-pytest-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.cfg') }}
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools wheel
@@ -133,15 +124,12 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.9
+        python-version: "3.9"
     - name: Cache pip packages
       uses: actions/cache@v2
       with:
         path: ~/.cache/pip
-        key: test-pytest-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.py') }}
-        restore-keys: |
-          test-pytest-${{ runner.os }}-pip-${{ matrix.python-version }}
-          test-pytest-${{ runner.os }}-pip-
+        key: deploy-pypi-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.py') }}
     - name: Install dependencies
       env:
         REQUIREMENTS_FILE: build
