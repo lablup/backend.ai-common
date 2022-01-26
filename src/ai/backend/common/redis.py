@@ -257,7 +257,7 @@ async def execute(
             await asyncio.sleep(reconnect_poll_interval)
             continue
         except aioredis.exceptions.ResponseError as e:
-            if e.args[0].startswith("NOREPLICAS "):
+            if "NOREPLICAS" in e.args[0]:
                 await asyncio.sleep(reconnect_poll_interval)
                 continue
             raise
