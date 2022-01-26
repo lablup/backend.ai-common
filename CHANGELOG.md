@@ -16,8 +16,15 @@ Changes
 
 .. towncrier release notes start
 
+21.03.11 (2022-01-26)
+---------------------
+
+### Fixes
+* Improve stability of `EventDispatcher`'s pub/sub messaging pattern using proper `last_id` and `XTRIM` command as a stream garbage collector ([#114](https://github.com/lablup/backend.ai-common/issues/114))
+
+
 21.03.10 (2022-01-13)
---------------------
+---------------------
 
 ### Fixes
 * Improve `EventDispatcher` stability by earlier `XACK` and explicit `XDEL` Redis stream commands ([#110](https://github.com/lablup/backend.ai-common/issues/110))
