@@ -13,14 +13,10 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: 3.9
-    - name: Cache pip packages
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache/pip
-        key: lint-towncrier-${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.cfg') }}
-        restore-keys: |
-          lint-towncrier-${{ runner.os }}-pip-${{ matrix.python-version }}
-          lint-towncrier-${{ runner.os }}-pip-
+        cache: "pip"
+        cache-dependency-path: |
+          setup.cfg
+          requirements/build.txt
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools
