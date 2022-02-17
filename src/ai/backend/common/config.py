@@ -145,9 +145,11 @@ def merge(table: Mapping[str, Any], updates: Mapping[str, Any]) -> Mapping[str, 
     return result
 
 
-def _sanitize_inline_dicts(table: Dict[str, Any]) -> Dict[str, Any]:
+def _sanitize_inline_dicts(table: Dict[str, Any] | InlineTableDict) -> Dict[str, Any]:
     result: Dict[str, Any] = {}
-    for k, v in table.items():
+    # Due to the way of toml.decoder to use Python class hierarchy to annotate
+    # inline or non-inline tables of TOML, we need to skip type checking here.
+    for k, v in table.items():  # type: ignore
         if isinstance(v, InlineTableDict):
             # Since this function always returns a copied dict,
             # this automatically converts InlineTableDict to dict.
