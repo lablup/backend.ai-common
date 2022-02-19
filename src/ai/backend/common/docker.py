@@ -227,7 +227,7 @@ class ImageRef:
         known_registries = await get_known_registries(etcd)
         return cls(alias_target, known_registries)
 
-    def __init__(self, value: str, architecture = 'x86_64',
+    def __init__(self, value: str, architecture='x86_64',
                  known_registries: Union[Mapping[str, Any], Sequence[str]] = None):
         self._arch = architecture
         rx_slug = type(self)._rx_slug
