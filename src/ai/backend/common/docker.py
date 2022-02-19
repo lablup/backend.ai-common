@@ -35,6 +35,14 @@ __all__ = (
     'ImageRef',
 )
 
+arch_name_aliases = {
+    "arm64": "aarch64",  # macOS with LLVM
+    "amd64": "x86_64",   # Windows/Linux
+    "x64": "x86_64",     # Windows
+    "x32": "x86",        # Windows
+    "i686": "x86",       # Windows
+}
+
 log = BraceStyleAdapter(logging.Logger('ai.backend.common.docker'))
 
 default_registry = 'index.docker.io'
@@ -187,8 +195,12 @@ class PlatformTagSet(Mapping):
 
 
 class ImageRef:
-
-    __slots__ = ('_registry', '_name', '_tag', '_tag_set', '_sha')
+    """
+    Class to represent image reference.
+    passing ['*'] to `known_registries` when creating object
+    will allow any repository on canonical string.
+    """
+    __slots__ = ('_registry', '_name', '_tag', '_arch', '_tag_set', '_sha')
 
     _rx_slug = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-._]*[A-Za-z0-9])?$')
 
@@ -215,8 +227,9 @@ class ImageRef:
         known_registries = await get_known_registries(etcd)
         return cls(alias_target, known_registries)
 
-    def __init__(self, value: str,
+    def __init__(self, value: str, architecture = 'x86_64',
                  known_registries: Union[Mapping[str, Any], Sequence[str]] = None):
+        self._arch = architecture
         rx_slug = type(self)._rx_slug
         if '://' in value or value.startswith('//'):
             raise ValueError('ImageRef should not contain the protocol scheme.')
@@ -231,6 +244,9 @@ class ImageRef:
                 self._registry = parts[0]
                 using_default = (parts[0].endswith('.docker.io') or parts[0] == 'docker.io')
                 self._name, self._tag = ImageRef._parse_image_tag(parts[1], using_default)
+            elif known_registries == ['*']:
+                self._registry = parts[0]
+                self._name, self._tag = ImageRef._parse_image_tag(parts[1], False)
             else:
                 self._registry = default_registry
                 self._name, self._tag = ImageRef._parse_image_tag(value, True)
@@ -337,6 +353,11 @@ class ImageRef:
         return self._tag
 
     @property
+    def architecture(self) -> str:
+        # e.g., aarch64
+        return self._arch
+
+    @property
     def tag_set(self) -> Tuple[str, PlatformTagSet]:
         # e.g., '3.6', {'ubuntu', 'cuda', ...}
         return self._tag_set
@@ -353,20 +374,22 @@ class ImageRef:
         return self.canonical
 
     def __repr__(self) -> str:
-        return f'<ImageRef: "{self.canonical}">'
+        return f'<ImageRef: "{self.canonical}" ({self.architecture})>'
 
     def __hash__(self) -> int:
-        return hash((self._name, self._tag, self._registry))
+        return hash((self._name, self._tag, self._registry, self._arch))
 
     def __eq__(self, other) -> bool:
         return (self._registry == other._registry and
                 self._name == other._name and
-                self._tag == other._tag)
+                self._tag == other._tag and
+                self._arch == other._arch)
 
     def __ne__(self, other) -> bool:
         return (self._registry != other._registry or
                 self._name != other._name or
-                self._tag != other._tag)
+                self._tag != other._tag or
+                self._arch != other._arch)
 
     def __lt__(self, other) -> bool:
         if self == other:   # call __eq__ first for resolved check

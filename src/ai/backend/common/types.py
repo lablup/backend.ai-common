@@ -193,6 +193,7 @@ ContainerPID = NewType('ContainerPID', PID)
 ContainerId = NewType('ContainerId', str)
 SessionId = NewType('SessionId', uuid.UUID)
 KernelId = NewType('KernelId', uuid.UUID)
+ImageAlias = NewType('ImageAlias', str)
 
 AgentId = NewType('AgentId', str)
 DeviceName = NewType('DeviceName', str)
@@ -681,6 +682,7 @@ class ImageRegistry(TypedDict):
 
 class ImageConfig(TypedDict):
     canonical: str
+    architecture: str
     digest: str
     repo_digest: Optional[str]
     registry: ImageRegistry
