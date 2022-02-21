@@ -19,18 +19,21 @@ def test_image_ref_typing():
 def test_image_ref_parsing():
     ref = ImageRef('c')
     assert ref.name == f'{default_repository}/c'
+    assert ref.architecture == 'x86_64'
     assert ref.tag == 'latest'
     assert ref.registry == default_registry
     assert ref.tag_set == ('latest', set())
 
-    ref = ImageRef('c:gcc6.3-alpine3.8')
+    ref = ImageRef('c:gcc6.3-alpine3.8', architecture='aarch64')
     assert ref.name == f'{default_repository}/c'
+    assert ref.architecture == 'aarch64'
     assert ref.tag == 'gcc6.3-alpine3.8'
     assert ref.registry == default_registry
     assert ref.tag_set == ('gcc6.3', {'alpine'})
 
-    ref = ImageRef('python:3.6-ubuntu')
+    ref = ImageRef('python:3.6-ubuntu', architecture='amd64')
     assert ref.name == f'{default_repository}/python'
+    assert ref.architecture == 'x86_64'
     assert ref.tag == '3.6-ubuntu'
     assert ref.registry == default_registry
     assert ref.tag_set == ('3.6', {'ubuntu'})
