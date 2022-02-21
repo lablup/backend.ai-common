@@ -141,13 +141,13 @@ def test_image_ref_formats():
     assert ref.canonical == 'index.docker.io/lablup/python:3.6-cuda9-ubuntu'
     assert ref.short == 'lablup/python:3.6-cuda9-ubuntu'
     assert str(ref) == ref.canonical
-    assert repr(ref) == f'<ImageRef: "{ref.canonical}">'
+    assert repr(ref) == f'<ImageRef: "{ref.canonical} (x86_64)">'
 
-    ref = ImageRef('myregistry.org/user/python:3.6-cuda9-ubuntu', ['myregistry.org'])
+    ref = ImageRef('myregistry.org/user/python:3.6-cuda9-ubuntu', ['myregistry.org'], 'aarch64')
     assert ref.canonical == 'myregistry.org/user/python:3.6-cuda9-ubuntu'
     assert ref.short == 'user/python:3.6-cuda9-ubuntu'
     assert str(ref) == ref.canonical
-    assert repr(ref) == f'<ImageRef: "{ref.canonical}">'
+    assert repr(ref) == f'<ImageRef: "{ref.canonical} (aarch64)">'
 
 
 @pytest.mark.asyncio

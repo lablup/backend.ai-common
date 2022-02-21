@@ -233,7 +233,7 @@ class ImageRef:
         known_registries: Union[Mapping[str, Any], Sequence[str]] = None,
         architecture='x86_64',
     ):
-        self._arch = architecture
+        self._arch = arch_name_aliases[architecture]
         rx_slug = type(self)._rx_slug
         if '://' in value or value.startswith('//'):
             raise ValueError('ImageRef should not contain the protocol scheme.')
