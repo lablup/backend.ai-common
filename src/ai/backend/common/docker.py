@@ -248,6 +248,7 @@ class ImageRef:
                 self._registry = parts[0]
                 using_default = (parts[0].endswith('.docker.io') or parts[0] == 'docker.io')
                 self._name, self._tag = ImageRef._parse_image_tag(parts[1], using_default)
+            # add ['*'] as magic keyword to accept any repository as valid repo
             elif known_registries == ['*']:
                 self._registry = parts[0]
                 self._name, self._tag = ImageRef._parse_image_tag(parts[1], False)
