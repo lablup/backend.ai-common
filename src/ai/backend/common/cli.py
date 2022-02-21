@@ -58,7 +58,8 @@ class EnumChoice(click.Choice):
     enum: Type[Enum]
 
     def __init__(self, enum: Type[Enum]):
-        super().__init__([*enum._member_map_.keys()])
+        enum_members = [e.name for e in enum]
+        super().__init__(enum_members)
         self.enum = enum
 
     def convert(self, value: Any, param, ctx):
