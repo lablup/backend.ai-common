@@ -151,7 +151,7 @@ def _sanitize_inline_dicts(table: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(v, InlineTableDict):
             # Since this function always returns a copied dict,
             # this automatically converts InlineTableDict to dict.
-            result[k] = _sanitize_inline_dicts(v)
+            result[k] = _sanitize_inline_dicts(cast(Dict[str, Any], v))
         elif isinstance(v, Dict):
             result[k] = _sanitize_inline_dicts(v)
         else:
