@@ -31,7 +31,7 @@ import aioredis.exceptions
 import aioredis.sentinel
 from aiotools.context import aclosing
 from aiotools.server import process_index
-from aiotools.ptaskgroup import PersistentTaskGroup
+from aiotools.taskgroup import PersistentTaskGroup
 import attr
 
 from . import msgpack, redis
