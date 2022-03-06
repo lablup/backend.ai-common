@@ -1,4 +1,6 @@
 import asyncio
+from typing import Type
+from types import TracebackType
 
 import aiotools
 import attr
@@ -79,7 +81,11 @@ async def test_error_on_dispatch(redis_container) -> None:
     app = object()
     exception_log: list[str] = []
 
-    async def handle_exception(exc: Exception) -> None:
+    async def handle_exception(
+        et: Type[Exception],
+        exc: Exception,
+        tb: TracebackType,
+    ) -> None:
         exception_log.append(type(exc).__name__)
 
     redis_config = EtcdRedisConfig(addr=HostPortPair("127.0.0.1", 9379))

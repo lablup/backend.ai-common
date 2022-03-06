@@ -24,6 +24,7 @@ from typing import (
     Union,
     cast,
 )
+from types import TracebackType
 import uuid
 
 import aioredis
@@ -33,6 +34,7 @@ from aiotools.context import aclosing
 from aiotools.server import process_index
 from aiotools.taskgroup import PersistentTaskGroup
 import attr
+from typing_extension import TypeAlias
 
 from . import msgpack, redis
 from .logging import BraceStyleAdapter
@@ -55,6 +57,8 @@ __all__ = (
 )
 
 log = BraceStyleAdapter(logging.getLogger('ai.backend.common.events'))
+
+PTGExceptionHandler: TypeAlias = Callable[[Type[Exception], Exception, TracebackType], Awaitable[None]]
 
 
 class AbstractEvent(metaclass=abc.ABCMeta):
@@ -639,8 +643,8 @@ class EventDispatcher(aobject):
         *,
         consumer_group: str = "manager",
         node_id: str = None,
-        consumer_exception_handler: Callable[[Exception], Awaitable[None]] = None,
-        subscriber_exception_handler: Callable[[Exception], Awaitable[None]] = None,
+        consumer_exception_handler: PTGExceptionHandler = None,
+        subscriber_exception_handler: PTGExceptionHandler = None,
     ) -> None:
         self.redis_client = redis.get_redis_object(redis_config, db=db)
         self._log_events = log_events
