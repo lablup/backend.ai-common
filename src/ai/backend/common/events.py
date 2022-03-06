@@ -25,6 +25,7 @@ from typing import (
     cast,
 )
 from types import TracebackType
+from typing_extensions import TypeAlias
 import uuid
 
 import aioredis
@@ -34,7 +35,6 @@ from aiotools.context import aclosing
 from aiotools.server import process_index
 from aiotools.taskgroup import PersistentTaskGroup
 import attr
-from typing_extension import TypeAlias
 
 from . import msgpack, redis
 from .logging import BraceStyleAdapter
