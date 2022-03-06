@@ -5,7 +5,7 @@ import logging
 from packaging import version
 import re
 from typing import (
-    Any, Optional, Union,
+    Any, Final, Optional, Union,
     Dict, Mapping,
     Iterable,
     Tuple, Sequence,
@@ -37,7 +37,7 @@ __all__ = (
     'ImageRef',
 )
 
-arch_name_aliases: MutableMapping[str, str] = {
+arch_name_aliases: Final[Mapping[str, str]] = {
     "arm64": "aarch64",  # macOS with LLVM
     "amd64": "x86_64",   # Windows/Linux
     "x64": "x86_64",     # Windows
@@ -45,7 +45,7 @@ arch_name_aliases: MutableMapping[str, str] = {
     "i686": "x86",       # Windows
 }
 # generalize architecture symbols to match docker API's norm
-docker_api_arch_aliases: MutableMapping[str, str] = {
+docker_api_arch_aliases: Final[Mapping[str, str]] = {
     'aarch64': 'arm64',
     'arm64': 'arm64',
     'x86_64': 'amd64',
