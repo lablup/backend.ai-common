@@ -37,7 +37,7 @@ __all__ = (
     'ImageRef',
 )
 
-arch_name_aliases = {
+arch_name_aliases: MutableMapping[str, str] = {
     "arm64": "aarch64",  # macOS with LLVM
     "amd64": "x86_64",   # Windows/Linux
     "x64": "x86_64",     # Windows
@@ -45,7 +45,7 @@ arch_name_aliases = {
     "i686": "x86",       # Windows
 }
 # generalize architecture symbols to match docker API's norm
-docker_api_arch_aliases = {
+docker_api_arch_aliases: MutableMapping[str, str] = {
     'aarch64': 'arm64',
     'arm64': 'arm64',
     'x86_64': 'amd64',
