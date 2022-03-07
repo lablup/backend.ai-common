@@ -5,7 +5,7 @@ import logging
 from packaging import version
 import re
 from typing import (
-    Any, Optional, Union,
+    Any, Final, Optional, Union,
     Dict, Mapping,
     Iterable,
     Tuple, Sequence,
@@ -24,8 +24,10 @@ from .etcd import (
 from .exception import UnknownImageRegistry, AliasResolutionFailed
 
 __all__ = (
+    'arch_name_aliases',
     'default_registry',
     'default_repository',
+    'docker_api_arch_aliases',
     'login',
     'get_known_registries',
     'is_known_registry',
@@ -35,12 +37,24 @@ __all__ = (
     'ImageRef',
 )
 
-arch_name_aliases = {
+arch_name_aliases: Final[Mapping[str, str]] = {
     "arm64": "aarch64",  # macOS with LLVM
     "amd64": "x86_64",   # Windows/Linux
     "x64": "x86_64",     # Windows
     "x32": "x86",        # Windows
     "i686": "x86",       # Windows
+}
+# generalize architecture symbols to match docker API's norm
+docker_api_arch_aliases: Final[Mapping[str, str]] = {
+    'aarch64': 'arm64',
+    'arm64': 'arm64',
+    'x86_64': 'amd64',
+    'x64': 'amd64',
+    'amd64': 'amd64',
+    'x86': '386',
+    'x32': '386',
+    'i686': '386',
+    '386': '386',
 }
 
 log = BraceStyleAdapter(logging.Logger('ai.backend.common.docker'))
