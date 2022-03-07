@@ -16,6 +16,16 @@ Changes
 
 <!-- towncrier release notes start -->
 
+21.03.13 (2022-03-07)
+---------------------
+
+### Fixes
+* Silence a typing error in the `config` module due to `toml.decoder`'s way of tagging dict objects at runtime to distinguish inline and non-inline tables ([#117](https://github.com/lablup/backend.ai-common/issues/117))
+
+### Miscellaneous
+* Update pip caching in GitHub Actions to use the scheme managed by actions/setup-python ([#116](https://github.com/lablup/backend.ai-common/issues/116))
+
+
 21.03.12 (2022-01-26)
 ---------------------
 
