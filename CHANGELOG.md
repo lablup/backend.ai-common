@@ -16,6 +16,19 @@ Changes
 
 <!-- towncrier release notes start -->
 
+## 21.09.7 (2022-03-07)
+
+### Features
+* Add `architecture` variable on `ImageRef` class to support multi-architecture image. ([#118](https://github.com/lablup/backend.ai-common/issues/118))
+* Add architecture name alias mapping to convert `manager.machine()` output as docker API's norm. ([#119](https://github.com/lablup/backend.ai-common/issues/119))
+
+### Fixes
+* Silence a typing error in the `config` module due to `toml.decoder`'s way of tagging dict objects at runtime to distinguish inline and non-inline tables ([#117](https://github.com/lablup/backend.ai-common/issues/117))
+
+### Miscellaneous
+* Update pip caching in GitHub Actions to use the scheme managed by actions/setup-python ([#116](https://github.com/lablup/backend.ai-common/issues/116))
+
+
 ## 21.09.6 (2022-01-26)
 
 ### Fixes
