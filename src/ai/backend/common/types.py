@@ -56,10 +56,8 @@ __all__ = (
     'HardwareMetadata',
     'MountPermission',
     'MountPermissionLiteral',
-    'MountTuple5',
-    'MountTuple4',
-    'MountTuple3',
     'MountTypes',
+    'VFolderMount',
     'KernelCreationConfig',
     'KernelCreationResult',
     'ServicePortProtocols',
@@ -663,14 +661,11 @@ class ResourceSlot(UserDict):
         }
 
 
-MountTuple5 = Tuple[str, str, str, MountPermissionLiteral, str]  # vfname, vfhost, vfid, perm, hostpath
-MountTuple4 = Tuple[str, str, str, MountPermissionLiteral]       # vfname, vfhost, vfid, perm
-MountTuple3 = Tuple[str, str, str]                               # vfname, vfhost, vfid, "rw"
-MountExpression = Union[
-    MountTuple5,
-    MountTuple4,
-    MountTuple3,
-]
+class VFolderMount(TypedDict):
+    name: str
+    host_path: str
+    kernel_path: str
+    mount_perm: MountPermissionLiteral
 
 
 class ImageRegistry(TypedDict):
@@ -739,7 +734,7 @@ class KernelCreationConfig(TypedDict):
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
-    mounts: Sequence[MountExpression]  # list of mount expression tuples
+    mounts: Sequence[VFolderMount]     # list of vfolder mounts
     mount_map: Mapping[str, str]       # Mapping of vfolder custom mount path
     package_directory: Sequence[str]
     idle_timeout: int
