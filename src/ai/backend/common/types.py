@@ -158,9 +158,9 @@ def check_typed_tuple(
 
 
 def check_typed_tuple(value: Tuple[Any, ...], types: Tuple[Type, ...]) -> Tuple:
-    for v, t in itertools.zip_longest(value, types):
-        if t is not None:
-            typeguard.check_type('item', v, t)
+    for val, typ in itertools.zip_longest(value, types):
+        if typ is not None:
+            typeguard.check_type('item', val, typ)
     return value
 
 
