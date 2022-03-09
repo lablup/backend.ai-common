@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABCMeta, abstractmethod
 from collections import UserDict, namedtuple
 from contextvars import ContextVar
 from decimal import Decimal
@@ -8,6 +9,7 @@ import ipaddress
 import itertools
 import math
 import numbers
+from pathlib import PurePosixPath
 import sys
 from typing import (
     Any,
@@ -28,15 +30,17 @@ from typing import (
     overload,
 )
 import uuid
+
 import aioredis
 import aioredis.client
 import aioredis.sentinel
 import attr
-
+import trafaret as t
 import typeguard
 
 __all__ = (
     'aobject',
+    'JSONSerializableMixin',
     'DeviceId',
     'ContainerId',
     'SessionId',
@@ -661,11 +665,50 @@ class ResourceSlot(UserDict):
         }
 
 
-class VFolderMount(TypedDict):
+class JSONSerializableMixin(metaclass=ABCMeta):
+
+    @abstractmethod
+    def to_json(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @classmethod
+    def from_json(cls, obj: Mapping[str, Any]) -> JSONSerializableMixin:
+        return cls(**cls.as_trafaret().check(obj))
+
+    @classmethod
+    @abstractmethod
+    def as_trafaret(cls) -> t.Trafaret:
+        raise NotImplementedError
+
+
+@attr.define(slots=True)
+class VFolderMount(JSONSerializableMixin):
     name: str
-    host_path: str
-    kernel_path: str
-    mount_perm: MountPermissionLiteral
+    host_path: PurePosixPath
+    kernel_path: PurePosixPath
+    mount_perm: MountPermission
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            'name': self.name,
+            'host_path': str(self.host_path),
+            'kernel_path': str(self.kernel_path),
+            'mount_perm': self.mount_perm.value,
+        }
+
+    @classmethod
+    def from_json(cls, obj: Mapping[str, Any]) -> VFolderMount:
+        return cls(**cls.as_trafaret().check(obj))
+
+    @classmethod
+    def as_trafaret(cls) -> t.Trafaret:
+        from . import validators as tx
+        return t.Dict({
+            t.Key('name'): t.String,
+            t.Key('host_path'): tx.PurePath,
+            t.Key('kernel_path'): tx.PurePath,
+            t.Key('mount_perm'): tx.Enum(MountPermission),
+        })
 
 
 class ImageRegistry(TypedDict):
@@ -734,8 +777,7 @@ class KernelCreationConfig(TypedDict):
     resource_slots: Mapping[str, str]  # json form of ResourceSlot
     resource_opts: Mapping[str, str]   # json form of resource options
     environ: Mapping[str, str]
-    mounts: Sequence[VFolderMount]     # list of vfolder mounts
-    mount_map: Mapping[str, str]       # Mapping of vfolder custom mount path
+    mounts: Sequence[Mapping[str, Any]]  # list of serialized VFolderMount
     package_directory: Sequence[str]
     idle_timeout: int
     bootstrap_script: Optional[str]
