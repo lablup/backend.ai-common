@@ -684,6 +684,8 @@ class JSONSerializableMixin(metaclass=ABCMeta):
 @attr.define(slots=True)
 class VFolderMount(JSONSerializableMixin):
     name: str
+    vfid: uuid.UUID
+    vfsubpath: PurePosixPath
     host_path: PurePosixPath
     kernel_path: PurePosixPath
     mount_perm: MountPermission
@@ -691,6 +693,8 @@ class VFolderMount(JSONSerializableMixin):
     def to_json(self) -> dict[str, Any]:
         return {
             'name': self.name,
+            'vfid': str(self.vfid),
+            'vfsubpath': str(self.vfsubpath),
             'host_path': str(self.host_path),
             'kernel_path': str(self.kernel_path),
             'mount_perm': self.mount_perm.value,
@@ -705,6 +709,8 @@ class VFolderMount(JSONSerializableMixin):
         from . import validators as tx
         return t.Dict({
             t.Key('name'): t.String,
+            t.Key('vfid'): tx.UUID,
+            t.Key('vfsubpath', default="."): tx.PurePath,
             t.Key('host_path'): tx.PurePath,
             t.Key('kernel_path'): tx.PurePath,
             t.Key('mount_perm'): tx.Enum(MountPermission),
