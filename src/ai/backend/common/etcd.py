@@ -20,19 +20,17 @@ from typing import (
     AsyncGenerator,
     Awaitable,
     Callable,
+    Concatenate,
     Dict,
     Iterable,
     Mapping,
     MutableMapping,
     Optional,
+    ParamSpec,
     Tuple,
     TypeVar,
     Union,
     cast,
-)
-from typing_extensions import (  # FIXME: move to typing when we migrate to Python 3.10
-    Concatenate,
-    ParamSpec,
 )
 from urllib.parse import quote as _quote, unquote
 

@@ -309,6 +309,7 @@ class HostPortPair(t.Trafaret):
         self._allow_blank_host = allow_blank_host
 
     def check_and_return(self, value: Any) -> Tuple[ipaddress._BaseAddress, int]:
+        host: str | ipaddress._BaseAddress
         if isinstance(value, str):
             pair = value.rsplit(':', maxsplit=1)
             if len(pair) == 1:
