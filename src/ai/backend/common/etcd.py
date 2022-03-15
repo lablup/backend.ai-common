@@ -37,10 +37,11 @@ import trafaret as t
 from .logging_utils import BraceStyleAdapter
 from .types import HostPortPair, QueueSentinel
 
-from ai.backend.etcd.client import EtcdClient, EtcdTransactionAction
-from ai.backend.etcd.types import (
-    EtcdCredential, HostPortPair,
-    CompareRequest, CompareCompareTarget, 
+from etcetra import (
+    CompareKey,
+    EtcdClient, EtcdCredential,
+    EtcdTransactionAction,
+    HostPortPair,
 )
 
 __all__ = (
@@ -213,9 +214,12 @@ class AsyncEtcd:
 
         _flatten(key, dict_obj)
 
-        async with self.etcd.txn() as transaction:
+        def _txn(action: EtcdTransactionAction):
             for k, v in flattened_dict.items():
-                transaction.put(self._mangle_key(f'{_slash(scope_prefix)}{k}'), str(v))
+                action.put(self._mangle_key(f'{_slash(scope_prefix)}{k}'), str(v))
+
+        async with self.etcd.connect() as communicator:
+            await communicator.txn(_txn)
 
     async def put_dict(
         self,
@@ -283,7 +287,7 @@ class AsyncEtcd:
             for scope_prefix in scope_prefixes:
                 value = await communicator.get(self._mangle_key(f'{_slash(scope_prefix)}{key}'))
                 if value is not None:
-                    return None
+                    return value
         return None
 
     async def get_prefix(
@@ -386,7 +390,7 @@ class AsyncEtcd:
             success.put(mangled_key, new_val)
         async with self.etcd.connect() as communicator:
             _, success = await communicator.txn_compare([
-                CompareRequest(mangled_key, initial_val, target=CompareCompareTarget.VALUE)
+                CompareKey(mangled_key).value == initial_val,
             ], _txn)
             return success
 
@@ -438,14 +442,14 @@ class AsyncEtcd:
         wait_timeout: float = None,
     ) -> AsyncGenerator[Union[QueueSentinel, Event], None]:
         scope_prefix = self._merge_scope_prefix_map(scope_prefix_map)[scope]
-        scope_prefix_len = len(f'{_slash(scope_prefix)}')
+        scope_prefix_len = len(self._mangle_key(f'{_slash(scope_prefix)}'))
         mangled_key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         # NOTE: yield from in async-generator is not supported.
+        print('WATCH', mangled_key)
         try:
             async with self.etcd.connect() as communicator:
-                if ready_event:
-                    ready_event.set()
-                async for event in communicator.watch(mangled_key):
+                async for event in communicator.watch(mangled_key, ready_event=ready_event):
+                    print(event, event.key[scope_prefix_len:])
                     yield Event(event.key[scope_prefix_len:], event.event, event.value)
                     if once:
                         return
@@ -463,13 +467,13 @@ class AsyncEtcd:
         wait_timeout: float = None,
     ) -> AsyncGenerator[Union[QueueSentinel, Event], None]:
         scope_prefix = self._merge_scope_prefix_map(scope_prefix_map)[scope]
-        scope_prefix_len = len(f'{_slash(scope_prefix)}')
+        scope_prefix_len = len(self._mangle_key(f'{_slash(scope_prefix)}'))
         mangled_key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
+        print('WATCH_PREFIX', mangled_key_prefix)
         try:
             async with self.etcd.connect() as communicator:
-                if ready_event:
-                    ready_event.set()
-                async for event in communicator.watch_prefix(mangled_key_prefix):
+                async for event in communicator.watch_prefix(mangled_key_prefix, ready_event=ready_event):
+                    print(event, event.key[scope_prefix_len:])
                     yield Event(event.key[scope_prefix_len:], event.event, event.value)
                     if once:
                         return
