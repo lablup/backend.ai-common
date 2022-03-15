@@ -30,17 +30,16 @@ from typing import (
 )
 from urllib.parse import quote as _quote, unquote
 
+from etcetra.client import (
+    EtcdClient, EtcdTransactionAction,
+)
+from etcetra.types import (
+    CompareKey, EtcdCredential, HostPortPair as EtcetraHostPortPair,
+)
 import trafaret as t
 
 from .logging_utils import BraceStyleAdapter
 from .types import HostPortPair, QueueSentinel
-
-from etcetra import (
-    CompareKey,
-    EtcdClient, EtcdCredential,
-    EtcdTransactionAction,
-    HostPortPair as EtcetraHostPortPair,
-)
 
 __all__ = (
     'quote', 'unquote',

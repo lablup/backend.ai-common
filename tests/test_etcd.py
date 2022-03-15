@@ -1,6 +1,6 @@
 import asyncio
 
-from etcetra import WatchEventType
+from etcetra.types import WatchEventType
 import pytest
 
 from ai.backend.common.etcd import ConfigScopes

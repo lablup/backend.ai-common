@@ -7,7 +7,7 @@ from typing import (
     AsyncIterator,
 )
 
-from etcetra import HostPortPair
+from etcetra.types import HostPortPair
 
 from ai.backend.common.etcd import AsyncEtcd, ConfigScopes
 
