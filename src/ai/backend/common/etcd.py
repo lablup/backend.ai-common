@@ -39,7 +39,7 @@ from etcetra import (
     CompareKey,
     EtcdClient, EtcdCredential,
     EtcdTransactionAction,
-    HostPortPair,
+    HostPortPair as EtcetraHostPortPair,
 )
 
 __all__ = (
@@ -124,7 +124,7 @@ class AsyncEtcd:
         log.info('using etcd cluster from {} with namespace "{}"', addr, namespace)
         self.encoding = encoding
         self.etcd = EtcdClient(
-            HostPortPair(str(addr.host), addr.port),
+            EtcetraHostPortPair(str(addr.host), addr.port),
             credentials=self._creds,
             encoding=self.encoding,
         )
@@ -237,6 +237,7 @@ class AsyncEtcd:
         :return:
         """
         scope_prefix = self._merge_scope_prefix_map(scope_prefix_map)[scope]
+
         def _pipe(txn: EtcdTransactionAction):
             for k, v in dict_obj.items():
                 txn.put(self._mangle_key(f'{_slash(scope_prefix)}{k}'), str(v))
@@ -330,15 +331,6 @@ class AsyncEtcd:
         :return:
         """
 
-        async def get_prefix_impl(key_prefix: str) -> Iterable[Tuple[str, str]]:
-            mangled_key_prefix = self._mangle_key(key_prefix)
-            results = await self.loop.run_in_executor(
-                self.executor,
-                lambda: self.etcd_sync.get_prefix(mangled_key_prefix))
-            return ((self._demangle_key(t[1].key),
-                     t[0].decode(self.encoding))
-                    for t in results)
-
         _scope_prefix_map = self._merge_scope_prefix_map(scope_prefix_map)
         if scope == ConfigScopes.MERGED or scope == ConfigScopes.NODE:
             scope_prefixes = [_scope_prefix_map[ConfigScopes.GLOBAL]]
@@ -357,12 +349,12 @@ class AsyncEtcd:
             scope_prefixes = [_scope_prefix_map[ConfigScopes.GLOBAL]]
         else:
             raise ValueError('Invalid scope prefix value')
-        pair_sets: List[Mapping] = []
+        pair_sets: List[Mapping | Tuple] = []
         async with self.etcd.connect() as communicator:
             for scope_prefix in scope_prefixes:
                 mangled_key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
                 values = await communicator.get_prefix(mangled_key_prefix)
-                pair_sets.append([(self._demangle_key(k), v) for k, v in values.items()])
+                pair_sets += [(self._demangle_key(k), v) for k, v in values.items()]
 
         configs = [
             make_dict_from_pairs(f'{_slash(scope_prefix)}{key_prefix}', pairs, '/')
@@ -384,6 +376,7 @@ class AsyncEtcd:
     ) -> bool:
         scope_prefix = self._merge_scope_prefix_map(scope_prefix_map)[scope]
         mangled_key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
+
         def _txn(success: EtcdTransactionAction, _):
             success.put(mangled_key, new_val)
         async with self.etcd.connect() as communicator:

@@ -130,7 +130,7 @@ async def get_known_registries(etcd: AsyncEtcd) -> Mapping[str, yarl.URL]:
         name = etcd_unquote(key)
         if isinstance(value, str):
             results[name] = yarl.URL(value)
-        else:
+        elif isinstance(value, Mapping):
             results[name] = yarl.URL(value[''])
     return results
 
@@ -156,6 +156,8 @@ async def get_registry_info(etcd: AsyncEtcd, name: str) -> Tuple[yarl.URL, dict]
     if not item:
         raise UnknownImageRegistry(name)
     registry_addr = item['']
+    if not registry_addr:
+        raise UnknownImageRegistry(name)
     creds = {}
     username = item.get('username')
     if username is not None:
@@ -219,7 +221,7 @@ class ImageRef:
     _rx_slug = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-._]*[A-Za-z0-9])?$')
 
     @classmethod
-    async def resolve_alias(cls, alias_key: str, etcd: AsyncEtcd):
+    async def resolve_alias(cls, alias_key: Optional[str], etcd: AsyncEtcd):
         """
         Resolve the tag using etcd so that the current instance indicates
         a concrete, latest image.
@@ -237,6 +239,8 @@ class ImageRef:
                 break
             repeats += 1
         else:
+            raise AliasResolutionFailed('Could not resolve the given image name!')
+        if alias_target is None:
             raise AliasResolutionFailed('Could not resolve the given image name!')
         known_registries = await get_known_registries(etcd)
         return cls(alias_target, known_registries)
