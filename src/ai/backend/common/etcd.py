@@ -435,12 +435,16 @@ class AsyncEtcd:
         scope_prefix_len = len(self._mangle_key(f'{_slash(scope_prefix)}'))
         mangled_key = self._mangle_key(f'{_slash(scope_prefix)}{key}')
         # NOTE: yield from in async-generator is not supported.
-        print('WATCH', mangled_key)
         try:
             async with self.etcd.connect() as communicator:
-                async for event in communicator.watch(mangled_key, ready_event=ready_event):
-                    print(event, event.key[scope_prefix_len:])
-                    yield Event(event.key[scope_prefix_len:], event.event, event.value)
+                iterator = communicator.watch(mangled_key, ready_event=ready_event)
+                async for ev in iterator:
+                    if wait_timeout is not None:
+                        try:
+                            ev = await asyncio.wait_for(iterator.__anext__(), wait_timeout)
+                        except asyncio.TimeoutError:
+                            pass
+                    yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
                     if once:
                         return
         finally:
@@ -459,12 +463,16 @@ class AsyncEtcd:
         scope_prefix = self._merge_scope_prefix_map(scope_prefix_map)[scope]
         scope_prefix_len = len(self._mangle_key(f'{_slash(scope_prefix)}'))
         mangled_key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
-        print('WATCH_PREFIX', mangled_key_prefix)
         try:
             async with self.etcd.connect() as communicator:
-                async for event in communicator.watch_prefix(mangled_key_prefix, ready_event=ready_event):
-                    print(event, event.key[scope_prefix_len:])
-                    yield Event(event.key[scope_prefix_len:], event.event, event.value)
+                iterator = communicator.watch_prefix(mangled_key_prefix, ready_event=ready_event)
+                async for ev in iterator:
+                    if wait_timeout is not None:
+                        try:
+                            ev = await asyncio.wait_for(iterator.__anext__(), wait_timeout)
+                        except asyncio.TimeoutError:
+                            pass
+                    yield Event(ev.key[scope_prefix_len:], ev.event, ev.value)
                     if once:
                         return
         finally:

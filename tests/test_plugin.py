@@ -118,6 +118,7 @@ async def test_plugin_context_config_autoupdate(etcd, mocker):
         await asyncio.sleep(0.6)  # we should see the update only once
         await etcd.put_prefix('config/plugins/XXX/dummy', {'a': '5', 'b': '6'})
         await asyncio.sleep(0.3)
+        print(mocked_plugin.update_plugin_config)
         args_list = mocked_plugin.update_plugin_config.await_args_list
         assert len(args_list) == 2
         assert args_list[0].args[0] == {'a': '3', 'b': '4'}
