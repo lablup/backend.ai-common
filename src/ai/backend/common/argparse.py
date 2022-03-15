@@ -59,6 +59,7 @@ def non_negative_int(s: str) -> int:
 
 
 def host_port_pair(s: str) -> Tuple[ipaddress._BaseAddress, int]:
+    host: str | ipaddress._BaseAddress
     pieces = s.rsplit(':', maxsplit=1)
     if len(pieces) == 1:
         msg = f'{s!r} should contain both IP address and port number.'

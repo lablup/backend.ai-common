@@ -16,6 +16,20 @@ Changes
 
 <!-- towncrier release notes start -->
 
+## 22.03.0b2 (2022-03-14)
+
+### Breaking Changes
+* Retire pre-storage-proxy-era mount tuple data types ([#121](https://github.com/lablup/backend.ai-common/issues/121))
+* Now the minimum required Python version is 3.10.2. ([#123](https://github.com/lablup/backend.ai-common/issues/123))
+
+### Features
+* Add architecture name alias mapping to convert `manager.machine()` output as docker API's norm. ([#119](https://github.com/lablup/backend.ai-common/issues/119))
+* Add `types.JSONSerializableMixin` for defining attr-based dataclasses with trafaret-based deserialization ([#121](https://github.com/lablup/backend.ai-common/issues/121))
+* Add more fields to `types.VFolderMount` as a follow-up of #121 ([#122](https://github.com/lablup/backend.ai-common/issues/122))
+
+### Miscellaneous
+* Upgrade aiotools to 1.5 series for improvements of `TaskGroup` and `PersistentTaskGroup` ([#120](https://github.com/lablup/backend.ai-common/issues/120))
+
 
 ## 22.03.0b1 (2022-02-28)
 

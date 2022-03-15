@@ -22,13 +22,11 @@ from typing import (
     Mapping,
     MutableMapping,
     Optional,
+    ParamSpec,
     Tuple,
     TypeVar,
     Union,
     cast,
-)
-from typing_extensions import (  # FIXME: move to typing when we migrate to Python 3.10
-    ParamSpec,
 )
 from urllib.parse import quote as _quote, unquote
 
