@@ -349,12 +349,12 @@ class AsyncEtcd:
             scope_prefixes = [_scope_prefix_map[ConfigScopes.GLOBAL]]
         else:
             raise ValueError('Invalid scope prefix value')
-        pair_sets: List[Mapping | Tuple] = []
+        pair_sets: List[List[Mapping | Tuple]] = []
         async with self.etcd.connect() as communicator:
             for scope_prefix in scope_prefixes:
                 mangled_key_prefix = self._mangle_key(f'{_slash(scope_prefix)}{key_prefix}')
                 values = await communicator.get_prefix(mangled_key_prefix)
-                pair_sets += [(self._demangle_key(k), v) for k, v in values.items()]
+                pair_sets.append([(self._demangle_key(k), v) for k, v in values.items()])
 
         configs = [
             make_dict_from_pairs(f'{_slash(scope_prefix)}{key_prefix}', pairs, '/')
