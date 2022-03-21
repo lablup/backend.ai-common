@@ -56,6 +56,12 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
 
     build_count = 0
 
+    patcher = mock.patch(
+        'aioredis.client.Pipeline._execute_pipeline',
+        side_effect=[ConnectionResetError, ConnectionResetError, mock.DEFAULT],
+    )
+    patcher.start()
+
     def _build_pipeline(r: aioredis.Redis) -> aioredis.client.Pipeline:
         nonlocal build_count, patcher
         build_count += 1
@@ -67,11 +73,6 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
         pipe.incr("xyz")
         return pipe
 
-    patcher = mock.patch(
-        'aioredis.client.Pipeline._execute_pipeline',
-        side_effect=[ConnectionResetError, ConnectionResetError, mock.DEFAULT],
-    )
-    patcher.start()
     results = await execute(rconn, _build_pipeline, reconnect_poll_interval=0.01)
     assert build_count == 3
     assert results[0] is True
@@ -81,6 +82,12 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
     assert actual_value == b"124"
 
     build_count = 0
+
+    patcher = mock.patch(
+        'aioredis.client.Pipeline._execute_pipeline',
+        side_effect=[ConnectionResetError, ConnectionResetError, mock.DEFAULT],
+    )
+    patcher.start()
 
     async def _build_pipeline_async(r: aioredis.Redis) -> aioredis.client.Pipeline:
         nonlocal build_count, patcher
@@ -93,11 +100,6 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
         pipe.incr("abc")
         return pipe
 
-    patcher = mock.patch(
-        'aioredis.client.Pipeline._execute_pipeline',
-        side_effect=[ConnectionResetError, ConnectionResetError, mock.DEFAULT],
-    )
-    patcher.start()
     results = await execute(rconn, _build_pipeline_async, reconnect_poll_interval=0.01)
     assert build_count == 3
     assert results[0] is True
