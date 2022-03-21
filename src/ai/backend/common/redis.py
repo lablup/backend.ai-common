@@ -222,35 +222,24 @@ async def execute(
             )
     else:
         r = redis_client
-    pipe = None
     while True:
         try:
             async with r:
-                if pipe is None:
-                    # It is generally unsafe to reuse pipe if "async with r" returns a new
-                    # object to be passed to func(), e.g., "async with r as c: ... func(c)",
-                    # but in our case, aioredis updates the state of the "r" object in-place and thus
-                    # it is safe to reuse the pipe without recreating it.
-                    if callable(func):
-                        aw_or_pipe = func(r)
-                    else:
-                        raise TypeError('The func must be a function or a coroutinefunction '
-                                        'with no arguments.')
-                    if isinstance(aw_or_pipe, aioredis.client.Pipeline):
-                        pipe = aw_or_pipe
-                        result = await aw_or_pipe.execute()
-                    elif inspect.isawaitable(aw_or_pipe):
-                        result = await aw_or_pipe
-                    else:
-                        raise TypeError('The return value must be an awaitable'
-                                        'or aioredis.commands.Pipeline object')
-                    if isinstance(result, aioredis.client.Pipeline):
-                        # This happens when func is an async function that returns a pipeline.
-                        pipe = result
-                        result = await result.execute()
+                if callable(func):
+                    aw_or_pipe = func(r)
                 else:
-                    # Reuse the previously built pipeline.
-                    result = await pipe.execute()
+                    raise TypeError('The func must be a function or a coroutinefunction '
+                                    'with no arguments.')
+                if isinstance(aw_or_pipe, aioredis.client.Pipeline):
+                    result = await aw_or_pipe.execute()
+                elif inspect.isawaitable(aw_or_pipe):
+                    result = await aw_or_pipe
+                else:
+                    raise TypeError('The return value must be an awaitable'
+                                    'or aioredis.commands.Pipeline object')
+                if isinstance(result, aioredis.client.Pipeline):
+                    # This happens when func is an async function that returns a pipeline.
+                    result = await result.execute()
                 if encoding:
                     if isinstance(result, bytes):
                         return result.decode(encoding)
