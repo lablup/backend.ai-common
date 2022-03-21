@@ -55,6 +55,7 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
     )
 
     build_count = 0
+    fail_count = 0
 
     class FailingPipeline(mock.MagicMock):
 
@@ -63,7 +64,9 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
             self._fail_count = 0
 
         async def execute(self):
+            nonlocal fail_count
             self._fail_count += 1
+            fail_count += 1
             if self._fail_count == 3:
                 return await self._pipeline.execute()
             else:
@@ -87,6 +90,7 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
 
     results = await execute(rconn, _build_pipeline, reconnect_poll_interval=0.01)
     assert build_count == 1
+    assert fail_count == 3
     assert results[0] is True
     assert str(results[1]) == "124"
 
@@ -94,12 +98,13 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
     assert actual_value == b"124"
 
     build_count = 0
+    fail_count = 0
 
     async def _build_pipeline_async(r: aioredis.Redis) -> aioredis.client.Pipeline:
         nonlocal build_count
         build_count += 1
         pipe = r.pipeline(transaction=False)
-        pipe.set("abc", "123")
+        pipe.set("abc", "456")
         pipe.incr("abc")
         mpipe = MockedPipeline()
         mpipe._set_pipeline(pipe)  # type: ignore
@@ -107,11 +112,12 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
 
     results = await execute(rconn, _build_pipeline_async, reconnect_poll_interval=0.01)
     assert build_count == 1
+    assert fail_count == 3
     assert results[0] is True
-    assert str(results[1]) == "124"
+    assert str(results[1]) == "457"
 
     actual_value = await execute(rconn, lambda r: r.get("abc"))
-    assert actual_value == b"124"
+    assert actual_value == b"457"
 
 
 @pytest.mark.asyncio
