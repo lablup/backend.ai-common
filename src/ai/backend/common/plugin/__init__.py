@@ -19,12 +19,9 @@ from typing import (
 )
 from weakref import WeakSet
 
-from aiotools.context import aclosing
-
 from ai.backend.common.asyncio import cancel_tasks
 
 from ..etcd import AsyncEtcd
-from ..types import QueueSentinel
 from ..logging_utils import BraceStyleAdapter
 
 log = BraceStyleAdapter(logging.getLogger(__name__))
@@ -166,21 +163,14 @@ class BasePluginContext(Generic[P]):
     async def _watcher(self, plugin_name: str) -> None:
         # As wait_timeout applies to the waiting for an internal async queue,
         # so short timeouts for polling the changes does not incur gRPC/network overheads.
-        has_changes = False
-        async with aclosing(self.etcd.watch_prefix(
+        async for _ in self.etcd.watch_prefix(
             f"config/plugins/{self._group_key}/{plugin_name}",
             wait_timeout=0.2,
-        )) as agen:
-            async for ev in agen:
-                if ev is QueueSentinel.TIMEOUT:
-                    if has_changes:
-                        new_config = await self.etcd.get_prefix(
-                            f"config/plugins/{self._group_key}/{plugin_name}/",
-                        )
-                        await self.plugins[plugin_name].update_plugin_config(new_config)
-                    has_changes = False
-                else:
-                    has_changes = True
+        ):
+            new_config = await self.etcd.get_prefix(
+                f"config/plugins/{self._group_key}/{plugin_name}/",
+            )
+            await self.plugins[plugin_name].update_plugin_config(new_config)
 
     async def watch_config_changes(self, plugin_name: str) -> None:
         wtask = asyncio.create_task(self._watcher(plugin_name))

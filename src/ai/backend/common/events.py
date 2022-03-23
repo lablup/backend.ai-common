@@ -586,8 +586,7 @@ class CoalescingState:
         )
         if self.last_added > 0 and loop.time() - self.last_added < opts['max_wait']:
             # Cancel the previously pending task.
-            if not self.last_handle.cancelled():
-                self.last_handle.cancel()
+            self.last_handle.cancel()
             self.fut_sync.cancel()
             # Reschedule.
             self.fut_sync = loop.create_future()
@@ -648,6 +647,7 @@ class EventDispatcher(aobject):
     ) -> None:
         self.redis_client = redis.get_redis_object(redis_config, db=db)
         self._log_events = log_events
+        self._closed = False
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
         self._consumer_group = consumer_group
@@ -666,14 +666,17 @@ class EventDispatcher(aobject):
         self.subscriber_loop_task = asyncio.create_task(self._subscribe_loop())
 
     async def close(self) -> None:
+        self._closed = True
         try:
             cancelled_tasks = []
             await self.consumer_taskgroup.shutdown()
             await self.subscriber_taskgroup.shutdown()
-            self.consumer_loop_task.cancel()
-            self.subscriber_loop_task.cancel()
-            cancelled_tasks.append(self.consumer_loop_task)
-            cancelled_tasks.append(self.subscriber_loop_task)
+            if not self.consumer_loop_task.done():
+                self.consumer_loop_task.cancel()
+                cancelled_tasks.append(self.consumer_loop_task)
+            if not self.subscriber_loop_task.done():
+                self.subscriber_loop_task.cancel()
+                cancelled_tasks.append(self.subscriber_loop_task)
             await asyncio.gather(*cancelled_tasks, return_exceptions=True)
         except Exception:
             log.exception("unexpected error while closing event dispatcher")
@@ -727,7 +730,11 @@ class EventDispatcher(aobject):
         coalescing_state = evh.coalescing_state
         cb = evh.callback
         event_cls = evh.event_cls
+        if self._closed:
+            return
         if (await coalescing_state.rate_control(coalescing_opts)):
+            if self._closed:
+                return
             if self._log_events:
                 log.debug("DISPATCH_{}(evh:{})", evh_type, evh.name)
             if asyncio.iscoroutinefunction(cb):
@@ -772,6 +779,8 @@ class EventDispatcher(aobject):
             self._consumer_name,
         )) as agen:
             async for msg_id, msg_data in agen:
+                if self._closed:
+                    return
                 if msg_data is None:
                     continue
                 try:
@@ -791,6 +800,8 @@ class EventDispatcher(aobject):
             'events',
         )) as agen:
             async for msg_id, msg_data in agen:
+                if self._closed:
+                    return
                 if msg_data is None:
                     continue
                 try:
@@ -819,6 +830,7 @@ class EventProducer(aobject):
         _connector = connector.copy()
         if service_name:
             _connector['service_name'] = service_name
+        self._closed = False
         self.redis_client = redis.get_redis_object(_connector, db=db)
         self._log_events = log_events
 
@@ -826,6 +838,7 @@ class EventProducer(aobject):
         pass
 
     async def close(self) -> None:
+        self._closed = True
         await self.redis_client.close()
 
     async def produce_event(
@@ -834,6 +847,8 @@ class EventProducer(aobject):
         *,
         source: str = 'manager',
     ) -> None:
+        if self._closed:
+            return
         raw_event = {
             b'name': event.name.encode(),
             b'source': source.encode(),

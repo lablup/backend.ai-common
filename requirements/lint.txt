@@ -1,1 +1,2 @@
+-e git+https://github.com/lablup/etcetra@main#egg=etcetra
 -e .[lint]
