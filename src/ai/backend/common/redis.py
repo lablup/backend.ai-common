@@ -195,6 +195,13 @@ async def execute(
     reconnect_poll_interval: float = 0.3,
     encoding: Optional[str] = None,
 ) -> Any:
+    """
+    Executes a function that issues Redis commands or returns a pipeline/transaction of commands,
+    with automatic retries upon temporary connection failures.
+
+    Note that when retried, the given function may be executed *multiple* times, so the caller
+    should take care of side-effects of it.
+    """
     _conn_opts = {
         **_default_conn_opts,
         'socket_connect_timeout': reconnect_poll_interval,
@@ -238,6 +245,9 @@ async def execute(
                 else:
                     raise TypeError('The return value must be an awaitable'
                                     'or aioredis.commands.Pipeline object')
+                if isinstance(result, aioredis.client.Pipeline):
+                    # This happens when func is an async function that returns a pipeline.
+                    result = await result.execute()
                 if encoding:
                     if isinstance(result, bytes):
                         return result.decode(encoding)

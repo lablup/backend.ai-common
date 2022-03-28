@@ -83,15 +83,30 @@ class DockerRedisNode(AbstractRedisNode):
 
 class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
 
+    async def probe_docker_compose(self) -> list[str]:
+        # Try v2 first and fallback to v1
+        p = await asyncio.create_subprocess_exec(
+            'docker', 'compose', 'version',
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        exit_code = await p.wait()
+        if exit_code == 0:
+            compose_cmd = ['docker', 'compose']
+        else:
+            compose_cmd = ['docker-compose']
+        return compose_cmd
+
     @contextlib.asynccontextmanager
     async def make_cluster(self) -> AsyncIterator[RedisClusterInfo]:
         cfg_dir = Path(__file__).parent
         compose_cfg = cfg_dir / 'redis-cluster.yml'
         project_name = f"{self.test_ns}_{self.test_case_ns}"
+        compose_cmd = await self.probe_docker_compose()
 
         async with async_timeout.timeout(30.0):
             p = await simple_run_cmd([
-                'docker', 'compose',
+                *compose_cmd,
                 '-p', project_name,
                 '-f', os.fsencode(compose_cfg),
                 'up', '-d', '--build',
@@ -102,7 +117,7 @@ class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
         try:
             p = await asyncio.create_subprocess_exec(
                 *[
-                    'docker', 'compose',
+                    *compose_cmd,
                     '-p', project_name,
                     '-f', str(compose_cfg),
                     'ps',
@@ -167,7 +182,7 @@ class DockerComposeRedisSentinelCluster(AbstractRedisSentinelCluster):
             await asyncio.sleep(0.2)
             async with async_timeout.timeout(30.0):
                 await simple_run_cmd([
-                    'docker', 'compose',
+                    *compose_cmd,
                     '-p', project_name,
                     '-f', os.fsencode(compose_cfg),
                     'down',
