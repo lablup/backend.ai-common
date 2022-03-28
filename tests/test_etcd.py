@@ -1,5 +1,6 @@
 import asyncio
 
+from etcetra.types import WatchEventType
 import pytest
 
 from ai.backend.common.etcd import ConfigScopes
@@ -226,24 +227,24 @@ async def test_watch(etcd):
 
     assert len(records) == 2
     assert records[0].key == 'wow'
-    assert records[0].event == 'put'
+    assert records[0].event == WatchEventType.PUT
     assert records[0].value == '123'
     assert records[1].key == 'wow'
-    assert records[1].event == 'delete'
+    assert records[1].event == WatchEventType.DELETE
     assert records[1].value == ''
 
     assert len(records_prefix) == 4
     assert records_prefix[0].key == 'wow'
-    assert records_prefix[0].event == 'put'
+    assert records_prefix[0].event == WatchEventType.PUT
     assert records_prefix[0].value == '123'
     assert records_prefix[1].key == 'wow'
-    assert records_prefix[1].event == 'delete'
+    assert records_prefix[1].event == WatchEventType.DELETE
     assert records_prefix[1].value == ''
     assert records_prefix[2].key == 'wow/child'
-    assert records_prefix[2].event == 'put'
+    assert records_prefix[2].event == WatchEventType.PUT
     assert records_prefix[2].value == 'hello'
     assert records_prefix[3].key == 'wow/child'
-    assert records_prefix[3].event == 'delete'
+    assert records_prefix[3].event == WatchEventType.DELETE
     assert records_prefix[3].value == ''
 
 
@@ -287,10 +288,10 @@ async def test_watch_once(etcd):
 
     assert len(records) == 1
     assert records[0].key == 'wow'
-    assert records[0].event == 'put'
+    assert records[0].event == WatchEventType.PUT
     assert records[0].value == 'korea'
 
     assert len(records_prefix) == 1
     assert records_prefix[0].key == 'wow/city1'
-    assert records_prefix[0].event == 'put'
+    assert records_prefix[0].event == WatchEventType.PUT
     assert records_prefix[0].value == 'seoul'

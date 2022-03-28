@@ -7,7 +7,8 @@ from typing import (
     AsyncIterator,
 )
 
-from ai.backend.common.argparse import host_port_pair
+from etcetra.types import HostPortPair
+
 from ai.backend.common.etcd import AsyncEtcd, ConfigScopes
 
 import pytest
@@ -19,8 +20,8 @@ from .redis.utils import simple_run_cmd, wait_redis_ready
 def etcd_addr():
     env_addr = os.environ.get('BACKEND_ETCD_ADDR')
     if env_addr is not None:
-        return host_port_pair(env_addr)
-    return host_port_pair('localhost:2379')
+        return HostPortPair.parse(env_addr)
+    return HostPortPair.parse('localhost:2379')
 
 
 @pytest.fixture(scope="session", autouse=True)

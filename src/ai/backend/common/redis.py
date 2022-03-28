@@ -14,6 +14,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Union,
 )
 
 import aioredis
@@ -284,7 +285,7 @@ async def execute_script(
     script_id: str,
     script: str,
     keys: Sequence[str],
-    args: Sequence[str],
+    args: Sequence[Union[bytes, memoryview, str, int, float]],  # aioredis.connection.EncodableT
 ) -> Any:
     """
     Auto-load and execute the given script.
