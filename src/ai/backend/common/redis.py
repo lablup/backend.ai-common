@@ -275,7 +275,7 @@ async def execute_script(
     script_id: str,
     script: str,
     keys: Sequence[str],
-    args: Sequence[Union[str, int, float]],
+    args: Sequence[Union[bytes, memoryview, str, int, float]],  # aioredis.connection.EncodableT
 ) -> Any:
     """
     Auto-load and execute the given script.
