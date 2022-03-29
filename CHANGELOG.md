@@ -16,6 +16,12 @@ Changes
 
 <!-- towncrier release notes start -->
 
+## 21.09.8 (2022-03-29)
+
+### Fixes
+* Fix argument typing of `redis.execute_script()` ([#126](https://github.com/lablup/backend.ai-common/issues/126))
+
+
 ## 21.09.7 (2022-03-07)
 
 ### Features
