@@ -16,6 +16,16 @@ Changes
 
 <!-- towncrier release notes start -->
 
+## 22.03.0b3 (2022-03-29)
+
+### Features
+* Replace `aetcd3` library with `etcetra`. ([#124](https://github.com/lablup/backend.ai-common/issues/124))
+* Accept async pipeline builders in `redis.execute()` instead of silently failing by returning pipeline objects ([#125](https://github.com/lablup/backend.ai-common/issues/125))
+
+### Fixes
+* Fix argument typing of `redis.execute_script()` ([#126](https://github.com/lablup/backend.ai-common/issues/126))
+
+
 ## 22.03.0b2 (2022-03-14)
 
 ### Breaking Changes
