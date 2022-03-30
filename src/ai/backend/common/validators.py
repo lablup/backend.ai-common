@@ -490,8 +490,11 @@ class TimeDuration(t.Trafaret):
         self._allow_negative = allow_negative
 
     def check_and_return(self, value: Any) -> Union[datetime.timedelta, relativedelta]:
-        if not isinstance(value, str):
-            self._failure('value must be string', value=value)
+        if not isinstance(value, (int, float, str)):
+            self._failure('value must be a number or string', value=value)
+        if isinstance(value, (int, float)):
+            return datetime.timedelta(seconds=value)
+        assert isinstance(value, str)
         if len(value) == 0:
             self._failure('value must not be empty', value=value)
         try:

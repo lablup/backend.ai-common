@@ -420,6 +420,9 @@ def test_time_duration():
     date = datetime(2020, 2, 29)
     with pytest.raises(t.DataError):
         iv.check('')
+    assert iv.check(0) == timedelta(seconds=0)
+    assert iv.check(10) == timedelta(seconds=10)
+    assert iv.check(86400.55) == timedelta(days=1, microseconds=550000)
     assert iv.check('1w') == timedelta(weeks=1)
     assert iv.check('1d') == timedelta(days=1)
     assert iv.check('0.5d') == timedelta(hours=12)
