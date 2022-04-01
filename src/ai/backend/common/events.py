@@ -640,13 +640,17 @@ class EventDispatcher(aobject):
         db: int = 0,
         log_events: bool = False,
         *,
+        service_name: str = None,
         stream_key: str = 'events',
         consumer_group: str = "manager",
         node_id: str = None,
         consumer_exception_handler: PTGExceptionHandler = None,
         subscriber_exception_handler: PTGExceptionHandler = None,
     ) -> None:
-        self.redis_client = redis.get_redis_object(redis_config, db=db)
+        _redis_config = redis_config.copy()
+        if service_name:
+            _redis_config['service_name'] = service_name
+        self.redis_client = redis.get_redis_object(_redis_config, db=db)
         self._log_events = log_events
         self._closed = False
         self.consumers = defaultdict(set)
@@ -824,18 +828,18 @@ class EventProducer(aobject):
 
     def __init__(
         self,
-        connector: EtcdRedisConfig,
+        redis_config: EtcdRedisConfig,
         db: int = 0,
         *,
         service_name: str = None,
         stream_key: str = 'events',
         log_events: bool = False,
     ) -> None:
-        _connector = connector.copy()
+        _redis_config = redis_config.copy()
         if service_name:
-            _connector['service_name'] = service_name
+            _redis_config['service_name'] = service_name
         self._closed = False
-        self.redis_client = redis.get_redis_object(_connector, db=db)
+        self.redis_client = redis.get_redis_object(_redis_config, db=db)
         self._log_events = log_events
         self._stream_key = stream_key
 
