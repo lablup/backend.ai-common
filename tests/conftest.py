@@ -16,6 +16,30 @@ import pytest
 from .redis.utils import simple_run_cmd, wait_redis_ready
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--do-test-redis",
+        action="store_true",
+        default=False,
+        help="run Redis tests",
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "redis: mark test as part of Redis test suite")
+
+
+def pytest_collection_modifyitems(config, items):
+    if not config.getoption("--do-test-redis"):
+        # auto-skip tests marked with "redis" unless --test-redis option is given.
+        do_skip = pytest.mark.skip(
+            reason="skipped because no related files are changed",
+        )
+        for item in items:
+            if "redis" in item.keywords:
+                item.add_marker(do_skip)
+
+
 @pytest.fixture
 def etcd_addr():
     env_addr = os.environ.get('BACKEND_ETCD_ADDR')

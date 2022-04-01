@@ -20,6 +20,7 @@ from .types import RedisClusterInfo
 from .utils import interrupt, with_timeout
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 @pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
@@ -92,6 +93,7 @@ async def test_blist(redis_container: str, disruption_method: str) -> None:
     assert all_messages <= set(range(0, 15))
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 @pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
@@ -163,6 +165,7 @@ async def test_blist_with_retrying_rpush(redis_container: str, disruption_method
     assert all_messages <= set(range(0, 15))
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 @pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])

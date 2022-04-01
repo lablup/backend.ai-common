@@ -66,6 +66,17 @@ jobs:
         cache-dependency-path: |
           setup.cfg
           requirements/test.txt
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v18.6
+    - name: Configure testing based on changed files
+      run: |
+        for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+          echo "$file" >> ./.changed-files.txt
+        done
+        python ./scripts/configure-test.py
+        echo "List of test sets to perform:"
+        ls -al ./.*.do-test || exit 0
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools wheel
@@ -98,17 +109,24 @@ jobs:
         mkdir -p $HOME/.docker/cli-plugins
         curl -L "https://github.com/docker/compose/releases/download/v2.0.0-rc.3/docker-compose-linux-amd64" -o $HOME/.docker/cli-plugins/docker-compose
         chmod +x $HOME/.docker/cli-plugins/docker-compose
-        cp tests/redis/redis-cluster.yml tests/redis/redis-cluster.yml.bak
-        sed -i "s/host.docker.internal/127.0.0.1/g" tests/redis/redis-cluster.yml
-        sed -z -i "s/ports:\n      - [0-9]\+:[0-9]\+/network_mode: host/g" tests/redis/redis-cluster.yml
-        docker compose -p xwarm -f tests/redis/redis-cluster.yml up -d
-        docker compose -p xwarm -f tests/redis/redis-cluster.yml ps
-        docker compose -p xwarm -f tests/redis/redis-cluster.yml down
-        cp tests/redis/redis-cluster.yml.bak tests/redis/redis-cluster.yml
+        if [ -f ".redis.do-test" ]; then
+          cp tests/redis/redis-cluster.yml tests/redis/redis-cluster.yml.bak
+          sed -i "s/host.docker.internal/127.0.0.1/g" tests/redis/redis-cluster.yml
+          sed -z -i "s/ports:\n      - [0-9]\+:[0-9]\+/network_mode: host/g" tests/redis/redis-cluster.yml
+          docker compose -p xwarm -f tests/redis/redis-cluster.yml up -d
+          docker compose -p xwarm -f tests/redis/redis-cluster.yml ps
+          docker compose -p xwarm -f tests/redis/redis-cluster.yml down
+          cp tests/redis/redis-cluster.yml.bak tests/redis/redis-cluster.yml
+        fi
     - name: Test with pytest
       timeout-minutes: 6
       run: |
-        python -m pytest -v --cov=src
+        function join_by { local IFS="$1"; shift; echo "$*"; }
+        test_args=()
+        if [ -f ".redis.do-test" ]; then
+          test_args+=("--do-test-redis")
+        fi
+        python -m pytest -v --cov=src $(join_by " " "${test_args[@]}")
     - name: Send code coverage report
       uses: codecov/codecov-action@v1
 

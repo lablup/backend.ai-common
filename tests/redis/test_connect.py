@@ -28,6 +28,7 @@ async def test_connect(redis_container: str) -> None:
     await r.ping()
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 async def test_instantiate_redisconninfo() -> None:
     sentinels = '127.0.0.1:26379,127.0.0.1:26380,127.0.0.1:26381'
@@ -59,6 +60,7 @@ async def test_instantiate_redisconninfo() -> None:
         assert r2.client.sentinels[i].connection_pool.connection_kwargs['db'] == 0
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 @with_timeout(30.0)
 async def test_connect_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:

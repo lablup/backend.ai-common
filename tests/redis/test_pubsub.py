@@ -18,6 +18,7 @@ from ai.backend.common import redis
 from ai.backend.common.types import RedisConnectionInfo
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 @pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
@@ -99,6 +100,7 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
         raise RuntimeError("should not reach here")
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 @pytest.mark.xfail
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
@@ -176,6 +178,7 @@ async def test_pubsub_with_retrying_pub(redis_container: str, disruption_method:
 # FIXME: The below test case hangs...
 #        We skipped this issue because now we use Redis streams instead of pub-sub.
 r"""
+@pytest.mark.redis
 @pytest.mark.asyncio
 async def test_pubsub_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
     do_pause = asyncio.Event()

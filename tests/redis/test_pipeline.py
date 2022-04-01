@@ -13,6 +13,7 @@ from ai.backend.common.types import RedisConnectionInfo
 from .types import RedisClusterInfo
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 async def test_pipeline_single_instance(redis_container: str) -> None:
     rconn = RedisConnectionInfo(
@@ -47,6 +48,7 @@ async def test_pipeline_single_instance(redis_container: str) -> None:
     assert actual_value == b"124"
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 async def test_pipeline_single_instance_retries(redis_container: str) -> None:
     rconn = RedisConnectionInfo(
@@ -109,6 +111,7 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
     assert actual_value == b"457"
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 async def test_pipeline_sentinel_cluster(redis_cluster: RedisClusterInfo) -> None:
     rconn = RedisConnectionInfo(

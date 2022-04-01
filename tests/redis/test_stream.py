@@ -24,6 +24,7 @@ from .types import RedisClusterInfo
 from .utils import interrupt, with_timeout
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 async def test_stream_fanout(redis_container: str, disruption_method: str, chaos_generator) -> None:
@@ -115,6 +116,7 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
         assert [*map(int, received_messages["c2"])] == [*range(0, 15)]
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 @with_timeout(30.0)
@@ -204,6 +206,7 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
         assert {*map(int, received_messages["c2"])} >= {*range(0, 5)} | {*range(10, 15)}
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 @with_timeout(30.0)
@@ -301,6 +304,7 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
     assert len(all_messages) >= 10
 
 
+@pytest.mark.redis
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disruption_method", ['stop', 'pause'])
 @with_timeout(30.0)
