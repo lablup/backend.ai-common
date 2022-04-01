@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import tempfile
 import threading
 import time
 from decimal import Decimal
@@ -105,7 +106,7 @@ class TimerNode(threading.Thread):
 
 @pytest.mark.asyncio
 async def test_global_timer(request, test_ns) -> None:
-    lock_path = Path(f'/tmp/{test_ns}.lock')
+    lock_path = Path(tempfile.gettempdir()) / f'{test_ns}.lock'
     request.addfinalizer(partial(lock_path.unlink, missing_ok=True))
     event_records: List[float] = []
     num_threads = 7
@@ -160,7 +161,7 @@ async def test_global_timer_join_leave(request, test_ns) -> None:
     )
     event_dispatcher.consume(NoopEvent, None, _tick)
 
-    lock_path = Path(f'/tmp/{test_ns}.lock')
+    lock_path = Path(tempfile.gettempdir()) / f'{test_ns}.lock'
     request.addfinalizer(partial(lock_path.unlink, missing_ok=True))
     for _ in range(10):
         timer = GlobalTimer(
