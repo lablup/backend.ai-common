@@ -640,6 +640,7 @@ class EventDispatcher(aobject):
         db: int = 0,
         log_events: bool = False,
         *,
+        stream_key: str = 'events',
         consumer_group: str = "manager",
         node_id: str = None,
         consumer_exception_handler: PTGExceptionHandler = None,
@@ -650,6 +651,7 @@ class EventDispatcher(aobject):
         self._closed = False
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
+        self._stream_key = stream_key
         self._consumer_group = consumer_group
         self._consumer_name = _generate_consumer_id(node_id)
         self.consumer_taskgroup = PersistentTaskGroup(
@@ -774,7 +776,7 @@ class EventDispatcher(aobject):
     async def _consume_loop(self) -> None:
         async with aclosing(redis.read_stream_by_group(
             self.redis_client,
-            'events',
+            self._stream_key,
             self._consumer_group,
             self._consumer_name,
         )) as agen:
@@ -797,7 +799,7 @@ class EventDispatcher(aobject):
     async def _subscribe_loop(self) -> None:
         async with aclosing(redis.read_stream(
             self.redis_client,
-            'events',
+            self._stream_key,
         )) as agen:
             async for msg_id, msg_data in agen:
                 if self._closed:
@@ -824,8 +826,10 @@ class EventProducer(aobject):
         self,
         connector: EtcdRedisConfig,
         db: int = 0,
-        log_events: bool = False,
+        *,
         service_name: str = None,
+        stream_key: str = 'events',
+        log_events: bool = False,
     ) -> None:
         _connector = connector.copy()
         if service_name:
@@ -833,6 +837,7 @@ class EventProducer(aobject):
         self._closed = False
         self.redis_client = redis.get_redis_object(_connector, db=db)
         self._log_events = log_events
+        self._stream_key = stream_key
 
     async def __ainit__(self) -> None:
         pass
@@ -856,7 +861,7 @@ class EventProducer(aobject):
         }
         await redis.execute(
             self.redis_client,
-            lambda r: r.xadd('events', raw_event),  # type: ignore # aio-libs/aioredis-py#1182
+            lambda r: r.xadd(self._stream_key, raw_event),  # type: ignore # aio-libs/aioredis-py#1182
         )
 
 
