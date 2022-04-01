@@ -14,10 +14,10 @@ from typing import (
 import attr
 import pytest
 
-from .distributed import GlobalTimer
-from .events import AbstractEvent, EventDispatcher, EventProducer
-from .lock import FileLock
-from .types import AgentId, EtcdRedisConfig, HostPortPair
+from ai.backend.common.distributed import GlobalTimer
+from ai.backend.common.events import AbstractEvent, EventDispatcher, EventProducer
+from ai.backend.common.lock import FileLock
+from ai.backend.common.types import AgentId, EtcdRedisConfig, HostPortPair
 
 
 def drange(start: Decimal, stop: Decimal, step: Decimal) -> Iterable[Decimal]:
