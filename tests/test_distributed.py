@@ -105,7 +105,7 @@ class TimerNode(threading.Thread):
 
 
 @pytest.mark.asyncio
-async def test_global_timer(request, test_ns) -> None:
+async def test_global_timer(request, test_ns, redis_container) -> None:
     lock_path = Path(tempfile.gettempdir()) / f'{test_ns}.lock'
     request.addfinalizer(partial(lock_path.unlink, missing_ok=True))
     event_records: List[float] = []
@@ -143,7 +143,7 @@ async def test_global_timer(request, test_ns) -> None:
 
 
 @pytest.mark.asyncio
-async def test_global_timer_join_leave(request, test_ns) -> None:
+async def test_global_timer_join_leave(request, test_ns, redis_container) -> None:
 
     event_records = []
 
