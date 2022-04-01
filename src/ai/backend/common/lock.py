@@ -3,29 +3,44 @@ import fcntl
 import logging
 import time
 from pathlib import Path
+from typing import Any, Optional
 
-from ai.backend.common.logging import BraceStyleAdapter
+from .distributed import AbstractDistributedLock
+from .logging import BraceStyleAdapter
 
 log = BraceStyleAdapter(logging.getLogger(__name__))
 
 
-class FileLock:
-    default_timeout: int = 3  # not allow infinite timeout for safety
-    locked: bool = False
+class FileLock(AbstractDistributedLock):
 
-    def __init__(self, path: Path, *, mode: str = "rb", timeout: int = None):
+    default_timeout: float = 3  # not allow infinite timeout for safety
+
+    _locked: bool = False
+
+    def __init__(
+        self,
+        path: Path,
+        *,
+        mode: str = "rb",
+        timeout: Optional[float] = None,
+    ) -> None:
         self._path = path
         self._mode = mode
         self._timeout = timeout if timeout is not None else self.default_timeout
 
-    async def __aenter__(self):
+    @property
+    def locked(self) -> bool:
+        return self._locked
+
+    async def __aenter__(self) -> Any:
+
         def _lock():
             start_time = time.perf_counter()
             self._fp = open(self._path, self._mode)
             while True:
                 try:
                     fcntl.flock(self._fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    self.locked = True
+                    self._locked = True
                     log.debug("file lock acquired: {}", self._path)
                     return self._fp
                 except BlockingIOError:
@@ -37,14 +52,16 @@ class FileLock:
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, _lock)
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *exc_info) -> bool | None:
+
         def _unlock():
-            if self.locked:
+            if self._locked:
                 fcntl.flock(self._fp, fcntl.LOCK_UN)
-                self.locked = False
+                self._locked = False
                 log.debug("file lock released: {}", self._path)
             self._fp.close()
             self.f_fp = None
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, _unlock)
+        return None
