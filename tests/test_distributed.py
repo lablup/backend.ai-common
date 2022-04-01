@@ -4,6 +4,7 @@ import asyncio
 import threading
 import time
 from decimal import Decimal
+from functools import partial
 from pathlib import Path
 from typing import (
     Any,
@@ -39,10 +40,10 @@ def dslice(start: Decimal, stop: Decimal, num: int):
 class NoopEvent(AbstractEvent):
     name = "_noop"
 
-    test_id: str = attr.ib()
+    test_ns: str = attr.ib()
 
     def serialize(self) -> tuple:
-        return (self.test_id, )
+        return (self.test_ns, )
 
     @classmethod
     def deserialize(cls, value: tuple):
@@ -53,15 +54,17 @@ class TimerNode(threading.Thread):
 
     def __init__(
         self,
+        lock_path: Path,
         interval: float,
         thread_idx: int,
-        test_id: str,
+        test_ns: str,
         event_records: List[float],
     ) -> None:
         super().__init__()
+        self.lock_path = lock_path
         self.interval = interval
         self.thread_idx = thread_idx
-        self.test_id = test_id
+        self.test_ns = test_ns
         self.event_records = event_records
 
     async def timer_node_async(self) -> None:
@@ -75,7 +78,7 @@ class TimerNode(threading.Thread):
         redis_config = EtcdRedisConfig(addr=HostPortPair("127.0.0.1", 9379))
         event_dispatcher = await EventDispatcher.new(
             redis_config,
-            node_id=self.test_id,
+            node_id=self.test_ns,
         )
         event_producer = await EventProducer.new(
             redis_config,
@@ -83,9 +86,9 @@ class TimerNode(threading.Thread):
         event_dispatcher.consume(NoopEvent, None, _tick)
 
         timer = GlobalTimer(
-            FileLock(Path(f'/tmp/{self.test_id}.lock')),
+            FileLock(self.lock_path),
             event_producer,
-            lambda: NoopEvent(self.test_id),
+            lambda: NoopEvent(self.test_ns),
             self.interval,
         )
         try:
@@ -101,7 +104,9 @@ class TimerNode(threading.Thread):
 
 
 @pytest.mark.asyncio
-async def test_global_timer(test_id) -> None:
+async def test_global_timer(request, test_ns) -> None:
+    lock_path = Path(f'/tmp/{test_ns}.lock')
+    request.addfinalizer(partial(lock_path.unlink, missing_ok=True))
     event_records: List[float] = []
     num_threads = 7
     num_records = 0
@@ -111,9 +116,10 @@ async def test_global_timer(test_id) -> None:
     threads: List[TimerNode] = []
     for thread_idx in range(num_threads):
         timer_node = TimerNode(
+            lock_path,
             interval,
             thread_idx,
-            test_id,
+            test_ns,
             event_records,
         )
         threads.append(timer_node)
@@ -136,7 +142,7 @@ async def test_global_timer(test_id) -> None:
 
 
 @pytest.mark.asyncio
-async def test_global_timer_join_leave(test_id) -> None:
+async def test_global_timer_join_leave(request, test_ns) -> None:
 
     event_records = []
 
@@ -147,18 +153,20 @@ async def test_global_timer_join_leave(test_id) -> None:
     redis_config = EtcdRedisConfig(addr=HostPortPair("127.0.0.1", 9379))
     event_dispatcher = await EventDispatcher.new(
         redis_config,
-        node_id=test_id,
+        node_id=test_ns,
     )
     event_producer = await EventProducer.new(
         redis_config,
     )
     event_dispatcher.consume(NoopEvent, None, _tick)
 
+    lock_path = Path(f'/tmp/{test_ns}.lock')
+    request.addfinalizer(partial(lock_path.unlink, missing_ok=True))
     for _ in range(10):
         timer = GlobalTimer(
-            FileLock(Path(f'/tmp/{test_id}.lock')),
+            FileLock(lock_path),
             event_producer,
-            lambda: NoopEvent(test_id),
+            lambda: NoopEvent(test_ns),
             0.01,
         )
         await timer.join()
