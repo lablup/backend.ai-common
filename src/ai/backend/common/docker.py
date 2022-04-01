@@ -21,7 +21,7 @@ from .etcd import (
     quote as etcd_quote,
     unquote as etcd_unquote,
 )
-from .exception import UnknownImageRegistry, AliasResolutionFailed
+from .exception import UnknownImageRegistry
 
 __all__ = (
     'arch_name_aliases',
@@ -220,31 +220,6 @@ class ImageRef:
 
     _rx_slug = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-._]*[A-Za-z0-9])?$')
 
-    @classmethod
-    async def resolve_alias(cls, alias_key: Optional[str], etcd: AsyncEtcd):
-        """
-        Resolve the tag using etcd so that the current instance indicates
-        a concrete, latest image.
-
-        Note that alias resolving does not take the registry component into
-        account.
-        """
-        alias_target = None
-        repeats = 0
-        while repeats < 8:
-            prev_alias_key = alias_key
-            alias_key = await etcd.get(f'images/_aliases/{alias_key}')
-            if alias_key is None:
-                alias_target = prev_alias_key
-                break
-            repeats += 1
-        else:
-            raise AliasResolutionFailed('Could not resolve the given image name!')
-        if alias_target is None:
-            raise AliasResolutionFailed('Could not resolve the given image name!')
-        known_registries = await get_known_registries(etcd)
-        return cls(alias_target, known_registries)
-
     def __init__(
         self,
         value: str,
@@ -351,14 +326,6 @@ class ImageRef:
     def canonical(self) -> str:
         # e.g., registry.docker.io/lablup/kernel-python:3.6-ubuntu
         return f'{self.registry}/{self.name}:{self.tag}'
-
-    @property
-    def tag_path(self) -> str:
-        """
-        Return the string key that can be used to fetch image metadata from etcd.
-        """
-        return f'images/{etcd_quote(self.registry)}/' \
-               f'{etcd_quote(self.name)}/{self.tag}'
 
     @property
     def registry(self) -> str:

@@ -1,0 +1,1 @@
+Remove old codes in ImageRef class, which was used to perform Etcd operations.

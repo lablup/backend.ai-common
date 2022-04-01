@@ -2,7 +2,6 @@ import collections
 import functools
 import itertools
 import typing
-from ai.backend.common.exception import AliasResolutionFailed
 from ai.backend.common.docker import (
     default_registry, default_repository,
     ImageRef, PlatformTagSet,
@@ -148,47 +147,6 @@ def test_image_ref_formats():
     assert ref.short == 'user/python:3.6-cuda9-ubuntu'
     assert str(ref) == ref.canonical
     assert repr(ref) == f'<ImageRef: "{ref.canonical}" (aarch64)>'
-
-
-@pytest.mark.asyncio
-async def test_image_ref_resolve(etcd):
-    await etcd.put('config/docker/registry/myregistry.org', 'https://myregistry.org')
-    await etcd.put('images/index.docker.io/lablup%2Fpython/3.6', 'abcd')
-    await etcd.put('images/index.docker.io/lablup%2Fpython/3.5', 'abef')
-    await etcd.put('images/myregistry.org/python/3.6-ubuntu', 'eeab')
-    await etcd.put('images/_aliases/python',        'python:latest')
-    await etcd.put('images/_aliases/python:latest', 'lablup/python:3.6')
-    await etcd.put('images/_aliases/mypython',      'myregistry.org/python:3.6')
-    await etcd.put('images/_aliases/infinite-loop', 'infinite-loop')
-
-    # single-shot resolution
-    ref = await ImageRef.resolve_alias('python:latest', etcd)
-    assert ref.registry == 'index.docker.io'
-    assert ref.name == 'lablup/python'
-    assert ref.tag == '3.6'
-
-    # aliasing may be nested.
-    ref = await ImageRef.resolve_alias('python', etcd)
-    assert ref.registry == 'index.docker.io'
-    assert ref.name == 'lablup/python'
-    assert ref.tag == '3.6'
-
-    # without alias, it falls back to the normal parsing.
-    ref = await ImageRef.resolve_alias('lablup/python', etcd)
-    assert ref.registry == 'index.docker.io'
-    assert ref.name == 'lablup/python'
-    assert ref.tag == 'latest'
-
-    # self-alias results in an infinite loop.
-    # the maximum depth of nesting is 8.
-    with pytest.raises(AliasResolutionFailed):
-        await ImageRef.resolve_alias('infinite-loop', etcd)
-
-    # resolution with custom registry
-    ref = await ImageRef.resolve_alias('mypython', etcd)
-    assert ref.registry == 'myregistry.org'
-    assert ref.name == 'python'
-    assert ref.tag == '3.6'
 
 
 def test_platform_tag_set_typing():
