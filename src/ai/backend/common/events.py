@@ -640,16 +640,22 @@ class EventDispatcher(aobject):
         db: int = 0,
         log_events: bool = False,
         *,
+        service_name: str = None,
+        stream_key: str = 'events',
         consumer_group: str = "manager",
         node_id: str = None,
         consumer_exception_handler: PTGExceptionHandler = None,
         subscriber_exception_handler: PTGExceptionHandler = None,
     ) -> None:
-        self.redis_client = redis.get_redis_object(redis_config, db=db)
+        _redis_config = redis_config.copy()
+        if service_name:
+            _redis_config['service_name'] = service_name
+        self.redis_client = redis.get_redis_object(_redis_config, db=db)
         self._log_events = log_events
         self._closed = False
         self.consumers = defaultdict(set)
         self.subscribers = defaultdict(set)
+        self._stream_key = stream_key
         self._consumer_group = consumer_group
         self._consumer_name = _generate_consumer_id(node_id)
         self.consumer_taskgroup = PersistentTaskGroup(
@@ -774,7 +780,7 @@ class EventDispatcher(aobject):
     async def _consume_loop(self) -> None:
         async with aclosing(redis.read_stream_by_group(
             self.redis_client,
-            'events',
+            self._stream_key,
             self._consumer_group,
             self._consumer_name,
         )) as agen:
@@ -797,7 +803,7 @@ class EventDispatcher(aobject):
     async def _subscribe_loop(self) -> None:
         async with aclosing(redis.read_stream(
             self.redis_client,
-            'events',
+            self._stream_key,
         )) as agen:
             async for msg_id, msg_data in agen:
                 if self._closed:
@@ -822,17 +828,20 @@ class EventProducer(aobject):
 
     def __init__(
         self,
-        connector: EtcdRedisConfig,
+        redis_config: EtcdRedisConfig,
         db: int = 0,
-        log_events: bool = False,
+        *,
         service_name: str = None,
+        stream_key: str = 'events',
+        log_events: bool = False,
     ) -> None:
-        _connector = connector.copy()
+        _redis_config = redis_config.copy()
         if service_name:
-            _connector['service_name'] = service_name
+            _redis_config['service_name'] = service_name
         self._closed = False
-        self.redis_client = redis.get_redis_object(_connector, db=db)
+        self.redis_client = redis.get_redis_object(_redis_config, db=db)
         self._log_events = log_events
+        self._stream_key = stream_key
 
     async def __ainit__(self) -> None:
         pass
@@ -856,7 +865,7 @@ class EventProducer(aobject):
         }
         await redis.execute(
             self.redis_client,
-            lambda r: r.xadd('events', raw_event),  # type: ignore # aio-libs/aioredis-py#1182
+            lambda r: r.xadd(self._stream_key, raw_event),  # type: ignore # aio-libs/aioredis-py#1182
         )
 
 
