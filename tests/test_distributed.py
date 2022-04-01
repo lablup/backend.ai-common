@@ -86,7 +86,7 @@ class TimerNode(threading.Thread):
         event_dispatcher.consume(NoopEvent, None, _tick)
 
         timer = GlobalTimer(
-            FileLock(self.lock_path),
+            FileLock(self.lock_path, timeout=0, debug=True),
             event_producer,
             lambda: NoopEvent(self.test_ns),
             self.interval,
@@ -164,7 +164,7 @@ async def test_global_timer_join_leave(request, test_ns) -> None:
     request.addfinalizer(partial(lock_path.unlink, missing_ok=True))
     for _ in range(10):
         timer = GlobalTimer(
-            FileLock(lock_path),
+            FileLock(lock_path, timeout=0, debug=True),
             event_producer,
             lambda: NoopEvent(test_ns),
             0.01,

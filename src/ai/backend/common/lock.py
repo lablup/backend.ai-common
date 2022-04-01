@@ -23,10 +23,12 @@ class FileLock(AbstractDistributedLock):
         *,
         mode: str = "rb",
         timeout: Optional[float] = None,
+        debug: bool = False,
     ) -> None:
         self._path = path
         self._mode = mode
         self._timeout = timeout if timeout is not None else self.default_timeout
+        self._debug = debug
 
     @property
     def locked(self) -> bool:
@@ -36,16 +38,21 @@ class FileLock(AbstractDistributedLock):
 
         def _lock():
             start_time = time.perf_counter()
+            self._path.touch(exist_ok=True)
             self._fp = open(self._path, self._mode)
             while True:
                 try:
                     fcntl.flock(self._fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     self._locked = True
-                    log.debug("file lock acquired: {}", self._path)
+                    if self._debug:
+                        log.debug("file lock acquired: {}", self._path)
                     return self._fp
                 except BlockingIOError:
                     # Failed to get file lock. Waiting until timeout ...
-                    if time.perf_counter() - start_time > self._timeout:
+                    if (
+                        self._timeout > 0 and
+                        time.perf_counter() - start_time > self._timeout
+                    ):
                         raise TimeoutError(f"failed to lock file: {self._path}")
                 time.sleep(0.1)
 
@@ -58,7 +65,8 @@ class FileLock(AbstractDistributedLock):
             if self._locked:
                 fcntl.flock(self._fp, fcntl.LOCK_UN)
                 self._locked = False
-                log.debug("file lock released: {}", self._path)
+                if self._debug:
+                    log.debug("file lock released: {}", self._path)
             self._fp.close()
             self.f_fp = None
 
