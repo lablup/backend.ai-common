@@ -14,6 +14,10 @@ from tenacity import (
     wait_random,
 )
 
+from etcetra.client import EtcdConnectionManager, EtcdCommunicator
+
+from ai.backend.common.etcd import AsyncEtcd
+
 from .distributed import AbstractDistributedLock
 from .logging import BraceStyleAdapter
 
@@ -84,4 +88,35 @@ class FileLock(AbstractDistributedLock):
 
     async def __aexit__(self, *exc_info) -> bool | None:
         self.release()
+        return None
+
+
+class EtcdLock(AbstractDistributedLock):
+
+    _con_mgr: EtcdConnectionManager
+    _debug: bool
+    default_timeout: float = 3  # not allow infinite timeout for safety
+
+    def __init__(
+        self,
+        lock_name: str,
+        etcd: AsyncEtcd,
+        *,
+        timeout: Optional[float] = None,
+        debug: bool = False,
+    ) -> None:
+        _timeout = timeout if timeout is not None else self.default_timeout
+        self._con_mgr = etcd.etcd.with_lock(lock_name, timeout=_timeout)
+        self._debug = debug
+
+    async def __aenter__(self) -> EtcdCommunicator:
+        communicator = await self._con_mgr.__aenter__()
+        if self._debug:
+            log.debug('etcd lock acquired: {}', self._con_mgr._lock_key)
+        return communicator
+
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
+        await self._con_mgr.__aexit__(*exc_info)
+        if self._debug:
+            log.debug('etcd lock released: {}', self._con_mgr._lock_key)
         return None
