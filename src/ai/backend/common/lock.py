@@ -6,6 +6,10 @@ from concurrent.futures import Executor
 from pathlib import Path
 from typing import Any, Optional
 
+from etcetra.client import EtcdConnectionManager, EtcdCommunicator
+
+from ai.backend.common.etcd import AsyncEtcd
+
 from .distributed import AbstractDistributedLock
 from .logging import BraceStyleAdapter
 
@@ -75,4 +79,32 @@ class FileLock(AbstractDistributedLock):
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(self._executor, _unlock)
+        return None
+
+
+class EtcdLock(AbstractDistributedLock):
+
+    _con_mgr: EtcdConnectionManager
+    _debug: bool
+    default_timeout: float = 3  # not allow infinite timeout for safety
+
+    def __init__(
+        self, lock_name: str, etcd: AsyncEtcd,
+        *,
+        timeout: Optional[float] = None,
+        debug: bool = False):
+        _timeout = timeout if timeout is not None else self.default_timeout
+        self._con_mgr = etcd.etcd.with_lock(lock_name, timeout=_timeout)
+        self._debug = debug
+
+    async def __aenter__(self) -> EtcdCommunicator:
+        communicator = await self._con_mgr.__aenter__()
+        if self._debug:
+            log.debug('etcd lock acquired: {}', self._con_mgr._lock_key)
+        return communicator
+
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
+        await self._con_mgr.__aexit__(*exc_info)
+        if self._debug:
+            log.debug('etcd lock released: {}', self._con_mgr._lock_key)
         return None
