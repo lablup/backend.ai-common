@@ -63,16 +63,11 @@ class FileLock(AbstractDistributedLock):
         await loop.run_in_executor(self._executor, _lock)
 
     async def __aexit__(self, *exc_info) -> bool | None:
-
-        def _unlock():
-            if self._locked:
-                fcntl.flock(self._fp, fcntl.LOCK_UN)
-                self._locked = False
-                if self._debug:
-                    log.debug("file lock released: {}", self._path)
-            self._fp.close()
-            self.f_fp = None
-
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(self._executor, _unlock)
+        if self._locked:
+            fcntl.flock(self._fp, fcntl.LOCK_UN)
+            self._locked = False
+            if self._debug:
+                log.debug("file lock released: {}", self._path)
+        self._fp.close()
+        self.f_fp = None
         return None
