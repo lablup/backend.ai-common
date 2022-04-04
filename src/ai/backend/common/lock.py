@@ -3,7 +3,7 @@ import logging
 from concurrent.futures import Executor
 from io import FileIO
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from tenacity import (
     AsyncRetrying,
