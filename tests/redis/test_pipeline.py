@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from unittest import mock
 
-import aioredis
-import aioredis.client
-import aioredis.sentinel
+import redis.asyncio
+import redis.asyncio.client
+import redis.asyncio.sentinel
 import pytest
 
-from ai.backend.common.redis import execute
+from ai.backend.common.redis_helper import execute
 from ai.backend.common.types import RedisConnectionInfo
 
 from .types import RedisClusterInfo
@@ -17,11 +17,11 @@ from .types import RedisClusterInfo
 @pytest.mark.asyncio
 async def test_pipeline_single_instance(redis_container: str) -> None:
     rconn = RedisConnectionInfo(
-        aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
+        redis.asyncio.from_url(url='redis://localhost:9379', socket_timeout=0.5),
         service_name=None,
     )
 
-    def _build_pipeline(r: aioredis.Redis) -> aioredis.client.Pipeline:
+    def _build_pipeline(r: redis.asyncio.Redis) -> redis.asyncio.client.Pipeline:
         pipe = r.pipeline(transaction=False)
         pipe.set("xyz", "123")
         pipe.incr("xyz")
@@ -34,7 +34,7 @@ async def test_pipeline_single_instance(redis_container: str) -> None:
     actual_value = await execute(rconn, lambda r: r.get("xyz"))
     assert actual_value == b"124"
 
-    async def _build_pipeline_async(r: aioredis.Redis) -> aioredis.client.Pipeline:
+    async def _build_pipeline_async(r: redis.asyncio.Redis) -> redis.asyncio.client.Pipeline:
         pipe = r.pipeline(transaction=False)
         pipe.set("abc", "123")
         pipe.incr("abc")
@@ -52,19 +52,19 @@ async def test_pipeline_single_instance(redis_container: str) -> None:
 @pytest.mark.asyncio
 async def test_pipeline_single_instance_retries(redis_container: str) -> None:
     rconn = RedisConnectionInfo(
-        aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
+        redis.asyncio.from_url(url='redis://localhost:9379', socket_timeout=0.5),
         service_name=None,
     )
 
     build_count = 0
 
     patcher = mock.patch(
-        'aioredis.client.Pipeline._execute_pipeline',
+        'redis.asyncio.client.Pipeline._execute_pipeline',
         side_effect=[ConnectionResetError, ConnectionResetError, mock.DEFAULT],
     )
     patcher.start()
 
-    def _build_pipeline(r: aioredis.Redis) -> aioredis.client.Pipeline:
+    def _build_pipeline(r: redis.asyncio.Redis) -> redis.asyncio.client.Pipeline:
         nonlocal build_count, patcher
         build_count += 1
         if build_count == 3:
@@ -86,12 +86,12 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
     build_count = 0
 
     patcher = mock.patch(
-        'aioredis.client.Pipeline._execute_pipeline',
+        'redis.asyncio.client.Pipeline._execute_pipeline',
         side_effect=[ConnectionResetError, ConnectionResetError, mock.DEFAULT],
     )
     patcher.start()
 
-    async def _build_pipeline_async(r: aioredis.Redis) -> aioredis.client.Pipeline:
+    async def _build_pipeline_async(r: redis.asyncio.Redis) -> redis.asyncio.client.Pipeline:
         nonlocal build_count, patcher
         build_count += 1
         if build_count == 3:
@@ -115,7 +115,7 @@ async def test_pipeline_single_instance_retries(redis_container: str) -> None:
 @pytest.mark.asyncio
 async def test_pipeline_sentinel_cluster(redis_cluster: RedisClusterInfo) -> None:
     rconn = RedisConnectionInfo(
-        aioredis.sentinel.Sentinel(
+        redis.asyncio.sentinel.Sentinel(
             redis_cluster.sentinel_addrs,
             password='develove',
             socket_timeout=0.5,
@@ -123,7 +123,7 @@ async def test_pipeline_sentinel_cluster(redis_cluster: RedisClusterInfo) -> Non
         service_name='mymaster',
     )
 
-    def _build_pipeline(r: aioredis.Redis) -> aioredis.client.Pipeline:
+    def _build_pipeline(r: redis.asyncio.Redis) -> redis.asyncio.client.Pipeline:
         pipe = r.pipeline(transaction=False)
         pipe.set("xyz", "123")
         pipe.incr("xyz")

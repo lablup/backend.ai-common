@@ -5,16 +5,16 @@ from typing import (
     List,
 )
 
-import aioredis
-import aioredis.client
-import aioredis.exceptions
+import redis.asyncio
+import redis.asyncio.client
+import redis.exceptions
 import aiotools
 import pytest
 
 from .docker import DockerRedisNode
 from .utils import interrupt
 
-from ai.backend.common import redis
+from ai.backend.common import redis_helper
 from ai.backend.common.types import RedisConnectionInfo
 
 
@@ -29,10 +29,10 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
     unpaused = asyncio.Event()
     received_messages: List[str] = []
 
-    async def subscribe(pubsub: aioredis.client.PubSub) -> None:
+    async def subscribe(pubsub: redis.asyncio.client.PubSub) -> None:
         try:
             async with aiotools.aclosing(
-                redis.subscribe(pubsub, reconnect_poll_interval=0.3),
+                redis_helper.subscribe(pubsub, reconnect_poll_interval=0.3),
             ) as agen:
                 async for raw_msg in agen:
                     msg = raw_msg.decode()
@@ -41,10 +41,10 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
             pass
 
     r = RedisConnectionInfo(
-        aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
+        redis.asyncio.from_url(url='redis://localhost:9379', socket_timeout=0.5),
         service_name=None,
     )
-    assert isinstance(r.client, aioredis.Redis)
+    assert isinstance(r.client, redis.asyncio.Redis)
     await r.client.delete("ch1")
     pubsub = r.client.pubsub()
     async with pubsub:
@@ -69,7 +69,7 @@ async def test_pubsub(redis_container: str, disruption_method: str) -> None:
         for i in range(5):
             # The Redis server is dead temporarily...
             if disruption_method == 'stop':
-                with pytest.raises(aioredis.exceptions.ConnectionError):
+                with pytest.raises(redis.exceptions.ConnectionError):
                     await r.client.publish("ch1", str(5 + i))
             elif disruption_method == 'pause':
                 with pytest.raises(asyncio.TimeoutError):
@@ -111,10 +111,10 @@ async def test_pubsub_with_retrying_pub(redis_container: str, disruption_method:
     unpaused = asyncio.Event()
     received_messages: List[str] = []
 
-    async def subscribe(pubsub: aioredis.client.PubSub) -> None:
+    async def subscribe(pubsub: redis.asyncio.client.PubSub) -> None:
         try:
             async with aiotools.aclosing(
-                redis.subscribe(pubsub, reconnect_poll_interval=0.3),
+                redis_helper.subscribe(pubsub, reconnect_poll_interval=0.3),
             ) as agen:
                 async for raw_msg in agen:
                     msg = raw_msg.decode()
@@ -123,10 +123,10 @@ async def test_pubsub_with_retrying_pub(redis_container: str, disruption_method:
             pass
 
     r = RedisConnectionInfo(
-        aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
+        redis.asyncio.from_url(url='redis://localhost:9379', socket_timeout=0.5),
         service_name=None,
     )
-    assert isinstance(r.client, aioredis.Redis)
+    assert isinstance(r.client, redis.asyncio.Redis)
     await r.client.delete("ch1")
     pubsub = r.client.pubsub()
     async with pubsub:
@@ -144,7 +144,7 @@ async def test_pubsub_with_retrying_pub(redis_container: str, disruption_method:
         await asyncio.sleep(0)
 
         for i in range(5):
-            await redis.execute(r, lambda r: r.publish("ch1", str(i)))
+            await redis_helper.execute(r, lambda r: r.publish("ch1", str(i)))
             await asyncio.sleep(0.1)
         do_pause.set()
         await paused.wait()
@@ -155,13 +155,13 @@ async def test_pubsub_with_retrying_pub(redis_container: str, disruption_method:
 
         wakeup_task = asyncio.create_task(wakeup())
         for i in range(5):
-            await redis.execute(r, lambda r: r.publish("ch1", str(5 + i)))
+            await redis_helper.execute(r, lambda r: r.publish("ch1", str(5 + i)))
             await asyncio.sleep(0.1)
         await wakeup_task
 
         await unpaused.wait()
         for i in range(5):
-            await redis.execute(r, lambda r: r.publish("ch1", str(10 + i)))
+            await redis_helper.execute(r, lambda r: r.publish("ch1", str(10 + i)))
             await asyncio.sleep(0.1)
 
         await interrupt_task
@@ -198,7 +198,7 @@ async def test_pubsub_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
         await asyncio.sleep(0.5)
         unpaused.set()
 
-    async def subscribe(pubsub: aioredis.client.PubSub) -> None:
+    async def subscribe(pubsub: redis.asyncio.client.PubSub) -> None:
         try:
             async with aiotools.aclosing(
                 redis.subscribe(pubsub, reconnect_poll_interval=0.3)
@@ -210,7 +210,7 @@ async def test_pubsub_cluster_sentinel(redis_cluster: RedisClusterInfo) -> None:
         except asyncio.CancelledError:
             pass
 
-    s = aioredis.sentinel.Sentinel(
+    s = redis.asyncio.sentinel.Sentinel(
         redis_cluster.sentinel_addrs,
         password='develove',
         socket_timeout=0.5,

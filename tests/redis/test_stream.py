@@ -8,15 +8,14 @@ from typing import (
     List,
 )
 
-import aioredis
-import aioredis.client
-import aioredis.exceptions
-import aioredis.sentinel
+import redis.asyncio
+import redis.asyncio.client
+import redis.exceptions
 import aiotools
 from aiotools.context import aclosing
 import pytest
 
-from ai.backend.common import redis
+from ai.backend.common import redis_helper
 from ai.backend.common.types import RedisConnectionInfo
 
 from .docker import DockerRedisNode
@@ -43,7 +42,7 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
         key: str,
     ) -> None:
         try:
-            async with aclosing(redis.read_stream(r, key)) as agen:
+            async with aclosing(redis_helper.read_stream(r, key)) as agen:
                 async for msg_id, msg_data in agen:
                     print(f"XREAD[{consumer_id}]", msg_id, repr(msg_data), file=sys.stderr)
                     received_messages[consumer_id].append(msg_data[b"idx"])
@@ -54,11 +53,11 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
             raise
 
     r = RedisConnectionInfo(
-        aioredis.from_url('redis://localhost:9379', socket_timeout=0.5),
+        redis.asyncio.from_url('redis://localhost:9379', socket_timeout=0.5),
         service_name=None,
     )
-    assert isinstance(r.client, aioredis.Redis)
-    await redis.execute(r, lambda r: r.delete("stream1"))
+    assert isinstance(r.client, redis.asyncio.Redis)
+    await redis_helper.execute(r, lambda r: r.delete("stream1"))
 
     consumer_tasks = [
         asyncio.create_task(consume("c1", r, "stream1")),
@@ -85,7 +84,7 @@ async def test_stream_fanout(redis_container: str, disruption_method: str, chaos
     for i in range(5):
         # The Redis server is dead temporarily...
         if disruption_method == 'stop':
-            with pytest.raises(aioredis.exceptions.ConnectionError):
+            with pytest.raises(redis.exceptions.ConnectionError):
                 await r.client.xadd("stream1", {"idx": 5 + i})
         elif disruption_method == 'pause':
             with pytest.raises(asyncio.TimeoutError):
@@ -136,7 +135,7 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
         key: str,
     ) -> None:
         try:
-            async with aclosing(redis.read_stream(r, key)) as agen:
+            async with aclosing(redis_helper.read_stream(r, key)) as agen:
                 async for msg_id, msg_data in agen:
                     print(f"XREAD[{consumer_id}]", msg_id, repr(msg_data), file=sys.stderr)
                     received_messages[consumer_id].append(msg_data[b"idx"])
@@ -147,14 +146,14 @@ async def test_stream_fanout_cluster(redis_cluster: RedisClusterInfo, disruption
             raise
 
     s = RedisConnectionInfo(
-        aioredis.sentinel.Sentinel(
+        redis.asyncio.Sentinel(
             redis_cluster.sentinel_addrs,
             password='develove',
             socket_timeout=0.5,
         ),
         service_name='mymaster',
     )
-    _execute = aiotools.apartial(redis.execute, s)
+    _execute = aiotools.apartial(redis_helper.execute, s)
     await _execute(lambda r: r.delete("stream1"))
 
     consumer_tasks = [
@@ -227,7 +226,7 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
         key: str,
     ) -> None:
         try:
-            async with aclosing(redis.read_stream_by_group(
+            async with aclosing(redis_helper.read_stream_by_group(
                 r, key, group_name, consumer_id,
                 autoclaim_idle_timeout=500,
             )) as agen:
@@ -241,12 +240,12 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
             return
 
     r = RedisConnectionInfo(
-        aioredis.from_url(url='redis://localhost:9379', socket_timeout=0.5),
+        redis.asyncio.from_url(url='redis://localhost:9379', socket_timeout=0.5),
         service_name=None,
     )
-    assert isinstance(r.client, aioredis.Redis)
-    await redis.execute(r, lambda r: r.delete("stream1"))
-    await redis.execute(r, lambda r: r.xgroup_create("stream1", "group1", b"$", mkstream=True))
+    assert isinstance(r.client, redis.asyncio.Redis)
+    await redis_helper.execute(r, lambda r: r.delete("stream1"))
+    await redis_helper.execute(r, lambda r: r.xgroup_create("stream1", "group1", b"$", mkstream=True))
 
     consumer_tasks = [
         asyncio.create_task(consume("group1", "c1", r, "stream1")),
@@ -273,7 +272,7 @@ async def test_stream_loadbalance(redis_container: str, disruption_method: str, 
     for i in range(5):
         # The Redis server is dead temporarily...
         if disruption_method == 'stop':
-            with pytest.raises(aioredis.exceptions.ConnectionError):
+            with pytest.raises(redis.exceptions.ConnectionError):
                 await r.client.xadd("stream1", {"idx": 5 + i})
         elif disruption_method == 'pause':
             with pytest.raises(asyncio.TimeoutError):
@@ -325,7 +324,7 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
         key: str,
     ) -> None:
         try:
-            async with aclosing(redis.read_stream_by_group(
+            async with aclosing(redis_helper.read_stream_by_group(
                 r, key, group_name, consumer_id,
                 autoclaim_idle_timeout=500,
             )) as agen:
@@ -339,14 +338,14 @@ async def test_stream_loadbalance_cluster(redis_cluster: RedisClusterInfo, disru
             return
 
     s = RedisConnectionInfo(
-        aioredis.sentinel.Sentinel(
+        redis.asyncio.Sentinel(
             redis_cluster.sentinel_addrs,
             password='develove',
             socket_timeout=0.5,
         ),
         service_name='mymaster',
     )
-    _execute = aiotools.apartial(redis.execute, s)
+    _execute = aiotools.apartial(redis_helper.execute, s)
     await _execute(lambda r: r.delete("stream1"))
     await _execute(lambda r: r.xgroup_create("stream1", "group1", b"$", mkstream=True))
 
