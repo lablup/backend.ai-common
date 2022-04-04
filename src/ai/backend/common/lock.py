@@ -3,6 +3,7 @@ import fcntl
 import logging
 import time
 from concurrent.futures import Executor
+from io import FileIO
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,6 +17,7 @@ class FileLock(AbstractDistributedLock):
 
     default_timeout: float = 3  # not allow infinite timeout for safety
 
+    _fp: FileIO
     _locked: bool = False
 
     def __init__(
