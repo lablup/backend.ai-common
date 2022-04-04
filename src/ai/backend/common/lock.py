@@ -11,6 +11,7 @@ from tenacity import (
     retry_if_exception_type,
     stop_after_delay,
     wait_exponential,
+    wait_random,
 )
 
 from .distributed import AbstractDistributedLock
@@ -46,19 +47,17 @@ class FileLock(AbstractDistributedLock):
 
     def __del__(self) -> None:
         if self._fp is not None:
-            self._fp.close()
-            self._fp = None
-            if self._debug:
-                log.debug("file lock implicitly released: {}", self._path)
+            self.release()
+            log.debug("file lock implicitly released: {}", self._path)
 
-    async def __aenter__(self) -> None:
+    async def acquire(self) -> None:
         assert self._fp is None
         assert not self._locked
         self._path.touch(exist_ok=True)
         self._fp = open(self._path, "rb")
         try:
             async for attempt in AsyncRetrying(
-                wait=wait_exponential(multiplier=0.02, min=0.02, max=1.0),
+                wait=wait_exponential(multiplier=0.02, min=0.02, max=1.0) + wait_random(0, 0.05),
                 stop=stop_after_delay(self._timeout),
                 retry=retry_if_exception_type(BlockingIOError),
             ):
@@ -70,7 +69,7 @@ class FileLock(AbstractDistributedLock):
         except RetryError:
             raise TimeoutError(f"failed to lock file: {self._path}")
 
-    async def __aexit__(self, *exc_info) -> bool | None:
+    def release(self) -> None:
         assert self._fp is not None
         if self._locked:
             fcntl.flock(self._fp, fcntl.LOCK_UN)
@@ -79,4 +78,10 @@ class FileLock(AbstractDistributedLock):
                 log.debug("file lock explicitly released: {}", self._path)
         self._fp.close()
         self._fp = None
+
+    async def __aenter__(self) -> None:
+        await self.acquire()
+
+    async def __aexit__(self, *exc_info) -> bool | None:
+        self.release()
         return None
