@@ -1,6 +1,5 @@
 import fcntl
 import logging
-from concurrent.futures import Executor
 from io import IOBase
 from pathlib import Path
 from typing import Optional
@@ -36,13 +35,11 @@ class FileLock(AbstractDistributedLock):
         path: Path,
         *,
         timeout: Optional[float] = None,
-        executor: Optional[Executor] = None,
         debug: bool = False,
     ) -> None:
         self._fp = None
         self._path = path
         self._timeout = timeout if timeout is not None else self.default_timeout
-        self._executor = executor
         self._debug = debug
 
     @property
