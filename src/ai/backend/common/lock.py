@@ -1,7 +1,7 @@
 import fcntl
 import logging
 from concurrent.futures import Executor
-from io import FileIO
+from io import IOBase
 from pathlib import Path
 from typing import Optional
 
@@ -23,21 +23,19 @@ class FileLock(AbstractDistributedLock):
 
     default_timeout: float = 3  # not allow infinite timeout for safety
 
-    _fp: FileIO | None
+    _fp: IOBase | None
     _locked: bool = False
 
     def __init__(
         self,
         path: Path,
         *,
-        mode: str = "rb",
         timeout: Optional[float] = None,
         executor: Optional[Executor] = None,
         debug: bool = False,
     ) -> None:
         self._fp = None
         self._path = path
-        self._mode = mode
         self._timeout = timeout if timeout is not None else self.default_timeout
         self._executor = executor
         self._debug = debug
@@ -57,7 +55,7 @@ class FileLock(AbstractDistributedLock):
         assert self._fp is None
         assert not self._locked
         self._path.touch(exist_ok=True)
-        self._fp = open(self._path, self._mode)
+        self._fp = open(self._path, "rb")
         try:
             async for attempt in AsyncRetrying(
                 wait=wait_exponential(multiplier=0.02, min=0.02, max=1.0),
@@ -73,6 +71,7 @@ class FileLock(AbstractDistributedLock):
             raise TimeoutError(f"failed to lock file: {self._path}")
 
     async def __aexit__(self, *exc_info) -> bool | None:
+        assert self._fp is not None
         if self._locked:
             fcntl.flock(self._fp, fcntl.LOCK_UN)
             self._locked = False
