@@ -1,11 +1,17 @@
-import asyncio
 import fcntl
 import logging
-import time
 from concurrent.futures import Executor
 from io import FileIO
 from pathlib import Path
 from typing import Any, Optional
+
+from tenacity import (
+    AsyncRetrying,
+    RetryError,
+    retry_if_exception_type,
+    stop_after_delay,
+    wait_exponential,
+)
 
 from .distributed import AbstractDistributedLock
 from .logging import BraceStyleAdapter
@@ -17,7 +23,7 @@ class FileLock(AbstractDistributedLock):
 
     default_timeout: float = 3  # not allow infinite timeout for safety
 
-    _fp: FileIO
+    _fp: FileIO | None
     _locked: bool = False
 
     def __init__(
@@ -29,6 +35,7 @@ class FileLock(AbstractDistributedLock):
         executor: Optional[Executor] = None,
         debug: bool = False,
     ) -> None:
+        self._fp = None
         self._path = path
         self._mode = mode
         self._timeout = timeout if timeout is not None else self.default_timeout
@@ -39,37 +46,38 @@ class FileLock(AbstractDistributedLock):
     def locked(self) -> bool:
         return self._locked
 
-    async def __aenter__(self) -> Any:
+    def __del__(self) -> None:
+        if self._fp is not None:
+            self._fp.close()
+            self._fp = None
+            if self._debug:
+                log.debug("file lock implicitly released: {}", self._path)
 
-        def _lock():
-            start_time = time.perf_counter()
-            self._path.touch(exist_ok=True)
-            self._fp = open(self._path, self._mode)
-            while True:
-                try:
+    async def __aenter__(self) -> None:
+        assert self._fp is None
+        assert not self._locked
+        self._path.touch(exist_ok=True)
+        self._fp = open(self._path, self._mode)
+        try:
+            async for attempt in AsyncRetrying(
+                wait=wait_exponential(multiplier=0.02, min=0.02, max=1.0),
+                stop=stop_after_delay(self._timeout),
+                retry=retry_if_exception_type(BlockingIOError),
+            ):
+                with attempt:
                     fcntl.flock(self._fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     self._locked = True
                     if self._debug:
                         log.debug("file lock acquired: {}", self._path)
-                    return self._fp
-                except BlockingIOError:
-                    # Failed to get file lock. Waiting until timeout ...
-                    if (
-                        self._timeout > 0 and
-                        time.perf_counter() - start_time > self._timeout
-                    ):
-                        raise TimeoutError(f"failed to lock file: {self._path}")
-                time.sleep(0.1)
-
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(self._executor, _lock)
+        except RetryError:
+            raise TimeoutError(f"failed to lock file: {self._path}")
 
     async def __aexit__(self, *exc_info) -> bool | None:
         if self._locked:
             fcntl.flock(self._fp, fcntl.LOCK_UN)
             self._locked = False
             if self._debug:
-                log.debug("file lock released: {}", self._path)
+                log.debug("file lock explicitly released: {}", self._path)
         self._fp.close()
-        self.f_fp = None
+        self._fp = None
         return None
