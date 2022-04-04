@@ -28,9 +28,9 @@ from types import TracebackType
 from typing_extensions import TypeAlias
 import uuid
 
-import aioredis
-import aioredis.exceptions
-import aioredis.sentinel
+import redis.asyncio
+import redis.asyncio.sentinel
+import redis.exceptions
 from aiotools.context import aclosing
 from aiotools.server import process_index
 from aiotools.taskgroup import PersistentTaskGroup
@@ -522,7 +522,7 @@ class BgtaskFailedEvent(BgtaskDoneEventArgs, AbstractEvent):
 class RedisConnectorFunc(Protocol):
     def __call__(
         self,
-    ) -> aioredis.ConnectionPool:
+    ) -> redis.asyncio.ConnectionPool:
         ...
 
 
