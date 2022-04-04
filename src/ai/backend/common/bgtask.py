@@ -71,7 +71,7 @@ class ProgressReporter:
         def _pipe_builder(r: aioredis.Redis) -> aioredis.client.Pipeline:
             pipe = r.pipeline(transaction=False)
             tracker_key = f'bgtask.{self.task_id}'
-            pipe.hset(tracker_key, {
+            pipe.hset(tracker_key, mapping={
                 'current': str(current),
                 'total': str(total),
                 'msg': message or '',
@@ -205,7 +205,7 @@ class BackgroundTaskManager:
             pipe = r.pipeline()
             tracker_key = f'bgtask.{task_id}'
             now = str(time.time())
-            pipe.hset(tracker_key, {
+            pipe.hset(tracker_key, mapping={
                 'status': 'started',
                 'current': '0',
                 'total': '0',
@@ -250,7 +250,7 @@ class BackgroundTaskManager:
             async def _pipe_builder(r: aioredis.Redis):
                 pipe = r.pipeline()
                 tracker_key = f'bgtask.{task_id}'
-                pipe.hset(tracker_key, {
+                pipe.hset(tracker_key, mapping={
                     'status': task_result[7:],  # strip "bgtask_"
                     'msg': message,
                     'last_update': str(time.time()),
