@@ -1,22 +1,27 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
+import uuid
+import weakref
 from typing import (
     Awaitable,
     Callable,
     Final,
     Literal,
     Optional,
+    TypeAlias,
     Union,
     Set,
     Type,
 )
-import uuid
 
 import aioredis
 import aioredis.client
+from aiohttp import web
+from aiohttp_sse import sse_response
 
 from . import redis
 from .events import (
@@ -24,16 +29,18 @@ from .events import (
     BgtaskDoneEvent,
     BgtaskFailedEvent,
     BgtaskUpdatedEvent,
+    EventDispatcher,
     EventProducer,
 )
 from .logging import BraceStyleAdapter
+from .types import AgentId, Sentinel
 
-
+sentinel: Final = Sentinel.TOKEN
 log = BraceStyleAdapter(logging.getLogger('ai.backend.manager.background'))
-
-MAX_BGTASK_ARCHIVE_PERIOD = 86400  # 24  hours
-
 TaskResult = Literal['bgtask_done', 'bgtask_cancelled', 'bgtask_failed']
+BgtaskEvents: TypeAlias = BgtaskUpdatedEvent | BgtaskDoneEvent | BgtaskCancelledEvent | BgtaskFailedEvent
+
+MAX_BGTASK_ARCHIVE_PERIOD: Final = 86400  # 24  hours
 
 
 class ProgressReporter:
@@ -89,11 +96,102 @@ BackgroundTask = Callable[[ProgressReporter], Awaitable[Optional[str]]]
 
 class BackgroundTaskManager:
     event_producer: EventProducer
-    ongoing_tasks: Set[asyncio.Task]
+    ongoing_tasks: weakref.WeakSet[asyncio.Task]
+    task_update_queues: Set[asyncio.Queue[Sentinel | BgtaskEvents]]
 
     def __init__(self, event_producer: EventProducer) -> None:
         self.event_producer = event_producer
-        self.ongoing_tasks = set()
+        self.ongoing_tasks = weakref.WeakSet()
+        self.task_update_queues = set()
+
+    def register_event_handlers(self, event_dispatcher: EventDispatcher) -> None:
+        """
+        Add bgtask related event handlers to the given event dispatcher.
+        """
+        event_dispatcher.subscribe(BgtaskUpdatedEvent, None, self._enqueue_bgtask_status_update)
+        event_dispatcher.subscribe(BgtaskDoneEvent, None, self._enqueue_bgtask_status_update)
+        event_dispatcher.subscribe(BgtaskCancelledEvent, None, self._enqueue_bgtask_status_update)
+        event_dispatcher.subscribe(BgtaskFailedEvent, None, self._enqueue_bgtask_status_update)
+
+    async def _enqueue_bgtask_status_update(
+        self,
+        context: None,
+        source: AgentId,
+        event: BgtaskEvents,
+    ) -> None:
+        for q in self.task_update_queues:
+            q.put_nowait(event)
+
+    async def push_bgtask_events(
+        self,
+        request: web.Request,
+        task_id: uuid.UUID,
+    ) -> web.StreamResponse:
+        """
+        A aiohttp-based server-sent events (SSE) responder that pushes the bgtask updates
+        to the clients.
+        """
+        tracker_key = f'bgtask.{task_id}'
+        redis_producer = self.event_producer.redis_client
+        task_info = await redis.execute(
+            redis_producer,
+            lambda r: r.hgetall(tracker_key),
+            encoding='utf-8',
+        )
+
+        log.debug('task info: {}', task_info)
+        if task_info is None:
+            # The task ID is invalid or represents a task completed more than 24 hours ago.
+            raise ValueError('No such background task.')
+
+        if task_info['status'] != 'started':
+            # It is an already finished task!
+            async with sse_response(request) as resp:
+                try:
+                    body = {
+                        'task_id': str(task_id),
+                        'status': task_info['status'],
+                        'current_progress': task_info['current'],
+                        'total_progress': task_info['total'],
+                        'message': task_info['msg'],
+                    }
+                    await resp.send(json.dumps(body), event=f"task_{task_info['status']}")
+                finally:
+                    await resp.send('{}', event="server_close")
+            return resp
+
+        # It is an ongoing task.
+        my_queue: asyncio.Queue[BgtaskEvents | Sentinel] = asyncio.Queue()
+        self.task_update_queues.add(my_queue)
+        try:
+            async with sse_response(request) as resp:
+                try:
+                    while True:
+                        event = await my_queue.get()
+                        try:
+                            if event is sentinel:
+                                break
+                            if task_id != event.task_id:
+                                continue
+                            body = {
+                                'task_id': str(task_id),
+                                'message': event.message,
+                            }
+                            if isinstance(event, BgtaskUpdatedEvent):
+                                body['current_progress'] = event.current_progress
+                                body['total_progress'] = event.total_progress
+                            await resp.send(json.dumps(body), event=event.name, retry=5)
+                            if (isinstance(event, BgtaskDoneEvent) or
+                                isinstance(event, BgtaskFailedEvent) or
+                                isinstance(event, BgtaskCancelledEvent)):
+                                await resp.send('{}', event="server_close")
+                                break
+                        finally:
+                            my_queue.task_done()
+                finally:
+                    return resp
+        finally:
+            self.task_update_queues.remove(my_queue)
 
     async def start(
         self,
@@ -122,7 +220,6 @@ class BackgroundTaskManager:
 
         task = asyncio.create_task(self._wrapper_task(func, task_id, name))
         self.ongoing_tasks.add(task)
-        task.add_done_callback(self.ongoing_tasks.remove)
         return task_id
 
     async def _wrapper_task(
@@ -171,6 +268,7 @@ class BackgroundTaskManager:
             log.info('Task {} ({}): {}', task_id, task_name or '', task_result)
 
     async def shutdown(self) -> None:
+        join_tasks = []
         log.info('Cancelling remaining background tasks...')
         for task in self.ongoing_tasks.copy():
             if task.done():
@@ -180,3 +278,7 @@ class BackgroundTaskManager:
                 await task
             except asyncio.CancelledError:
                 pass
+        for tq in self.task_update_queues:
+            tq.put_nowait(sentinel)
+            join_tasks.append(tq.join())
+        await asyncio.gather(*join_tasks)
