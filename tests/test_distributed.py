@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from multiprocessing import Event, Process, Queue
 import tempfile
 import threading
 import time
@@ -14,12 +15,15 @@ from typing import (
 )
 
 import attr
+from etcetra.types import HostPortPair as EtcdHostPortPair
 import pytest
 
 from ai.backend.common.distributed import GlobalTimer
 from ai.backend.common.events import AbstractEvent, EventDispatcher, EventProducer
-from ai.backend.common.lock import FileLock
+from ai.backend.common.lock import EtcdLock, FileLock
 from ai.backend.common.types import AgentId, EtcdRedisConfig, HostPortPair
+
+from ai.backend.common.etcd import AsyncEtcd, ConfigScopes
 
 
 def drange(start: Decimal, stop: Decimal, step: Decimal) -> Iterable[Decimal]:
@@ -105,7 +109,7 @@ class TimerNode(threading.Thread):
 
 
 @pytest.mark.asyncio
-async def test_global_timer(request, test_ns, redis_container) -> None:
+async def test_global_timer_filelock(request, test_ns, redis_container) -> None:
     lock_path = Path(tempfile.gettempdir()) / f'{test_ns}.lock'
     request.addfinalizer(partial(lock_path.unlink, missing_ok=True))
     event_records: List[float] = []
@@ -136,6 +140,94 @@ async def test_global_timer(request, test_ns, redis_container) -> None:
     for timer_node in threads:
         timer_node.join()
     print("checking records")
+    print(event_records)
+    num_records = len(event_records)
+    print(f"{num_records=}")
+    assert target_count - 2 <= num_records <= target_count + 2
+
+
+def etcd_timer_node_process(
+    queue, stop_event, etcd_addr: EtcdHostPortPair, namespace: str,
+    lock_name: str, test_ns: str, interval: float,
+):
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
+    async def _main():
+
+        async def _tick(context: Any, source: AgentId, event: NoopEvent) -> None:
+            print("_tick")
+            queue.put(time.monotonic())
+
+        redis_config = EtcdRedisConfig(addr=HostPortPair("127.0.0.1", 9379))
+        event_dispatcher = await EventDispatcher.new(
+            redis_config,
+            node_id=test_ns,
+        )
+        event_producer = await EventProducer.new(
+            redis_config,
+        )
+        event_dispatcher.consume(NoopEvent, None, _tick)
+
+        etcd = AsyncEtcd(addr=etcd_addr, namespace=namespace, scope_prefix_map={
+            ConfigScopes.GLOBAL: 'global',
+            ConfigScopes.SGROUP: 'sgroup/testing',
+            ConfigScopes.NODE: 'node/i-test',
+        })
+        timer = GlobalTimer(
+            EtcdLock(lock_name, etcd, timeout=None, debug=True),
+            event_producer,
+            lambda: NoopEvent(test_ns),
+            interval,
+        )
+        try:
+            await timer.join()
+            while not stop_event.is_set():
+                await asyncio.sleep(0)
+        finally:
+            await timer.leave()
+            await event_producer.close()
+            await event_dispatcher.close()
+
+    asyncio.run(_main())
+
+
+@pytest.mark.asyncio
+async def test_global_timer_etcdlock(
+    test_ns, etcd_addr, redis_container,
+) -> None:
+    lock_name = f'{test_ns}lock'
+    event_records_queue: Queue = Queue()
+    num_processes = 7
+    num_records = 0
+    delay = 3.0
+    interval = 0.5
+    target_count = (delay / interval)
+    processes: List[Process] = []
+    stop_event = Event()
+    for proc_idx in range(num_processes):
+        process = Process(
+            target=etcd_timer_node_process,
+            name=f'proc-{proc_idx}',
+            args=(
+                event_records_queue, stop_event, etcd_addr, test_ns,
+                lock_name, test_ns, interval,
+            ),
+        )
+        process.start()
+        processes.append(process)
+    print(f"spawned {num_processes} timers")
+    print(processes)
+    print("waiting")
+    time.sleep(delay)
+    print("stopping timers")
+    stop_event.set()
+    print("joining timer processes")
+    for timer_node in processes:
+        timer_node.join()
+    print("checking records")
+    event_records: List[float] = []
+    while not event_records_queue.empty():
+        event_records.append(event_records_queue.get())
     print(event_records)
     num_records = len(event_records)
     print(f"{num_records=}")
