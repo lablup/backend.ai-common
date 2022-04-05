@@ -9,6 +9,7 @@ from tenacity import (
     RetryError,
     retry_if_exception_type,
     stop_after_delay,
+    stop_never,
     wait_exponential,
     wait_random,
 )
@@ -48,6 +49,7 @@ class FileLock(AbstractDistributedLock):
 
     def __del__(self) -> None:
         if self._fp is not None:
+            self._debug = False
             self.release()
             log.debug("file lock implicitly released: {}", self._path)
 
@@ -56,11 +58,15 @@ class FileLock(AbstractDistributedLock):
         assert not self._locked
         self._path.touch(exist_ok=True)
         self._fp = open(self._path, "rb")
+        if self._timeout <= 0:
+            stop_func = stop_never
+        else:
+            stop_func = stop_after_delay(self._timeout)
         try:
             async for attempt in AsyncRetrying(
-                wait=wait_exponential(multiplier=0.02, min=0.02, max=1.0) + wait_random(0, 0.05),
-                stop=stop_after_delay(self._timeout),
                 retry=retry_if_exception_type(BlockingIOError),
+                wait=wait_exponential(multiplier=0.02, min=0.02, max=1.0) + wait_random(0, 0.05),
+                stop=stop_func,
             ):
                 with attempt:
                     fcntl.flock(self._fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
