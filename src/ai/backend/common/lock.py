@@ -1,8 +1,11 @@
+from __future__ import annotations
+
+import abc
 import fcntl
 import logging
 from io import IOBase
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from tenacity import (
     AsyncRetrying,
@@ -18,10 +21,20 @@ from etcetra.client import EtcdConnectionManager, EtcdCommunicator
 
 from ai.backend.common.etcd import AsyncEtcd
 
-from .distributed import AbstractDistributedLock
 from .logging import BraceStyleAdapter
 
 log = BraceStyleAdapter(logging.getLogger(__name__))
+
+
+class AbstractDistributedLock(metaclass=abc.ABCMeta):
+
+    @abc.abstractmethod
+    async def __aenter__(self) -> Any:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
+        raise NotImplementedError
 
 
 class FileLock(AbstractDistributedLock):

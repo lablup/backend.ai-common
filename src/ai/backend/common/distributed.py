@@ -1,28 +1,15 @@
 from __future__ import annotations
 
-import abc
 import asyncio
 from typing import (
-    Any,
     Callable,
     Final,
-    Optional,
     TYPE_CHECKING,
 )
 
 if TYPE_CHECKING:
     from .events import AbstractEvent, EventProducer
-
-
-class AbstractDistributedLock(metaclass=abc.ABCMeta):
-
-    @abc.abstractmethod
-    async def __aenter__(self) -> Any:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    async def __aexit__(self, *exc_info) -> Optional[bool]:
-        raise NotImplementedError
+    from .lock import AbstractDistributedLock
 
 
 class GlobalTimer:
