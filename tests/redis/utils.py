@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import aioredis
-import aioredis.exceptions
+import redis.asyncio
+import redis.exceptions
 import async_timeout
 import asyncio
 import functools
@@ -41,20 +41,20 @@ async def simple_run_cmd(cmdargs: Sequence[Union[str, bytes]], **kwargs) -> asyn
 
 
 async def wait_redis_ready(host: str, port: int, password: str = None) -> None:
-    r = aioredis.from_url(f"redis://{host}:{port}", password=password, socket_timeout=0.2)
+    r = redis.asyncio.from_url(f"redis://{host}:{port}", password=password, socket_timeout=0.2)
     while True:
         try:
             print("CheckReady.PING", port, file=sys.stderr)
             await r.ping()
             print("CheckReady.PONG", port, file=sys.stderr)
-        except aioredis.exceptions.AuthenticationError:
+        except redis.exceptions.AuthenticationError:
             raise
         except (
             ConnectionResetError,
-            aioredis.exceptions.ConnectionError,
+            redis.exceptions.ConnectionError,
         ):
             await asyncio.sleep(0.1)
-        except aioredis.exceptions.TimeoutError:
+        except redis.exceptions.TimeoutError:
             pass
         else:
             break

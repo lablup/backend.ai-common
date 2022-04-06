@@ -31,9 +31,9 @@ from typing import (
 )
 import uuid
 
-import aioredis
-import aioredis.client
-import aioredis.sentinel
+import redis.asyncio
+import redis.asyncio.client
+import redis.asyncio.sentinel
 import attr
 import trafaret as t
 import typeguard
@@ -840,9 +840,9 @@ class EtcdRedisConfig(TypedDict, total=False):
 
 @attr.s(auto_attribs=True)
 class RedisConnectionInfo:
-    client: aioredis.Redis | aioredis.sentinel.Sentinel
+    client: redis.asyncio.Redis | redis.asyncio.Sentinel
     service_name: Optional[str]
 
     async def close(self) -> None:
-        if isinstance(self.client, aioredis.Redis):
+        if isinstance(self.client, redis.asyncio.Redis):
             await self.client.close()
