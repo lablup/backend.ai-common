@@ -71,10 +71,7 @@ class FileLock(AbstractDistributedLock):
         assert not self._locked
         self._path.touch(exist_ok=True)
         self._fp = open(self._path, "rb")
-        if self._timeout <= 0:
-            stop_func = stop_never
-        else:
-            stop_func = stop_after_delay(self._timeout)
+        stop_func = stop_never if self._timeout <= 0 else stop_after_delay(self._timeout)
         try:
             async for attempt in AsyncRetrying(
                 retry=retry_if_exception_type(BlockingIOError),
