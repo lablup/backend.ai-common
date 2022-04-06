@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import asyncio
 import fcntl
 import logging
 from io import IOBase
@@ -28,6 +29,9 @@ log = BraceStyleAdapter(logging.getLogger(__name__))
 
 class AbstractDistributedLock(metaclass=abc.ABCMeta):
 
+    def __init__(self, *, lifetime: Optional[float] = None) -> None:
+        self._lifetime = lifetime
+
     @abc.abstractmethod
     async def __aenter__(self) -> Any:
         raise NotImplementedError
@@ -49,8 +53,10 @@ class FileLock(AbstractDistributedLock):
         path: Path,
         *,
         timeout: Optional[float] = None,
+        lifetime: Optional[float] = None,
         debug: bool = False,
     ) -> None:
+        super().__init__(lifetime=lifetime)
         self._fp = None
         self._path = path
         self._timeout = timeout if timeout is not None else self.default_timeout
@@ -84,7 +90,7 @@ class FileLock(AbstractDistributedLock):
                     if self._debug:
                         log.debug("file lock acquired: {}", self._path)
         except RetryError:
-            raise TimeoutError(f"failed to lock file: {self._path}")
+            raise asyncio.TimeoutError(f"failed to lock file: {self._path}")
 
     def release(self) -> None:
         assert self._fp is not None
@@ -116,8 +122,10 @@ class EtcdLock(AbstractDistributedLock):
         etcd: AsyncEtcd,
         *,
         timeout: Optional[float] = None,
+        lifetime: Optional[float] = None,
         debug: bool = False,
     ) -> None:
+        super().__init__(lifetime=lifetime)
         _timeout = timeout if timeout is not None else self.default_timeout
         self._con_mgr = etcd.etcd.with_lock(lock_name, timeout=_timeout)
         self._debug = debug
