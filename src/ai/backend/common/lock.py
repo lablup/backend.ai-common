@@ -127,7 +127,6 @@ class EtcdLock(AbstractDistributedLock):
     ) -> None:
         super().__init__(lifetime=lifetime)
         _timeout = timeout if timeout is not None else self.default_timeout
-        # TODO: extend with_lock() to support key-based lease for lifetime support
         self._con_mgr = etcd.etcd.with_lock(
             lock_name,
             timeout=_timeout,
