@@ -114,6 +114,12 @@ class EtcdLock(AbstractDistributedLock):
 
     _con_mgr: EtcdConnectionManager
     _debug: bool
+
+    lock_name: str
+    etcd: AsyncEtcd
+    timeout: float
+    lifetime: Optional[float]
+
     default_timeout: float = 3  # not allow infinite timeout for safety
 
     def __init__(
@@ -126,15 +132,18 @@ class EtcdLock(AbstractDistributedLock):
         debug: bool = False,
     ) -> None:
         super().__init__(lifetime=lifetime)
-        _timeout = timeout if timeout is not None else self.default_timeout
-        self._con_mgr = etcd.etcd.with_lock(
-            lock_name,
-            timeout=_timeout,
-            ttl=int(lifetime) if lifetime is not None else None,
-        )
+        self.lock_name = lock_name
+        self.etcd = etcd
+        self.lifetime = lifetime
+        self._timeout = timeout if timeout is not None else self.default_timeout
         self._debug = debug
 
     async def __aenter__(self) -> EtcdCommunicator:
+        self._con_mgr = self.etcd.etcd.with_lock(
+            self.lock_name,
+            timeout=self._timeout,
+            ttl=int(self.lifetime) if self.lifetime is not None else None,
+        )
         communicator = await self._con_mgr.__aenter__()
         if self._debug:
             log.debug('etcd lock acquired: {}', self._con_mgr._lock_key)
@@ -144,4 +153,5 @@ class EtcdLock(AbstractDistributedLock):
         await self._con_mgr.__aexit__(*exc_info)
         if self._debug:
             log.debug('etcd lock released: {}', self._con_mgr._lock_key)
+        self._con_mgr = None
         return None
