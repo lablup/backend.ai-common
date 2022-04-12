@@ -42,13 +42,16 @@ class GlobalTimer:
             if self._stopped:
                 return
             while True:
-                async with self._dist_lock:
-                    if self._stopped:
-                        return
-                    await self._event_producer.produce_event(self._event_factory())
-                    if self._stopped:
-                        return
-                    await asyncio.sleep(self.interval)
+                try:
+                    async with self._dist_lock:
+                        if self._stopped:
+                            return
+                        await self._event_producer.produce_event(self._event_factory())
+                        if self._stopped:
+                            return
+                        await asyncio.sleep(self.interval)
+                except asyncio.TimeoutError:  # timeout raised from etcd lock
+                    pass
         except asyncio.CancelledError:
             pass
 

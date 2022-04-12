@@ -146,12 +146,12 @@ class EtcdLock(AbstractDistributedLock):
         )
         communicator = await self._con_mgr.__aenter__()
         if self._debug:
-            log.debug('etcd lock acquired: {}', self._con_mgr._lock_key)
+            log.debug('etcd lock acquired')
         return communicator
 
     async def __aexit__(self, *exc_info) -> Optional[bool]:
         await self._con_mgr.__aexit__(*exc_info)
         if self._debug:
-            log.debug('etcd lock released: {}', self._con_mgr._lock_key)
+            log.debug('etcd lock released')
         self._con_mgr = None
         return None
