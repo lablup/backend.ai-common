@@ -1,8 +1,12 @@
+from __future__ import annotations
+
+import abc
+import asyncio
 import fcntl
 import logging
 from io import IOBase
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from tenacity import (
     AsyncRetrying,
@@ -18,10 +22,23 @@ from etcetra.client import EtcdConnectionManager, EtcdCommunicator
 
 from ai.backend.common.etcd import AsyncEtcd
 
-from .distributed import AbstractDistributedLock
 from .logging import BraceStyleAdapter
 
 log = BraceStyleAdapter(logging.getLogger(__name__))
+
+
+class AbstractDistributedLock(metaclass=abc.ABCMeta):
+
+    def __init__(self, *, lifetime: Optional[float] = None) -> None:
+        self._lifetime = lifetime
+
+    @abc.abstractmethod
+    async def __aenter__(self) -> Any:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def __aexit__(self, *exc_info) -> Optional[bool]:
+        raise NotImplementedError
 
 
 class FileLock(AbstractDistributedLock):
@@ -36,8 +53,10 @@ class FileLock(AbstractDistributedLock):
         path: Path,
         *,
         timeout: Optional[float] = None,
+        lifetime: Optional[float] = None,
         debug: bool = False,
     ) -> None:
+        super().__init__(lifetime=lifetime)
         self._fp = None
         self._path = path
         self._timeout = timeout if timeout is not None else self.default_timeout
@@ -58,10 +77,7 @@ class FileLock(AbstractDistributedLock):
         assert not self._locked
         self._path.touch(exist_ok=True)
         self._fp = open(self._path, "rb")
-        if self._timeout <= 0:
-            stop_func = stop_never
-        else:
-            stop_func = stop_after_delay(self._timeout)
+        stop_func = stop_never if self._timeout <= 0 else stop_after_delay(self._timeout)
         try:
             async for attempt in AsyncRetrying(
                 retry=retry_if_exception_type(BlockingIOError),
@@ -74,7 +90,7 @@ class FileLock(AbstractDistributedLock):
                     if self._debug:
                         log.debug("file lock acquired: {}", self._path)
         except RetryError:
-            raise TimeoutError(f"failed to lock file: {self._path}")
+            raise asyncio.TimeoutError(f"failed to lock file: {self._path}")
 
     def release(self) -> None:
         assert self._fp is not None
@@ -98,6 +114,12 @@ class EtcdLock(AbstractDistributedLock):
 
     _con_mgr: EtcdConnectionManager
     _debug: bool
+
+    lock_name: str
+    etcd: AsyncEtcd
+    timeout: float
+    lifetime: Optional[float]
+
     default_timeout: float = 3  # not allow infinite timeout for safety
 
     def __init__(
@@ -106,20 +128,29 @@ class EtcdLock(AbstractDistributedLock):
         etcd: AsyncEtcd,
         *,
         timeout: Optional[float] = None,
+        lifetime: Optional[float] = None,
         debug: bool = False,
     ) -> None:
-        _timeout = timeout if timeout is not None else self.default_timeout
-        self._con_mgr = etcd.etcd.with_lock(lock_name, timeout=_timeout)
+        super().__init__(lifetime=lifetime)
+        self.lock_name = lock_name
+        self.etcd = etcd
+        self._timeout = timeout if timeout is not None else self.default_timeout
         self._debug = debug
 
     async def __aenter__(self) -> EtcdCommunicator:
+        self._con_mgr = self.etcd.etcd.with_lock(
+            self.lock_name,
+            timeout=self._timeout,
+            ttl=int(self._lifetime) if self._lifetime is not None else None,
+        )
         communicator = await self._con_mgr.__aenter__()
         if self._debug:
-            log.debug('etcd lock acquired: {}', self._con_mgr._lock_key)
+            log.debug('etcd lock acquired')
         return communicator
 
     async def __aexit__(self, *exc_info) -> Optional[bool]:
         await self._con_mgr.__aexit__(*exc_info)
         if self._debug:
-            log.debug('etcd lock released: {}', self._con_mgr._lock_key)
+            log.debug('etcd lock released')
+        self._con_mgr = None
         return None
