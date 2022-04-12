@@ -134,7 +134,6 @@ class EtcdLock(AbstractDistributedLock):
         super().__init__(lifetime=lifetime)
         self.lock_name = lock_name
         self.etcd = etcd
-        self.lifetime = lifetime
         self._timeout = timeout if timeout is not None else self.default_timeout
         self._debug = debug
 
@@ -142,7 +141,7 @@ class EtcdLock(AbstractDistributedLock):
         self._con_mgr = self.etcd.etcd.with_lock(
             self.lock_name,
             timeout=self._timeout,
-            ttl=int(self.lifetime) if self.lifetime is not None else None,
+            ttl=int(self._lifetime) if self._lifetime is not None else None,
         )
         communicator = await self._con_mgr.__aenter__()
         if self._debug:
