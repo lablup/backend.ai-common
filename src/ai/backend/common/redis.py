@@ -407,6 +407,8 @@ async def read_stream_by_group(
                     block=block_timeout,
                 ),
             )
+            if len(reply) == 0:
+                continue
             assert reply[0][0].decode() == stream_key
             for msg_id, msg_data in reply[0][1]:
                 messages.append((msg_id, msg_data))
