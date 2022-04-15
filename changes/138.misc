@@ -1,0 +1,1 @@
+Print warning log when timeout fired on `GlobalTimer` tries to acquire lock.
