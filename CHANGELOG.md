@@ -16,6 +16,30 @@ Changes
 
 <!-- towncrier release notes start -->
 
+## 22.03.0b5 (2022-04-18)
+
+### Miscellaneous
+* Explicitly show an warning log upon timeout of `GlobalTimer` acquiring a distributed lock and increase the default lock acquire timeout to 9600 seconds ([#138](https://github.com/lablup/backend.ai-common/issues/138))
+
+
+## 22.03.0b4 (2022-04-12)
+
+### Features
+* Let `validators.TimeDuration` to accept numbers (int and float) as well ([#128](https://github.com/lablup/backend.ai-common/issues/128))
+* Migrate `manager.distribute` and make it to use pluggable distributed lock implementations ([#129](https://github.com/lablup/backend.ai-common/issues/129))
+* Allow `EventDispatcher` and `EventProducer` to have a custom stream key other than "events" ([#131](https://github.com/lablup/backend.ai-common/issues/131))
+* Add `EtcdLock`, a locking mechanism based on Etcd's lock feature. ([#133](https://github.com/lablup/backend.ai-common/issues/133))
+* Add lifetime to the distributed locks to ensure the liveness property (i.e., guaranteed automatic release of locks in case of hangs or network partitions) ([#136](https://github.com/lablup/backend.ai-common/issues/136))
+
+### Fixes
+* Prevent a potential deadlock when all executor threads is occupied by the lock acquiring methods and unlocking via the executor becomes impossible ([#132](https://github.com/lablup/backend.ai-common/issues/132))
+* Migrate the bgtask framework from the manager and make it reusable in other projects such as storage-proxy ([#135](https://github.com/lablup/backend.ai-common/issues/135))
+
+### Miscellaneous
+* Remove old codes in ImageRef class, which was used to perform Etcd operations. ([#127](https://github.com/lablup/backend.ai-common/issues/127))
+* Run the redis test suite only when modules under common.redis or their test codes are changed ([#130](https://github.com/lablup/backend.ai-common/issues/130))
+
+
 ## 22.03.0b3 (2022-03-29)
 
 ### Features

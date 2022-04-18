@@ -1,1 +1,0 @@
-Add `EtcdLock`, a locking mechanism based on Etcd's lock feature.
