@@ -118,9 +118,8 @@ class EtcdLock(AbstractDistributedLock):
     lock_name: str
     etcd: AsyncEtcd
     timeout: float
-    lifetime: Optional[float]
 
-    default_timeout: float = 3  # not allow infinite timeout for safety
+    default_timeout: float = 9600  # not allow infinite timeout for safety
 
     def __init__(
         self,
