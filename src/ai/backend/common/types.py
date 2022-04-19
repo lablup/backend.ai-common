@@ -202,6 +202,7 @@ DeviceName = NewType('DeviceName', str)
 DeviceId = NewType('DeviceId', str)
 SlotName = NewType('SlotName', str)
 MetricKey = NewType('MetricKey', str)
+ServiceName = NewType('ServiceName', str)
 
 AccessKey = NewType('AccessKey', str)
 SecretKey = NewType('SecretKey', str)
