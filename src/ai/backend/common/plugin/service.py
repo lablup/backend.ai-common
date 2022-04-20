@@ -1,12 +1,31 @@
 from abc import ABCMeta, abstractmethod
 from functools import partial
-from pkg_resources import resource_filename
+import logging
 from pathlib import Path
-import re
-from typing import Any, Callable, Mapping, Sequence, Tuple, Union
+from typing import Any, Callable, Container, Mapping, Sequence, Set, Tuple, Union
 
 from . import AbstractPlugin, BasePluginContext
+from ..logging import BraceStyleAdapter
 from ..types import MountTypes, ServicePortProtocols
+
+
+__all__ = (
+    'AbstractServicePlugin',
+    'AbstractArtifactServicePlugin',
+    'AbstractIntrinsicServicePlugin',
+    'AbstractIntrinsicServicePlugin',
+    'VolumeMountServicePlugin',
+    'PylibServicePlugin',
+    'ServicePluginContext',
+)
+
+log = BraceStyleAdapter(logging.getLogger(__name__))
+
+
+class DuplicatedServiceName(Exception):
+
+    def __str__(self) -> str:
+        return f'Service name ``{self.args[0]}`` is already in used'
 
 
 class AbstractServicePlugin(AbstractPlugin, metaclass=ABCMeta):
@@ -17,6 +36,21 @@ class AbstractServicePlugin(AbstractPlugin, metaclass=ABCMeta):
     kernel_pkg = 'ai.backend.agent'
 
 
+    @classmethod
+    def check_duplicate_name(cls, service_name_set: Set | None = None) -> None:
+        if service_name_set is None:
+            service_name_set = set()
+        for subcls in cls.__subclasses__():
+            try:
+                sname = subcls.service_name
+            except AttributeError:
+                subcls.check_duplicate_name(service_name_set)
+                continue
+            if sname in service_name_set:
+                raise DuplicatedServiceName(sname)
+            service_name_set.add(sname)
+
+
     @abstractmethod
     def get_fname_pattern(self, arch: str, libc_style: str) -> str:
         """
@@ -24,6 +58,13 @@ class AbstractServicePlugin(AbstractPlugin, metaclass=ABCMeta):
         a file or path pattern which depends on an architecture or libc style.
         """
         pass
+
+    
+    @classmethod
+    def get_plugin_config(cls) -> Mapping[str, Any]:
+        # TODO: should be abstractmethod and implemented in extended classes
+        config = {}
+        return config
 
 
     async def init(self, context: Any = None) -> None:
@@ -34,15 +75,19 @@ class AbstractServicePlugin(AbstractPlugin, metaclass=ABCMeta):
         pass
 
 
+    async def update_plugin_config(self, plugin_config: Mapping[str, Any]) -> None:
+        self.plugin_config = plugin_config
+
+
     async def mount(
         self,
         arch: str,
         libc_style: str,
-        resolve_krunner_filepath: Callable[[Union[str, Path]], Path],
+        resolve_krunner_filepath: Callable[[str], Path],
         mount_to_rsc_spec: Callable[[MountTypes, Union[str, Path], Union[str, Path]], None],
     ) -> None:
         filename_pattern = self.get_fname_pattern(arch, libc_style)
-        src_path = resolve_krunner_filepath(Path(self.runner_dirname) / filename_pattern)
+        src_path = resolve_krunner_filepath(str(Path(self.runner_dirname) / filename_pattern))
         mount_to_rsc_spec(MountTypes.BIND, src_path, self.mount_dst)
 
 
@@ -52,33 +97,31 @@ class AbstractServicePlugin(AbstractPlugin, metaclass=ABCMeta):
 
 
 class AbstractArtifactServicePlugin(AbstractServicePlugin, metaclass=ABCMeta):
-    
+
+    @abstractmethod
+    def find_artifacts(self, filename_pattern: str) -> Mapping[str, str]:
+        """
+        This method finds local files match with given ``filename_pattern``.
+        It depends on the location of runtime, it should be implemented in the local.
+        """
+        pass
+
+
     async def mount(
         self,
         arch: str,
         libc_style: str,
         distro: str,
         match_distro_data: Callable[[Mapping[str, Any], str], Tuple[str, Any]],
-        resolve_krunner_filepath: Callable[[Union[str, Path]], Path],
+        resolve_krunner_filepath: Callable[[str], Path],
         mount_to_rsc_spec: Callable[[MountTypes, Union[str, Path], Union[str, Path]], None],
     ) -> None:
 
         filename_pattern = self.get_fname_pattern(arch, libc_style)
+        cands = self.find_artifacts(filename_pattern)
 
-        def find_artifacts() -> Mapping[str, str]:
-            artifacts = {}
-            pattern = Path().resolve().parent / self.runner_dirname
-            artifact_path = Path(resource_filename(self.kernel_pkg, pattern))
-            rx_distro = re.compile(r"\.([a-z-]+\d+\.\d+)\.")
-            for pth in artifact_path.glob(filename_pattern):
-                matched = rx_distro.search(pth.name)
-                if matched is not None:
-                    artifacts[matched.group(1)] = pth.name
-            return artifacts
-
-        cands = find_artifacts()
         _, filename_cand = match_distro_data(cands, distro)
-        src_path = resolve_krunner_filepath(Path(self.runner_dirname) / filename_cand)
+        src_path = resolve_krunner_filepath(str(Path(self.runner_dirname) / filename_cand))
         mount_to_rsc_spec(MountTypes.BIND, src_path, self.mount_dst)
 
 
@@ -101,14 +144,29 @@ class AbstractIntrinsicServicePlugin(AbstractServicePlugin, metaclass=ABCMeta):
     async def init_service(self, child_env) -> None:
         pass
 
-
     @abstractmethod
     async def prepare_service(self, ports: Tuple[int] | None) -> Tuple[Sequence[str], Mapping[str, str]]:
         pass
 
-
-    def mount(self) -> None:
+    def get_fname_pattern(self, arch: str, libc_style: str) -> str:
         pass
+
+    async def mount(self) -> None:
+        pass
+
+
+class VolumeMountServicePlugin(AbstractServicePlugin):
+    mount_dst = '/opt/backend.ai'
+
+    def get_fname_pattern(self, arch: str, libc_style: str) -> str:
+        pass
+
+    async def mount(
+        self,
+        krunner_volume: str,
+        mount_to_rsc_spec: Callable[[MountTypes, Union[str, Path], Union[str, Path]], None],
+    ) -> None:
+        mount_to_rsc_spec(MountTypes.VOLUME, krunner_volume, self.mount_dst)
 
 
 class PylibServicePlugin(AbstractServicePlugin):
@@ -123,7 +181,7 @@ class PylibServicePlugin(AbstractServicePlugin):
     async def mount(
         self,
         krunner_pyver: str,
-        resolve_krunner_filepath: Callable[[Union[str, Path]], Path],
+        resolve_krunner_filepath: Callable[[str], Path],
         mount_to_rsc_spec: Callable[[MountTypes, Union[str, Path], Union[str, Path]], None],
     ) -> None:
         src_path = resolve_krunner_filepath(self.fname_pattern)
@@ -135,34 +193,52 @@ class ServicePluginContext(BasePluginContext[AbstractServicePlugin]):
     distro: str
     arch: str
     libc_style: str
+    krunner_volume: str
     krunner_pyver: str
     match_distro_data: Callable[[Mapping[str, Any], str], Tuple[str, Any]]
-    resolve_krunner_filepath: Callable[[Union[str, Path]], Path]
+    resolve_krunner_filepath: Callable[[str], Path]
     mount_to_rsc_spec: Callable[[MountTypes, Union[str, Path], Union[str, Path]], None]
+
 
     async def init(self, context: Any = None) -> None:
         pass
-        
+
 
     async def mount(self) -> None:
-        for plugin_instance in self.plugins.values():
-            if isinstance(plugin_instance, PylibServicePlugin):
-                mount_func = partial(plugin_instance.mount, self.krunner_pyver)
-            elif isinstance(plugin_instance, AbstractIntrinsicServicePlugin):
-                # TODO: intrinsic services should be mounted
-                pass
-            elif isinstance(plugin_instance, AbstractServicePlugin):
-                mount_func = partial(
-                    plugin_instance.mount,
-                    self.arch,
-                    self.libc_style,
-                )
-                if isinstance(plugin_instance, AbstractArtifactServicePlugin):
+        mount_func: partial
+        for plugin_name, plugin_instance in self.plugins.items():
+            match plugin_instance:
+                case PylibServicePlugin():
+                    mount_func = partial(plugin_instance.mount, self.krunner_pyver)
+                case VolumeMountServicePlugin():
+                    await plugin_instance.mount(self.krunner_volume, self.mount_to_rsc_spec)
+                    continue
+                case AbstractIntrinsicServicePlugin():
+                    # TODO: intrinsic services should be mounted
+                    await plugin_instance.mount()
+                    continue
+                case AbstractArtifactServicePlugin():
                     mount_func = partial(
-                        mount_func,
+                        plugin_instance.mount,
+                        self.arch,
+                        self.libc_style,
                         self.distro,
                         self.match_distro_data,
                     )
+                case AbstractServicePlugin():
+                    mount_func = partial(
+                        plugin_instance.mount,
+                        self.arch,
+                        self.libc_style,
+                    )
+                case _:
+                    log.exception(
+                        'Service plugin ``{}`` has invalid type {}.',
+                        plugin_name,
+                        type(plugin_instance).__name__,
+                    )
+                    continue
+
             await mount_func(
                 resolve_krunner_filepath=self.resolve_krunner_filepath,
                 mount_to_rsc_spec=self.mount_to_rsc_spec,

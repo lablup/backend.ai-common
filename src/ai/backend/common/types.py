@@ -46,6 +46,7 @@ __all__ = (
     'SessionId',
     'KernelId',
     'MetricKey',
+    'ServiceName',
     'MetricValue',
     'MovingStatValue',
     'PID',
