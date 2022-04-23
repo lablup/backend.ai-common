@@ -11,15 +11,15 @@ from ..types import MountTypes
 
 
 __all__ = (
-    'AbstractServicePlugin',
-    'BaseServicePluginContext',
+    'AbstractContainerAddon',
+    'BaseContainerAddonContext',
 )
 
 log = BraceStyleAdapter(logging.getLogger(__name__))
 
 
-class AbstractServicePlugin(AbstractPlugin, metaclass=ABCMeta):
-    service_name: ClassVar[str]
+class AbstractContainerAddon(AbstractPlugin, metaclass=ABCMeta):
+    addon_name: ClassVar[str]
     fname_pattern: ClassVar[str]
     mount_dst: ClassVar[Union[str, Path]]
     mount_type: ClassVar[MountTypes]
@@ -53,13 +53,13 @@ class AbstractServicePlugin(AbstractPlugin, metaclass=ABCMeta):
     async def update_plugin_config(self, plugin_config: Mapping[str, Any]) -> None:
         self.plugin_config = plugin_config
 
-    def update_service(self) -> None:
-        # TODO: implement update the service or package
+    def update_addon(self) -> None:
+        # TODO: implement update the container addon
         pass
 
 
-class BaseServicePluginContext(BasePluginContext[AbstractServicePlugin]):
-    plugin_group = 'backendai_service_plugin_v20'
+class BaseContainerAddonContext(BasePluginContext[AbstractContainerAddon]):
+    plugin_group = 'backendai_container_addon_v20'
 
     async def init(self, context: Any = None) -> None:
         pass
