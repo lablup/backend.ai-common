@@ -16,6 +16,12 @@ Changes
 
 <!-- towncrier release notes start -->
 
+## 22.03.0 (2022-04-25)
+
+### Miscellaneous
+* Update aiotools to 1.5.8 fixing subprocess spawn errors with pidfd-enabled setups and the asyncio event-loop option.
+
+
 ## 22.03.0b5 (2022-04-18)
 
 ### Miscellaneous
