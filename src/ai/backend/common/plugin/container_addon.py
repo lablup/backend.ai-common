@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 import logging
 from pathlib import Path
-from typing import Any, ClassVar, Mapping, Union
+from typing import Any, ClassVar, Mapping, TypeVar, Union
 
 from . import AbstractPlugin, BasePluginContext
 from ..logging import BraceStyleAdapter
@@ -58,7 +58,9 @@ class AbstractContainerAddon(AbstractPlugin, metaclass=ABCMeta):
         pass
 
 
-class BaseContainerAddonContext(BasePluginContext[AbstractContainerAddon]):
+T = TypeVar('T', bound=AbstractContainerAddon)
+
+class BaseContainerAddonContext(BasePluginContext[T]):
     plugin_group = 'backendai_container_addon_v20'
 
     async def init(self, context: Any = None) -> None:

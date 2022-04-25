@@ -46,7 +46,6 @@ __all__ = (
     'SessionId',
     'KernelId',
     'MetricKey',
-    'ContainerAddonName',
     'MetricValue',
     'MovingStatValue',
     'PID',
@@ -203,7 +202,6 @@ DeviceName = NewType('DeviceName', str)
 DeviceId = NewType('DeviceId', str)
 SlotName = NewType('SlotName', str)
 MetricKey = NewType('MetricKey', str)
-ContainerAddonName = NewType('ContainerAddonName', str)
 
 AccessKey = NewType('AccessKey', str)
 SecretKey = NewType('SecretKey', str)
