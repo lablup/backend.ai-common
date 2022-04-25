@@ -60,6 +60,7 @@ class AbstractContainerAddon(AbstractPlugin, metaclass=ABCMeta):
 
 T = TypeVar('T', bound=AbstractContainerAddon)
 
+
 class BaseContainerAddonContext(BasePluginContext[T]):
     plugin_group = 'backendai_container_addon_v20'
 
