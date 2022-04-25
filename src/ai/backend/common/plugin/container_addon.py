@@ -27,7 +27,7 @@ class AbstractContainerAddon(AbstractPlugin, metaclass=ABCMeta):
     @classmethod
     def get_plugin_config(cls) -> Mapping[str, Any]:
         # TODO: should be abstractmethod and implemented in extended classes
-        config = {}
+        config: Mapping[str, Any] = {}
         return config
 
     @property
