@@ -1,0 +1,1 @@
+Add error logs to notify ConnectionError caused by incorrect redis url.
