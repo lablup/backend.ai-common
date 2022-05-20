@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 import socket
+import sys
 from typing import (
     Any,
     AsyncIterator,
@@ -23,6 +25,7 @@ import aioredis.sentinel
 import aioredis.exceptions
 import yarl
 
+from .logging import BraceStyleAdapter
 from .types import EtcdRedisConfig, RedisConnectionInfo
 from .validators import DelimiterSeperatedList, HostPortPair
 
@@ -58,6 +61,8 @@ _default_conn_opts: Mapping[str, Any] = {
 
 
 _scripts: Dict[str, str] = {}
+
+log = BraceStyleAdapter(logging.getLogger(__name__))
 
 
 class ConnectionNotAvailable(Exception):
@@ -483,3 +488,11 @@ def get_redis_object(
             client=aioredis.Redis.from_url(str(url), **kwargs),
             service_name=None,
         )
+
+
+async def ping_redis_connection(client: aioredis.client.Redis):
+    try:
+        _ = await client.time()
+    except aioredis.exceptions.ConnectionError as e:
+        log.error(str(e))
+        sys.exit(1)
