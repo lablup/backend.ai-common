@@ -269,7 +269,8 @@ async def execute(
             aioredis.sentinel.SlaveNotFoundError,
             aioredis.exceptions.ReadOnlyError,
             ConnectionResetError,
-        ):
+        ) as e:
+            log.error(e)
             await asyncio.sleep(reconnect_poll_interval)
             continue
         except aioredis.exceptions.ResponseError as e:
