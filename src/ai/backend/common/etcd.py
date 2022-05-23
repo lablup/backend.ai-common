@@ -100,6 +100,8 @@ class AsyncEtcd:
 
     etcd: EtcdClient
 
+    _creds: Optional[EtcdCredential]
+
     def __init__(
         self,
         addr: HostPortPair,
