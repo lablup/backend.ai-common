@@ -30,6 +30,7 @@ log = BraceStyleAdapter(logging.getLogger(__name__))
 class AbstractDistributedLock(metaclass=abc.ABCMeta):
 
     def __init__(self, *, lifetime: Optional[float] = None) -> None:
+        assert lifetime is None or lifetime >= 0.0
         self._lifetime = lifetime
 
     @abc.abstractmethod
@@ -61,6 +62,7 @@ class FileLock(AbstractDistributedLock):
         self._path = path
         self._timeout = timeout if timeout is not None else self.default_timeout
         self._debug = debug
+        self._watchdog_task = None
 
     @property
     def locked(self) -> bool:
@@ -89,11 +91,18 @@ class FileLock(AbstractDistributedLock):
                     self._locked = True
                     if self._debug:
                         log.debug("file lock acquired: {}", self._path)
+                    if self._lifetime is not None:
+                        self._watchdog_task = asyncio.create_task(
+                            self._watchdog_timer(ttl=self._lifetime,)
+                        )
         except RetryError:
             raise asyncio.TimeoutError(f"failed to lock file: {self._path}")
 
     def release(self) -> None:
         assert self._fp is not None
+        if task := self._watchdog_task:
+            if not task.done():
+                task.cancel()
         if self._locked:
             fcntl.flock(self._fp, fcntl.LOCK_UN)
             self._locked = False
@@ -108,6 +117,16 @@ class FileLock(AbstractDistributedLock):
     async def __aexit__(self, *exc_info) -> bool | None:
         self.release()
         return None
+
+    async def _watchdog_timer(self, ttl: float, interval: float = 0.03):
+        while ttl > 0:
+            await asyncio.sleep(interval)
+            ttl -= interval
+        if self._locked:
+            fcntl.flock(self._fp, fcntl.LOCK_UN)
+            self._locked = False
+            if self._debug:
+                log.debug(f"file lock implicitly released by watchdog: {self._path}")
 
 
 class EtcdLock(AbstractDistributedLock):
