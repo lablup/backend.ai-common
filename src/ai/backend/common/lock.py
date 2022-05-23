@@ -93,7 +93,7 @@ class FileLock(AbstractDistributedLock):
                         log.debug("file lock acquired: {}", self._path)
                     if self._lifetime is not None:
                         self._watchdog_task = asyncio.create_task(
-                            self._watchdog_timer(ttl=self._lifetime,)
+                            self._watchdog_timer(ttl=self._lifetime),
                         )
         except RetryError:
             raise asyncio.TimeoutError(f"failed to lock file: {self._path}")
