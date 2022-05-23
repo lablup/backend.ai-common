@@ -267,3 +267,26 @@ async def test_global_timer_join_leave(request, test_ns, redis_container) -> Non
 
     await event_producer.close()
     await event_dispatcher.close()
+
+
+@pytest.mark.asyncio
+async def test_filelock_watchdog(request, test_ns) -> None:
+    lock_path = Path(tempfile.gettempdir()) / f'{test_ns}.lock'
+    request.addfinalizer(partial(lock_path.unlink, missing_ok=True))
+
+    async def _main(ttl: float, delay: float = 5.0, interval: float = 0.03):
+        async with FileLock(lock_path, timeout=0, lifetime=ttl, debug=True) as lock:
+            t = 0
+            while lock._locked and t < delay:
+                await asyncio.sleep(interval)
+                t += interval
+
+    ttl, delay = (3.0, float('inf'))
+    n = 4
+
+    perf_counter = time.perf_counter()
+
+    coroutines = [asyncio.create_task(_main(ttl=ttl, delay=delay)) for _ in range(n)]
+    await asyncio.gather(*coroutines)
+
+    assert ttl * n <= (time.perf_counter() - perf_counter) < delay * n

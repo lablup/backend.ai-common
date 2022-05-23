@@ -113,6 +113,7 @@ class FileLock(AbstractDistributedLock):
 
     async def __aenter__(self) -> None:
         await self.acquire()
+        return self
 
     async def __aexit__(self, *exc_info) -> bool | None:
         self.release()
