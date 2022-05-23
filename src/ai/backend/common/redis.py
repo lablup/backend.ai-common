@@ -4,7 +4,6 @@ import asyncio
 import inspect
 import logging
 import socket
-import sys
 from typing import (
     Any,
     AsyncIterator,
