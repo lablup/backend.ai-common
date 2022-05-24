@@ -16,6 +16,16 @@ Changes
 
 <!-- towncrier release notes start -->
 
+## 22.03.1 (2022-05-24)
+
+### Fixes
+* Add explicit error logs to inform occurrence of `aioredis.exceptions.ConnectionError` because incorrect server URLs and temporary network failures are indistinguishable but should be diagnosable ([#139](https://github.com/lablup/backend.ai-common/issues/139))
+* Fix mypy failing on `EtcdLock` and `AsyncEtcd`. ([#141](https://github.com/lablup/backend.ai-common/issues/141))
+
+### Miscellaneous
+* Bump etcetra version to 0.1.6. ([#142](https://github.com/lablup/backend.ai-common/issues/142))
+
+
 ## 22.03.0 (2022-04-25)
 
 ### Miscellaneous
