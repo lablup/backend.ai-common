@@ -262,16 +262,16 @@ async def execute(
                         return newdict
                 else:
                     return result
-        except aioredis.exceptions.ConnectionError as e:
-            log.exception(f'execute(): Connecting to redis failed: {e}')
-            await asyncio.sleep(reconnect_poll_interval)
-            continue
         except (
             aioredis.sentinel.MasterNotFoundError,
             aioredis.sentinel.SlaveNotFoundError,
             aioredis.exceptions.ReadOnlyError,
             ConnectionResetError,
         ):
+            await asyncio.sleep(reconnect_poll_interval)
+            continue
+        except aioredis.exceptions.ConnectionError as e:
+            log.exception(f'execute(): Connecting to redis failed: {e}')
             await asyncio.sleep(reconnect_poll_interval)
             continue
         except aioredis.exceptions.ResponseError as e:
