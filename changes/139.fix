@@ -1,1 +1,1 @@
-Add error logs to notify ConnectionError caused by incorrect redis url.
+Add explicit error logs to inform occurrence of `aioredis.exceptions.ConnectionError` because incorrect server URLs and temporary network failures are indistinguishable but should be diagnosable
