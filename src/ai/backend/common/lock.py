@@ -119,10 +119,8 @@ class FileLock(AbstractDistributedLock):
         self.release()
         return None
 
-    async def _watchdog_timer(self, ttl: float, interval: float = 0.03):
-        while ttl > 0:
-            await asyncio.sleep(interval)
-            ttl -= interval
+    async def _watchdog_timer(self, ttl: float):
+        await asyncio.sleep(ttl)
         if self._locked:
             fcntl.flock(self._fp, fcntl.LOCK_UN)
             self._locked = False
