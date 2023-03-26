@@ -359,17 +359,25 @@ def test_slug():
     assert iv.check('abc') == 'abc'
     assert iv.check('a-b') == 'a-b'
     assert iv.check('a_b') == 'a_b'
-
-    with pytest.raises(t.DataError):
-        iv.check('_')
+    assert iv.check('_') == '_'
     with pytest.raises(t.DataError):
         iv.check('')
 
-    iv = tx.Slug(allow_dot=True)
+    iv = tx.Slug(allow_dot=True, ascii_only=False)
     assert iv.check('.a') == '.a'
     assert iv.check('a') == 'a'
-    with pytest.raises(t.DataError):
-        iv.check('..a')
+    assert iv.check('.ㄱ') == '.ㄱ'
+    assert iv.check('ㄱ') == 'ㄱ'
+    assert iv.check('.Ç') == '.Ç'
+    assert iv.check('Ç') == 'Ç'
+    assert iv.check('.á') == '.á'
+    assert iv.check('á') == 'á'
+    assert iv.check('.あ') == '.あ'
+    assert iv.check('あ') == 'あ'
+    assert iv.check('.字') == '.字'
+    assert iv.check('字') == '字'
+
+    assert iv.check('..a') == '..a'
 
     iv = tx.Slug[:4]
     assert iv.check('abc') == 'abc'
@@ -404,6 +412,11 @@ def test_slug():
         tx.Slug[-1:]
     with pytest.raises(TypeError):
         tx.Slug[:-1]
+
+    # ascii only
+    iv = tx.Slug(allow_dot=True, ascii_only=True)
+    assert iv.check('.a') == '.a'
+    assert iv.check('a') == 'a'
 
 
 def test_json_string():
