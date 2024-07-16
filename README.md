@@ -6,6 +6,9 @@ Backend.AI Commons
 [![Build Status](https://travis-ci.com/lablup/backend.ai-common.svg?branch=master)](https://travis-ci.com/lablup/backend.ai-common)
 [![Gitter](https://badges.gitter.im/lablup/backend.ai-common.svg)](https://gitter.im/lablup/backend.ai-common)
 
+> [!NOTE]
+> **Deprecation notice**: This repository is archived and no longer maintained. The code has been migrated to our semi-mono repository at https://github.com/lablup/backend.ai.
+
 Common utilities library for Backend.AI
 
 
