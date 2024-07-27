@@ -68,7 +68,7 @@ jobs:
           requirements/test.txt
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@v18.6
+      uses: tj-actions/changed-files@v41
     - name: Configure testing based on changed files
       run: |
         for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
