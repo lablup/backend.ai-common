@@ -534,12 +534,14 @@ class TimeDuration(t.Trafaret):
 
 class Slug(t.Trafaret, metaclass=StringLengthMeta):
 
-    _rx_slug = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$')
+    _rx_slug_ascii_only = re.compile(r'^[\w\-_.\s]+$', re.ASCII)
+    _rx_slug = re.compile(r'^[\w\-_.\s]+$')
 
     def __init__(self, *, min_length: Optional[int] = None, max_length: Optional[int] = None,
-                 allow_dot: bool = False) -> None:
+                 allow_dot: bool = False, ascii_only: bool = False) -> None:
         super().__init__()
         self._allow_dot = allow_dot
+        self._ascii_only = ascii_only
         if min_length is not None and min_length < 0:
             raise TypeError('min_length must be larger than or equal to zero.')
         if max_length is not None and max_length < 0:
@@ -559,7 +561,10 @@ class Slug(t.Trafaret, metaclass=StringLengthMeta):
                 checked_value = value[1:]
             else:
                 checked_value = value
-            m = type(self)._rx_slug.search(checked_value)
+            if self._ascii_only:
+                m = type(self)._rx_slug_ascii_only.search(checked_value)
+            else:
+                m = type(self)._rx_slug.search(checked_value)
             if not m:
                 self._failure('value must be a valid slug.', value=value)
         else:
